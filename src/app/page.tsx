@@ -28,9 +28,9 @@ export default async function Home() {
           <Link href="/login">
             <Button size="lg" className="px-10 text-base">免费开始使用</Button>
           </Link>
-          <a href="#features">
-            <Button variant="outline" size="lg" className="px-10 text-base">了解更多 ↓</Button>
-          </a>
+          <Link href="/about">
+            <Button variant="outline" size="lg" className="px-10 text-base">了解更多</Button>
+          </Link>
         </div>
         <p className="text-xs text-gray-400 mt-4">无需下载 · 浏览器即用 · 完全免费</p>
       </section>

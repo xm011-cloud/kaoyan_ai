@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/api-auth";
+import { getUserAiConfig } from "@/lib/ai-config";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(request: NextRequest) {
@@ -50,14 +51,12 @@ export async function POST(request: NextRequest) {
 - 状态分布：${Object.entries(moodCounts).map(([k,v]) => `${k === 'good' ? '状态好' : k === 'normal' ? '一般' : '疲惫'} ${v}天`).join('，')}
 ${goal ? `- 目标院校：${goal.university} ${goal.major}，考试日期：${goal.examDate.toISOString().split("T")[0]}` : ''}`;
 
-    const apiKey = process.env.OPENAI_API_KEY;
+    const aiConfig = await getUserAiConfig(user!.id);
     let content = "";
     let suggestions: string[] = [];
 
-    if (apiKey && !apiKey.startsWith("your_")) {
-      // AI 生成
-      const baseURL = process.env.OPENAI_BASE_URL || "https://api.xiaomimimo.com/v1";
-      const model = process.env.AI_MODEL || "mimo-v2.5-pro";
+    if (aiConfig) {
+      const { apiKey, baseURL, model } = aiConfig;
 
       try {
         const response = await fetch(`${baseURL}/chat/completions`, {

@@ -12,6 +12,9 @@ model User {
   email     String   @unique
   name      String?
   avatar    String?
+  aiKey     String?  // 用户自己的 AI API Key
+  aiUrl     String?  // 用户自定义 API Base URL
+  aiModel   String?  // 用户选择的模型
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

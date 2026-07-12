@@ -6,4 +6,5 @@ export const navItems = [
   { href: '/materials',  label: '学习资料', icon: '📚', shortLabel: '资料' },
   { href: '/chat',       label: 'AI 问答',  icon: '💬', shortLabel: 'AI' },
   { href: '/feedback',   label: '学习反馈', icon: '📊', shortLabel: '反馈' },
+  { href: '/settings',   label: '设置',     icon: '⚙️',  shortLabel: '设置' },
 ]

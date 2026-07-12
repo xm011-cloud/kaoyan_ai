@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/api-auth";
+import { getUserAiConfig } from "@/lib/ai-config";
 import { prisma } from "@/lib/prisma";
 
 interface PlanTask {
@@ -127,13 +128,12 @@ export async function POST(request: NextRequest) {
       where: { userId: user!.id },
     });
 
-    const apiKey = process.env.OPENAI_API_KEY;
+    const aiConfig = await getUserAiConfig(user!.id);
+
     let planTasks: PlanTask[];
 
-    if (apiKey && !apiKey.startsWith("your_")) {
-      // === AI 生成计划 ===
-      const baseURL = process.env.OPENAI_BASE_URL || "https://api.xiaomimimo.com/v1";
-      const model = process.env.AI_MODEL || "mimo-v2.5-pro";
+    if (aiConfig) {
+      const { apiKey, baseURL, model } = aiConfig;
 
       const prompt = `你是一名资深的考研辅导专家。请根据以下信息为用户生成一份详细的考研复习计划。
 
@@ -243,7 +243,7 @@ export async function POST(request: NextRequest) {
       totalTasks: created.length,
       daysRemaining,
       phases: phaseStats,
-      generatedBy: apiKey && !apiKey.startsWith("your_") ? "ai" : "local",
+      generatedBy: aiConfig ? "ai" : "local",
     });
   } catch (err) {
     console.error("Generate plan error:", err);

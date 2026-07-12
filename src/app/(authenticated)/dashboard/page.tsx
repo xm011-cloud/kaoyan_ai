@@ -1,0 +1,250 @@
+import { createClient } from "@/lib/supabase/server"
+import { redirect } from "next/navigation"
+import { prisma } from "@/lib/prisma"
+import Link from "next/link"
+import { DashboardCharts } from "@/components/dashboard-charts"
+
+export default async function DashboardPage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect("/login")
+
+  const userId = user.id
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const todayEnd = new Date(today)
+  todayEnd.setHours(23, 59, 59, 999)
+  const todayStr = today.toISOString().split("T")[0]
+
+  // ── 今日任务 ──
+  const todayTasks = await prisma.task.findMany({
+    where: { userId, date: { gte: today, lte: todayEnd } },
+    orderBy: { createdAt: "asc" },
+  })
+  const todayCompleted = todayTasks.filter(t => t.completed).length
+  const todayTotal = todayTasks.length
+  const todayMinutes = todayTasks.reduce((s, t) => s + (t.duration || 0), 0)
+
+  // ── 本周学习时长 ──
+  const weekStart = new Date(today)
+  weekStart.setDate(weekStart.getDate() - weekStart.getDay())
+  weekStart.setHours(0, 0, 0, 0)
+  const weekEnd = new Date(weekStart)
+  weekEnd.setDate(weekEnd.getDate() + 6)
+  weekEnd.setHours(23, 59, 59, 999)
+
+  const weekCheckIns = await prisma.checkIn.findMany({
+    where: { userId, date: { gte: weekStart, lte: weekEnd } },
+  })
+  const weekMinutes = weekCheckIns.reduce((s, c) => s + c.duration, 0)
+  const weekDays = weekCheckIns.length
+
+  // ── 连续打卡天数 ──
+  const recentCheckIns = await prisma.checkIn.findMany({
+    where: { userId },
+    orderBy: { date: "desc" },
+    take: 100,
+    select: { date: true },
+  })
+  let streak = 0
+  const checkDate = new Date(today)
+  for (let i = 0; i < 365; i++) {
+    const ds = checkDate.toISOString().split("T")[0]
+    const found = recentCheckIns.some(c => {
+      const d = new Date(c.date); d.setHours(0, 0, 0, 0)
+      return d.toISOString().split("T")[0] === ds
+    })
+    if (found) { streak++; checkDate.setDate(checkDate.getDate() - 1) }
+    else break
+  }
+
+  // ── 总任务完成率 ──
+  const totalAll = await prisma.task.count({ where: { userId } })
+  const completedAll = await prisma.task.count({ where: { userId, completed: true } })
+
+  // ── 目标 ──
+  const goal = await prisma.goal.findUnique({ where: { userId } })
+  const daysLeft = goal
+    ? Math.max(0, Math.ceil((new Date(goal.examDate).getTime() - today.getTime()) / 86400000))
+    : 0
+
+  // ── 本周每日时长 ──
+  const weekDayNames = ["日", "一", "二", "三", "四", "五", "六"]
+  const weekBars = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(weekStart); d.setDate(d.getDate() + i); d.setHours(0,0,0,0)
+    const dEnd = new Date(d); dEnd.setHours(23,59,59,999)
+    const mins = weekCheckIns.filter(c => {
+      const cd = new Date(c.date); cd.setHours(0,0,0,0)
+      return cd >= d && cd <= dEnd
+    }).reduce((s, c) => s + c.duration, 0)
+    return { day: weekDayNames[i], minutes: mins, isToday: i === today.getDay() }
+  })
+  const weekMax = Math.max(...weekBars.map(b => b.minutes), 60)
+
+  // ── 最近打卡 ──
+  const recentChecks = await prisma.checkIn.findMany({
+    where: { userId },
+    orderBy: { date: "desc" },
+    take: 5,
+  })
+
+  // ── 图表数据：全部打卡 + 全部任务 ──
+  const allCheckIns = await prisma.checkIn.findMany({
+    where: { userId },
+    orderBy: { date: "asc" },
+    select: { id: true, date: true, duration: true, status: true },
+  })
+  const allTasks = await prisma.task.findMany({
+    where: { userId },
+    select: { id: true, title: true, phase: true, completed: true, duration: true },
+  })
+
+  // ── 有用任务数量(今日) ──
+  const todayCheckIn = weekCheckIns.find(c => {
+    const cd = new Date(c.date); cd.setHours(0,0,0,0)
+    return cd.getTime() === today.getTime()
+  })
+
+  return (
+    <div className="p-4 lg:p-6 space-y-4 lg:space-y-6">
+      {/* 欢迎横幅 */}
+      <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl p-4 lg:p-6 text-white">
+        <h1 className="text-lg lg:text-2xl font-bold">
+          {goal ? `欢迎回来！目标：${goal.university} ${goal.major}` : '欢迎回来！'}
+        </h1>
+        <p className="mt-1 text-sm lg:text-base opacity-90">
+          {goal
+            ? `距考试还有 ${daysLeft} 天，加油 💪`
+            : '先去设置考研目标，AI 为你生成专属计划'}
+        </p>
+      </div>
+
+      {/* 统计卡片 */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+        <StatCard icon="📋" label="今日任务" value={`${todayCompleted}/${todayTotal}`} sub={`${todayMinutes} 分钟`} color="blue" />
+        <StatCard icon="⏱️" label="本周学习" value={`${(weekMinutes / 60).toFixed(1)}h`} sub={`打卡 ${weekDays} 天`} color="green" />
+        <StatCard icon="🔥" label="连续打卡" value={`${streak} 天`} sub={streak >= 7 ? '太棒了！' : streak >= 3 ? '继续加油' : '从今天开始'} color="orange" />
+        <StatCard icon="📊" label="任务完成率" value={`${totalAll > 0 ? Math.round((completedAll / totalAll) * 100) : 0}%`} sub={`${completedAll}/${totalAll}`} color="purple" />
+      </div>
+
+      {/* 本周时长 + 最近打卡 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white dark:bg-gray-800 rounded-xl border p-5">
+          <h3 className="font-semibold mb-4">本周每日学习时长</h3>
+          <div className="flex items-end justify-between gap-2 h-32">
+            {weekBars.map((bar) => (
+              <div key={bar.day} className="flex-1 flex flex-col items-center gap-1">
+                <span className="text-xs text-gray-500">{bar.minutes > 0 ? `${Math.round(bar.minutes / 60)}h` : ''}</span>
+                <div
+                  className={`w-full rounded-t-md transition-all ${bar.isToday ? 'bg-blue-500' : 'bg-blue-200 dark:bg-blue-800'}`}
+                  style={{ height: `${Math.max(4, (bar.minutes / weekMax) * 100)}%` }}
+                />
+                <span className={`text-xs ${bar.isToday ? 'font-bold text-blue-600' : 'text-gray-400'}`}>{bar.day}</span>
+              </div>
+            ))}
+          </div>
+          {weekDays === 0 && (
+            <p className="text-center text-sm text-gray-400 mt-2">这周还没有打卡数据</p>
+          )}
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-xl border p-5">
+          <h3 className="font-semibold mb-3">最近打卡</h3>
+          {recentChecks.length === 0 ? (
+            <p className="text-sm text-gray-500 py-6 text-center">还没有打卡记录</p>
+          ) : (
+            <div className="space-y-2">
+              {recentChecks.map((check) => (
+                <div key={check.id} className="flex items-center justify-between py-2 border-b last:border-0 dark:border-gray-700">
+                  <div className="flex items-center gap-2">
+                    <span>{check.status === 'good' ? '😊' : check.status === 'normal' ? '😐' : '😫'}</span>
+                    <span className="text-sm">{new Date(check.date).toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' })}</span>
+                  </div>
+                  <span className="text-sm text-gray-500">{Math.round(check.duration / 60)} 小时</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 图表区域：热力图 + 统计 */}
+      <DashboardCharts
+        checkIns={allCheckIns.map(c => ({
+          id: c.id, date: c.date.toISOString(), duration: c.duration, status: c.status,
+        }))}
+        tasks={allTasks.map(t => ({
+          id: t.id, title: t.title, phase: t.phase, completed: t.completed, duration: t.duration ?? undefined,
+        }))}
+      />
+
+      {/* 今日任务列表 */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl border p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold">今日任务 ({todayStr})</h3>
+          <Link href="/tasks" className="text-sm text-blue-500 hover:underline">查看全部 →</Link>
+        </div>
+        {todayTasks.length === 0 ? (
+          <p className="text-sm text-gray-500 py-4 text-center">今天还没有任务</p>
+        ) : (
+          <div className="space-y-2">
+            {todayTasks.map((task) => (
+              <div key={task.id} className={`flex items-center gap-3 p-3 rounded-lg ${task.completed ? 'bg-gray-50 dark:bg-gray-700/50 opacity-60' : ''}`}>
+                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ${task.completed ? 'bg-green-500 border-green-500' : 'border-gray-300 dark:border-gray-600'}`}>
+                  {task.completed && <span className="text-white text-xs">✓</span>}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm ${task.completed ? 'line-through text-gray-400' : ''}`}>{task.title}</p>
+                  {task.duration && <p className="text-xs text-gray-400">{task.duration} 分钟</p>}
+                </div>
+                {task.phase && <span className="text-xs text-purple-500 bg-purple-50 dark:bg-purple-900/20 px-2 py-0.5 rounded">{task.phase}</span>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 快捷入口 */}
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+        {[
+          { href: '/tasks', icon: '📋', label: '计划' },
+          { href: '/checkin', icon: '✅', label: '打卡' },
+          { href: '/goal', icon: '🎯', label: '目标' },
+          { href: '/materials', icon: '📚', label: '资料' },
+          { href: '/chat', icon: '💬', label: 'AI 问答' },
+          { href: '/feedback', icon: '📊', label: '反馈' },
+        ].map((item) => (
+          <Link key={item.href} href={item.href}
+            className="flex flex-col items-center gap-1 p-3 bg-white dark:bg-gray-800 rounded-xl border hover:shadow-md transition-shadow">
+            <span className="text-xl">{item.icon}</span>
+            <span className="text-xs text-gray-600 dark:text-gray-400">{item.label}</span>
+          </Link>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function StatCard({ icon, label, value, sub, color }: {
+  icon: string; label: string; value: string; sub: string
+  color: 'blue' | 'green' | 'orange' | 'purple'
+}) {
+  const colors = {
+    blue:   'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
+    green:  'bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400',
+    orange: 'bg-orange-50 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400',
+    purple: 'bg-purple-50 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
+  }
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl border p-4">
+      <div className="flex items-center gap-3">
+        <div className={`text-xl p-2 rounded-lg ${colors[color]}`}>{icon}</div>
+        <div className="min-w-0">
+          <p className="text-xs text-gray-500">{label}</p>
+          <p className="text-xl font-bold">{value}</p>
+          <p className="text-xs text-gray-400">{sub}</p>
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -4,7 +4,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 // 用户表
@@ -61,7 +60,7 @@ model Task {
 model CheckIn {
   id          String   @id @default(uuid())
   userId      String
-  date        DateTime @unique
+  date        DateTime // 打卡日期
   duration    Int      // 学习时长(分钟)
   status      String   // 状态: good/normal/tired
   note        String?  // 备注
@@ -69,6 +68,7 @@ model CheckIn {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, date])
   @@index([userId, date])
 }
 
@@ -81,7 +81,7 @@ model Material {
   url         String   // 存储路径
   size        Int      // 文件大小(字节)
   content     String?  // 提取的文本内容
-  embedding   Unsupported("vector(1536)")? // 向量嵌入
+  // embedding   Unsupported("vector(1536)")? // 向量嵌入 — 需安装 pgvector 扩展
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

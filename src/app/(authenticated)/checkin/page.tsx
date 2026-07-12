@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 
 export default function CheckInPage() {
@@ -8,22 +8,86 @@ export default function CheckInPage() {
   const [status, setStatus] = useState<'good' | 'normal' | 'tired'>('good')
   const [note, setNote] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [todayCheckIn, setTodayCheckIn] = useState<{
+    duration: number
+    status: string
+    note?: string | null
+  } | null>(null)
+
+  const today = new Date().toISOString().split('T')[0]
+
+  // 加载今日打卡记录
+  useEffect(() => {
+    const loadToday = async () => {
+      try {
+        const res = await fetch(`/api/checkin?date=${today}`)
+        const data = await res.json()
+        if (data.checkIn) {
+          setTodayCheckIn(data.checkIn)
+          setSubmitted(true)
+        }
+      } catch {
+        // 忽略
+      }
+    }
+    loadToday()
+  }, [today])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // TODO: 保存打卡记录
-    console.log({ duration, status, note })
-    setSubmitted(true)
+    setLoading(true)
+    setError('')
+
+    try {
+      const res = await fetch('/api/checkin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: today,
+          duration,
+          status,
+          note: note || null,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || '打卡失败')
+
+      setSubmitted(true)
+      setTodayCheckIn(data.checkIn)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : '打卡失败')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  if (submitted) {
+  if (submitted && todayCheckIn) {
     return (
       <div className="flex flex-1 items-center justify-center p-6">
         <div className="text-center space-y-4">
           <div className="text-6xl">🎉</div>
-          <h2 className="text-2xl font-bold">打卡成功！</h2>
-          <p className="text-gray-500">今天也辛苦了，继续加油！</p>
-          <Button onClick={() => setSubmitted(false)}>再次打卡</Button>
+          <h2 className="text-2xl font-bold">今日已打卡！</h2>
+          <div className="text-gray-500 space-y-1">
+            <p>学习时长：{todayCheckIn.duration} 分钟</p>
+            <p>
+              状态：
+              {todayCheckIn.status === 'good' && '😊 状态很好'}
+              {todayCheckIn.status === 'normal' && '😐 状态一般'}
+              {todayCheckIn.status === 'tired' && '😫 有点疲惫'}
+            </p>
+            {todayCheckIn.note && <p>备注：{todayCheckIn.note}</p>}
+          </div>
+          <Button onClick={() => {
+            setSubmitted(false)
+            setTodayCheckIn(null)
+            setDuration('')
+            setNote('')
+          }}>
+            {todayCheckIn ? '修改打卡' : '再次打卡'}
+          </Button>
         </div>
       </div>
     )
@@ -86,8 +150,10 @@ export default function CheckInPage() {
             />
           </div>
 
-          <Button type="submit" className="w-full">
-            完成打卡
+          {error && <p className="text-sm text-red-500">{error}</p>}
+
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? '打卡中...' : '完成打卡'}
           </Button>
         </form>
       </div>

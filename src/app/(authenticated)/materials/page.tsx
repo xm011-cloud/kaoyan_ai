@@ -1,0 +1,263 @@
+'use client'
+
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { Button } from '@/components/ui/button'
+
+interface Material {
+  id: string
+  name: string
+  type: string
+  size: number
+  url: string
+  content?: string | null
+  createdAt: string
+}
+
+export default function MaterialsPage() {
+  const [materials, setMaterials] = useState<Material[]>([])
+  const [loading, setLoading] = useState(true)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // 查看器状态
+  const [viewing, setViewing] = useState<Material | null>(null)
+  const [viewLoading, setViewLoading] = useState(false)
+
+  const loadMaterials = useCallback(async () => {
+    try {
+      const res = await fetch('/api/materials')
+      const data = await res.json()
+      setMaterials(data.materials || [])
+    } catch {
+      // 加载失败
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadMaterials()
+  }, [loadMaterials])
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploading(true)
+    setUploadError('')
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || '上传失败')
+
+      setMaterials(prev => [data.material, ...prev])
+    } catch (err: unknown) {
+      setUploadError(err instanceof Error ? err.message : '上传失败')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleView = async (material: Material) => {
+    setViewing(material)
+    // 如果列表数据中已有 content，直接展示
+    if (material.content != null) return
+
+    // 否则从 API 加载完整内容
+    setViewLoading(true)
+    try {
+      const res = await fetch(`/api/materials/${material.id}`)
+      const data = await res.json()
+      if (data.material) {
+        setViewing(data.material)
+      }
+    } catch {
+      // 忽略
+    } finally {
+      setViewLoading(false)
+    }
+  }
+
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`确定删除「${name}」吗？`)) return
+
+    try {
+      const res = await fetch(`/api/materials?id=${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        setMaterials(prev => prev.filter(m => m.id !== id))
+        if (viewing?.id === id) setViewing(null)
+      }
+    } catch {
+      // 忽略
+    }
+  }
+
+  const formatSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toISOString().split('T')[0]
+  }
+
+  const typeIcon = (type: string) => {
+    if (type === 'pdf') return '📄'
+    if (type.startsWith('word') || type === 'docx') return '📝'
+    if (type.startsWith('image')) return '🖼️'
+    if (type === 'text') return '📃'
+    return '📁'
+  }
+
+  return (
+    <div className="p-4 lg:p-6">
+      <div className="max-w-2xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">学习资料</h1>
+            <p className="text-gray-500 mt-1">上传资料后可以在线查看，也可以让 AI 基于资料回答</p>
+          </div>
+          <div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp,.txt"
+              onChange={handleUpload}
+              className="hidden"
+              id="file-upload"
+            />
+            <Button onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+              {uploading ? '上传中...' : '上传资料'}
+            </Button>
+          </div>
+        </div>
+
+        {uploadError && <p className="text-sm text-red-500">{uploadError}</p>}
+
+        {/* Material list */}
+        <div className="space-y-3">
+          {loading ? (
+            <div className="text-center py-8 text-gray-500">加载中...</div>
+          ) : materials.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">
+              <div className="text-4xl mb-3">📚</div>
+              <p>还没有上传资料</p>
+              <p className="text-sm">上传 PDF、Word、图片等资料，AI 可以帮你回答问题</p>
+            </div>
+          ) : (
+            materials.map((material) => (
+              <div
+                key={material.id}
+                className="flex items-center gap-4 p-4 rounded-lg border bg-white dark:bg-gray-800 hover:shadow-sm transition-shadow"
+              >
+                <div className="text-2xl">{typeIcon(material.type)}</div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate">{material.name}</p>
+                  <p className="text-sm text-gray-500">
+                    {formatSize(material.size)} · {formatDate(material.createdAt)}
+                    {material.content && <span className="ml-2 text-green-500">· 可查看</span>}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleView(material)}
+                  className="shrink-0"
+                >
+                  查看
+                </Button>
+                <button
+                  onClick={() => handleDelete(material.id, material.name)}
+                  className="text-gray-400 hover:text-red-500 text-sm shrink-0 px-1"
+                  title="删除"
+                >
+                  ✕
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* ── 内容查看弹窗 ── */}
+      {viewing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setViewing(null)}>
+          <div
+            className="bg-white dark:bg-gray-800 rounded-xl border shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b dark:border-gray-700 shrink-0">
+              <div className="min-w-0">
+                <h3 className="font-bold text-lg truncate">{viewing.name}</h3>
+                <p className="text-xs text-gray-500">
+                  {formatSize(viewing.size)} · {formatDate(viewing.createdAt)} · {viewing.type?.toUpperCase()}
+                </p>
+              </div>
+              <button
+                onClick={() => setViewing(null)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl px-2"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-5">
+              {viewLoading ? (
+                <div className="text-center py-12 text-gray-500">加载中...</div>
+              ) : viewing.content ? (
+                <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+                  <pre className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap font-sans break-words">
+                    {viewing.content}
+                  </pre>
+                </div>
+              ) : (
+                <div className="text-center py-12 text-gray-500">
+                  <div className="text-4xl mb-3">{typeIcon(viewing.type)}</div>
+                  <p>暂不支持预览此文件类型</p>
+                  <p className="text-sm mt-1">
+                    {viewing.type === 'pdf' && 'PDF 文件需要安装解析库才能提取文本'}
+                    {viewing.type?.startsWith('word') && 'Word 文件需要文档解析器才能提取文本'}
+                    {viewing.type?.startsWith('image') && '图片文件无法直接提取文本'}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-3 border-t dark:border-gray-700 flex gap-2 shrink-0">
+              <Button variant="outline" size="sm" onClick={() => setViewing(null)}>
+                关闭
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  // 复制全部内容
+                  if (viewing.content) {
+                    navigator.clipboard.writeText(viewing.content)
+                  }
+                }}
+                disabled={!viewing.content}
+              >
+                📋 复制内容
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

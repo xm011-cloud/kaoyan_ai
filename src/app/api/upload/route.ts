@@ -88,6 +88,15 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // 异步生成并存储向量嵌入（fire-and-forget，不阻塞上传响应）
+    if (content && !content.startsWith("[")) {
+      import("@/lib/vector").then(({ storeEmbedding }) =>
+        storeEmbedding(material.id, content).catch((e) =>
+          console.error("Embedding storage failed (non-blocking):", e)
+        )
+      );
+    }
+
     return NextResponse.json({ material, hasContent: !!content && !content.startsWith("[") });
   } catch (err) {
     console.error("Upload error:", err);

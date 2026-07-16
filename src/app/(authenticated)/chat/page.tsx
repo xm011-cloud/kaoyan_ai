@@ -44,6 +44,16 @@ export default function ChatPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [showMaterialPicker, setShowMaterialPicker] = useState(false)
 
+  // 加入错题本弹窗
+  const [saveWrongModal, setSaveWrongModal] = useState<{
+    question: string
+    answer: string
+  } | null>(null)
+  const [wrongSubject, setWrongSubject] = useState('')
+  const [wrongTags, setWrongTags] = useState('')
+  const [subjects, setSubjects] = useState<string[]>([])
+  const [savingWrong, setSavingWrong] = useState(false)
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -68,6 +78,19 @@ export default function ChatPage() {
     loadHistories()
     loadMaterials()
   }, [loadHistories, loadMaterials])
+
+  // 加载目标科目（用于错题本）
+  useEffect(() => {
+    fetch('/api/goal')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.goal?.subjects) {
+          setSubjects(d.goal.subjects)
+          setWrongSubject(d.goal.subjects[0] || '')
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -105,6 +128,37 @@ export default function ChatPage() {
     } else {
       setSelectedIds(new Set(materials.map(m => m.id)))
     }
+  }
+
+  const handleSaveToWrongBook = async () => {
+    if (!saveWrongModal || !wrongSubject) return
+    setSavingWrong(true)
+    try {
+      await fetch('/api/wrong-questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subject: wrongSubject,
+          question: saveWrongModal.question,
+          answer: saveWrongModal.answer,
+          source: 'chat',
+          sourceChatId: chatId,
+          tags: wrongTags.split(/[,，]/).map((t: string) => t.trim()).filter(Boolean),
+        }),
+      })
+      setSaveWrongModal(null)
+      setWrongTags('')
+    } catch { /* ignore */ }
+    finally { setSavingWrong(false) }
+  }
+
+  const openSaveWrongModal = (aiContent: string) => {
+    // Find the last user message as the question
+    const lastUserMsg = [...messages].reverse().find(m => m.role === 'user')
+    setSaveWrongModal({
+      question: lastUserMsg?.content || '',
+      answer: aiContent,
+    })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -260,7 +314,11 @@ export default function ChatPage() {
               {message.role === 'user' ? (
                 <p className="text-sm whitespace-pre-wrap">{message.content}</p>
               ) : (
-                <ChatMarkdown content={message.content} sources={message.sources} />
+                <ChatMarkdown
+                  content={message.content}
+                  sources={message.sources}
+                  onSaveToWrongBook={openSaveWrongModal}
+                />
               )}
             </div>
           </div>
@@ -366,6 +424,78 @@ export default function ChatPage() {
           </p>
         </div>
       </div>
+
+      {/* ── 加入错题本弹窗 ── */}
+      {saveWrongModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setSaveWrongModal(null)}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-xl border shadow-xl w-full max-w-md max-h-[85vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b dark:border-gray-700">
+              <h3 className="font-bold text-lg">加入错题本</h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                保存 AI 的回答以便后续复习
+              </p>
+            </div>
+            <div className="p-5 space-y-3">
+              <div>
+                <label className="block text-sm font-medium mb-1">科目</label>
+                <select
+                  value={wrongSubject}
+                  onChange={(e) => setWrongSubject(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm dark:bg-gray-900 dark:border-gray-700"
+                >
+                  {subjects.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                  {subjects.length === 0 && <option value="">其他</option>}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">标签（逗号分隔）</label>
+                <input
+                  value={wrongTags}
+                  onChange={(e) => setWrongTags(e.target.value)}
+                  placeholder="如：极限, 导数"
+                  className="w-full border rounded-lg px-3 py-2 text-sm dark:bg-gray-900 dark:border-gray-700"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">你的问题</label>
+                <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 text-xs max-h-24 overflow-y-auto">
+                  {saveWrongModal.question || '（无）'}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">AI 回答</label>
+                <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 text-xs max-h-32 overflow-y-auto">
+                  {saveWrongModal.answer.slice(0, 500)}
+                </div>
+              </div>
+            </div>
+            <div className="px-5 py-3 border-t dark:border-gray-700 flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setSaveWrongModal(null)}
+              >
+                取消
+              </Button>
+              <Button
+                onClick={handleSaveToWrongBook}
+                disabled={savingWrong || !wrongSubject}
+              >
+                {savingWrong ? '保存中...' : '保存到错题本'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

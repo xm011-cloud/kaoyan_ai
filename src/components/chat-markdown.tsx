@@ -151,14 +151,29 @@ function SourceCard({ source, index }: { source: Source; index: number }) {
 export function ChatMarkdown({
   content,
   sources,
+  onSaveToWrongBook,
 }: {
   content: string;
   sources?: Source[];
+  onSaveToWrongBook?: (content: string) => void;
 }) {
   return (
     <div className="space-y-1 text-sm text-gray-700 dark:text-gray-300">
       {/* AI 回答 */}
       <ReactMarkdown components={components}>{content}</ReactMarkdown>
+
+      {/* 加入错题本 */}
+      {onSaveToWrongBook && content && content.length > 10 && (
+        <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+          <button
+            onClick={() => onSaveToWrongBook(content)}
+            className="text-xs text-gray-400 hover:text-red-500 transition-colors flex items-center gap-1"
+          >
+            <span>🔴</span>
+            <span>加入错题本</span>
+          </button>
+        </div>
+      )}
 
       {/* 引用材料 */}
       {sources && sources.length > 0 && (

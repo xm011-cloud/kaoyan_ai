@@ -19,12 +19,14 @@ model User {
   updatedAt DateTime @updatedAt
 
   // 关联
-  goal       Goal?
-  tasks      Task[]
-  checkIns   CheckIn[]
-  materials  Material[]
-  chats      Chat[]
-  feedbacks  Feedback[]
+  goal              Goal?
+  tasks             Task[]
+  checkIns          CheckIn[]
+  materials         Material[]
+  chats             Chat[]
+  feedbacks         Feedback[]
+  wrongQuestions    WrongQuestion[]
+  practiceSessions  PracticeSession[]
 }
 
 // 考研目标
@@ -84,7 +86,7 @@ model Material {
   url         String   // 存储路径
   size        Int      // 文件大小(字节)
   content     String?  // 提取的文本内容
-  // embedding   Unsupported("vector(1536)")? // 向量嵌入 — 需安装 pgvector 扩展
+  embedding   Unsupported("vector(1536)")? // 向量嵌入 — 需安装 pgvector 扩展
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -119,4 +121,51 @@ model Feedback {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, weekStart])
+}
+
+// 错题本
+model WrongQuestion {
+  id             String    @id @default(uuid())
+  userId         String
+  subject        String    // 科目名称
+  question       String    // 题目内容
+  answer         String    // 正确答案/解析
+  source         String    // 来源: "chat" | "manual" | "practice"
+  sourceChatId   String?   // 关联的 Chat ID
+  tags           String[]  // 标签
+  reviewed       Boolean   @default(false)
+  reviewCount    Int       @default(0)
+  nextReviewDate DateTime? // 下次复习日期
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, subject])
+  @@index([userId, reviewed])
+  @@index([userId, nextReviewDate])
+}
+
+// 练习/考试会话
+model PracticeSession {
+  id          String    @id @default(uuid())
+  userId      String
+  type        String    // "daily" | "mock"
+  subject     String    // 科目名称
+  status      String    @default("in_progress")
+  questions   Json      // 题目列表
+  answers     Json      @default("{}")
+  scores      Json      @default("{}")
+  totalScore  Int?      // 总分
+  maxScore    Int?      // 满分
+  duration    Int?      // 考试时长（分钟）
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
+  @@index([userId, status])
+  @@index([userId, createdAt])
 }

@@ -5,6 +5,8 @@ export const navItems = [
   { href: '/checkin',    label: '每日打卡', icon: '✅', shortLabel: '打卡' },
   { href: '/materials',  label: '学习资料', icon: '📚', shortLabel: '资料' },
   { href: '/chat',       label: 'AI 问答',  icon: '💬', shortLabel: 'AI' },
+  { href: '/wrong-questions', label: '错题本',   icon: '🔴', shortLabel: '错题' },
+  { href: '/practice',  label: '练习',     icon: '✏️', shortLabel: '练习' },
   { href: '/feedback',   label: '学习反馈', icon: '📊', shortLabel: '反馈' },
   { href: '/settings',   label: '设置',     icon: '⚙️',  shortLabel: '设置' },
 ]

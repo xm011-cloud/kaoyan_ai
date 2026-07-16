@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
       select: { id: true, name: true, content: true },
     });
 
-    const searchResults = await searchMaterials(lastMessage, userMaterials);
+    const searchResults = await searchMaterials(lastMessage, userMaterials, user!.id);
     let ragContext = buildRagContext(searchResults);
     if (!ragContext && materialIds?.length > 0 && userMaterials.length > 0) {
       ragContext = userMaterials

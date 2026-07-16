@@ -1,0 +1,89 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getAuthUser } from "@/lib/api-auth";
+import { prisma } from "@/lib/prisma";
+import { generatePracticeQuestions } from "@/lib/practice-generator";
+import { Prisma } from "@prisma/client";
+
+export async function GET(request: NextRequest) {
+  const { user, error } = await getAuthUser(request);
+  if (error) return error;
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const type = searchParams.get("type");
+    const subject = searchParams.get("subject");
+    const status = searchParams.get("status");
+    const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 50);
+
+    const where: Record<string, unknown> = { userId: user!.id };
+    if (type) where.type = type;
+    if (subject) where.subject = subject;
+    if (status) where.status = status;
+
+    const sessions = await prisma.practiceSession.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: limit,
+    });
+
+    return NextResponse.json({ sessions });
+  } catch (err) {
+    console.error("List practice sessions error:", err);
+    return NextResponse.json(
+      { error: "获取练习列表失败" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  const { user, error } = await getAuthUser(request);
+  if (error) return error;
+
+  try {
+    const body = await request.json();
+    const { type = "daily", subject, duration, materialIds, wrongQuestionIds } = body;
+
+    if (!subject) {
+      return NextResponse.json({ error: "请选择科目" }, { status: 400 });
+    }
+
+    if (!["daily", "mock"].includes(type)) {
+      return NextResponse.json({ error: "类型无效" }, { status: 400 });
+    }
+
+    // Generate questions first (via AI or local fallback)
+    const count = type === "daily" ? 5 : 20;
+    const questions = await generatePracticeQuestions({
+      userId: user!.id,
+      type,
+      subject,
+      count,
+      materialIds,
+      wrongQuestionIds,
+    });
+
+    // Create session with generated questions
+    const maxScore = questions.length * 10;
+    const session = await prisma.practiceSession.create({
+      data: {
+        userId: user!.id,
+        type,
+        subject,
+        status: "in_progress",
+        duration: type === "mock" ? duration || 180 : null,
+        startedAt: new Date(),
+        questions: questions as unknown as Prisma.InputJsonValue,
+        maxScore,
+      },
+    });
+
+    return NextResponse.json({ session });
+  } catch (err) {
+    console.error("Create practice session error:", err);
+    return NextResponse.json(
+      { error: "创建练习失败" },
+      { status: 500 }
+    );
+  }
+}

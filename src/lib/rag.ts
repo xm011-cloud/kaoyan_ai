@@ -102,14 +102,27 @@ function cosineSimilarity(a: number[], b: number[]): number {
 }
 
 // Search materials by embedding similarity (returns sorted by score)
+// Now uses pgvector first, falls back to in-memory/keyword search
 export async function searchMaterials(
   query: string,
-  materials: { id: string; name: string; content: string | null }[]
+  materials: { id: string; name: string; content: string | null }[],
+  userId?: string
 ): Promise<{ id: string; name: string; content: string; score: number }[]> {
   const queryEmbedding = await getEmbedding(query);
 
+  // Try pgvector search first (if userId provided and embedding available)
+  if (queryEmbedding && userId) {
+    try {
+      const { searchByVector } = await import("@/lib/vector");
+      const pgResults = await searchByVector(userId, queryEmbedding, 5);
+      if (pgResults.length > 0) return pgResults;
+    } catch {
+      // pgvector unavailable, fall through to in-memory / keyword search
+    }
+  }
+
   if (queryEmbedding) {
-    // Semantic search via embeddings
+    // Semantic search via embeddings (in-memory fallback)
     const scored = await Promise.all(
       materials
         .filter((m) => m.content && m.content.length > 10)
@@ -119,10 +132,11 @@ export async function searchMaterials(
           return { id: m.id, name: m.name, content: m.content!, score };
         })
     );
-    return scored
+    const results = scored
       .filter((s) => s.score > 0.3)
       .sort((a, b) => b.score - a.score)
       .slice(0, 5);
+    if (results.length > 0) return results;
   }
 
   // Fallback: keyword overlap search (handles Chinese via bigrams + full word matching)

@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
   if (error) return error;
 
   const body = await request.json();
-  const { university, major, examDate, subjects } = body;
+  const { university, major, examDate, subjects, targetScores } = body;
 
   if (!university || !major || !examDate || !subjects?.length) {
     return NextResponse.json({ error: "请填写所有必填字段" }, { status: 400 });
@@ -34,12 +34,14 @@ export async function POST(request: NextRequest) {
       major,
       examDate: new Date(examDate),
       subjects: Array.isArray(subjects) ? subjects : subjects.split("\n").filter(Boolean),
+      targetScores: targetScores || undefined,
     },
     update: {
       university,
       major,
       examDate: new Date(examDate),
       subjects: Array.isArray(subjects) ? subjects : subjects.split("\n").filter(Boolean),
+      targetScores: targetScores || null,
     },
   });
 
@@ -52,7 +54,7 @@ export async function PUT(request: NextRequest) {
   if (error) return error;
 
   const body = await request.json();
-  const { university, major, examDate, subjects } = body;
+  const { university, major, examDate, subjects, targetScores } = body;
 
   const goal = await prisma.goal.update({
     where: { userId: user!.id },
@@ -61,6 +63,7 @@ export async function PUT(request: NextRequest) {
       ...(major && { major }),
       ...(examDate && { examDate: new Date(examDate) }),
       ...(subjects && { subjects: Array.isArray(subjects) ? subjects : subjects.split("\n").filter(Boolean) }),
+      ...(targetScores !== undefined && { targetScores }),
     },
   });
 

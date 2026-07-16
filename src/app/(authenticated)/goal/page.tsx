@@ -16,6 +16,7 @@ export default function GoalPage() {
   const [major, setMajor] = useState('')
   const [examDate, setExamDate] = useState('')
   const [subjects, setSubjects] = useState('')
+  const [targetScores, setTargetScores] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
@@ -33,6 +34,9 @@ export default function GoalPage() {
         setMajor(data.goal.major)
         setExamDate(data.goal.examDate.split('T')[0])
         setSubjects(data.goal.subjects.join('\n'))
+        if (data.goal.targetScores && typeof data.goal.targetScores === 'object') {
+          setTargetScores(data.goal.targetScores as Record<string, number>)
+        }
         setSaved(true)
       }
     } catch {
@@ -65,6 +69,7 @@ export default function GoalPage() {
     setError('')
 
     try {
+      const subjectList = subjects.split('\n').filter(Boolean)
       const res = await fetch('/api/goal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -72,7 +77,8 @@ export default function GoalPage() {
           university,
           major,
           examDate,
-          subjects: subjects.split('\n').filter(Boolean),
+          subjects: subjectList,
+          targetScores: Object.keys(targetScores).length > 0 ? targetScores : undefined,
         }),
       })
 
@@ -94,6 +100,9 @@ export default function GoalPage() {
     if (!confirm('重新生成将删除现有计划并创建新计划，确定继续？')) return
     await generatePlan()
   }
+
+  // Subject list from current value
+  const subjectList = subjects.split('\n').filter(Boolean)
 
   return (
     <div className="flex flex-1 flex-col p-6">
@@ -146,6 +155,39 @@ export default function GoalPage() {
               className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
             />
           </div>
+
+          {/* Target scores */}
+          {subjectList.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                🎯 各科目标分数（可选，用于差距分析和 AI 择校对比）
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                {subjectList.map((subj) => (
+                  <div key={subj} className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600 dark:text-gray-400 w-20 shrink-0">
+                      {subj}
+                    </span>
+                    <input
+                      type="number"
+                      value={targetScores[subj] || ''}
+                      onChange={(e) =>
+                        setTargetScores((prev) => ({
+                          ...prev,
+                          [subj]: parseInt(e.target.value) || 0,
+                        }))
+                      }
+                      min={0}
+                      max={150}
+                      placeholder="分数"
+                      className="flex-1 px-3 py-1.5 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                    />
+                    <span className="text-xs text-gray-400">分</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {error && <p className="text-sm text-red-500">{error}</p>}
           {saved && !error && !planSummary && <p className="text-sm text-green-600">目标已保存！</p>}

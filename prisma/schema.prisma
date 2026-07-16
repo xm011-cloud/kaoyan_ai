@@ -18,6 +18,12 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // 番茄钟设置
+  pomodoroFocusMinutes       Int      @default(25)
+  pomodoroShortBreakMinutes  Int      @default(5)
+  pomodoroLongBreakMinutes   Int      @default(15)
+  pomodoroLongBreakInterval  Int      @default(4)
+
   // 关联
   goal              Goal?
   tasks             Task[]
@@ -27,6 +33,10 @@ model User {
   feedbacks         Feedback[]
   wrongQuestions    WrongQuestion[]
   practiceSessions  PracticeSession[]
+  pomodoroSessions  PomodoroSession[]
+  admissionInfos    AdmissionInfo[]
+  importedQuestions ImportedQuestion[]
+  schoolComparisons SchoolComparison[]
 }
 
 // 考研目标
@@ -37,6 +47,7 @@ model Goal {
   major       String   // 目标专业
   examDate    DateTime // 考试日期
   subjects    String[] // 考试科目
+  targetScores Json?    // 目标分数 {"政治":70, "英语":65, ...}
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -53,6 +64,7 @@ model Task {
   completed   Boolean  @default(false)
   duration    Int?     // 学习时长(分钟)
   phase       String?  // 所属阶段
+  subject     String?  // 所属科目
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -168,4 +180,74 @@ model PracticeSession {
   @@index([userId, type])
   @@index([userId, status])
   @@index([userId, createdAt])
+}
+
+// 番茄钟会话记录
+model PomodoroSession {
+  id             String   @id @default(uuid())
+  userId         String
+  type           String   // "focus" | "short_break" | "long_break"
+  plannedMinutes Int      // 计划时长（分钟）
+  actualSeconds  Int      // 实际完成秒数
+  status         String   @default("completed") // "completed" | "interrupted"
+  startedAt      DateTime
+  endedAt        DateTime
+  createdAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+// 院校录取信息（按年份存储，数据可跨用户共享）
+model AdmissionInfo {
+  id         String   @id @default(uuid())
+  userId     String?  // null = 系统全局数据
+  university String
+  major      String
+  year       Int      // 数据年份
+  category   String   // "score_line" | "enrollment" | "subjects" | "tuition" | "notes"
+  data       Json     // 结构化数据
+  source     String   // 来源 URL
+  verified   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([university, major, year, category])
+  @@index([university, major])
+}
+
+// 联网导入的真题
+model ImportedQuestion {
+  id              String   @id @default(uuid())
+  userId          String
+  subject         String
+  year            Int      // 真题年份
+  source          String   // 来源 URL
+  sourceName      String?  // 来源描述
+  question        String
+  type            String   // "choice" | "essay"
+  options         Json?    // 选择题选项
+  answer          String
+  explanation     String
+  tags            String[]
+  addedToPractice Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, subject])
+  @@index([userId, year])
+}
+
+// 院校对比记录
+model SchoolComparison {
+  id        String   @id @default(uuid())
+  userId    String
+  schools   Json     // 对比的院校列表
+  analysis  String?  // AI 分析结果
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

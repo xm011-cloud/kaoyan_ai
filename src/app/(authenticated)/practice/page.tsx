@@ -60,6 +60,12 @@ export default function PracticePage() {
   const [addingWrongId, setAddingWrongId] = useState<string | null>(null);
   const [wrongSubject, setWrongSubject] = useState("");
 
+  // Material selection & wrong question boost
+  const [materials, setMaterials] = useState<{ id: string; name: string }[]>([]);
+  const [selectedMaterialIds, setSelectedMaterialIds] = useState<string[]>([]);
+  const [useWrongQuestions, setUseWrongQuestions] = useState(false);
+  const [showOptions, setShowOptions] = useState(false);
+
   const loadSessions = useCallback(async () => {
     try {
       const res = await fetch("/api/practice?limit=30");
@@ -86,10 +92,21 @@ export default function PracticePage() {
     }
   }, []);
 
+  const loadMaterials = useCallback(async () => {
+    try {
+      const res = await fetch("/api/materials?brief=true");
+      const data = await res.json();
+      setMaterials(data.materials || []);
+    } catch {
+      // ignore
+    }
+  }, []);
+
   useEffect(() => {
     loadSessions();
     loadSubjects();
-  }, [loadSessions, loadSubjects]);
+    loadMaterials();
+  }, [loadSessions, loadSubjects, loadMaterials]);
 
   // Timer logic
   useEffect(() => {
@@ -127,6 +144,8 @@ export default function PracticePage() {
           type: createType,
           subject: createSubject,
           duration: createType === "mock" ? createDuration : undefined,
+          materialIds: selectedMaterialIds.length > 0 ? selectedMaterialIds : undefined,
+          wrongQuestionIds: useWrongQuestions ? "auto" : undefined,
         }),
       });
       const data = await res.json();
@@ -327,6 +346,92 @@ export default function PracticePage() {
               </Button>
             </div>
           </div>
+
+          {/* Advanced options */}
+          {materials.length > 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-xl border">
+              <button
+                onClick={() => setShowOptions(!showOptions)}
+                className="w-full flex items-center justify-between px-5 py-3 text-left"
+              >
+                <span className="text-sm font-medium">
+                  ⚙️ 出题选项
+                  {(selectedMaterialIds.length > 0 || useWrongQuestions) && (
+                    <span className="ml-2 text-xs text-blue-500">
+                      ({[
+                        selectedMaterialIds.length > 0 && `资料×${selectedMaterialIds.length}`,
+                        useWrongQuestions && "薄弱点",
+                      ].filter(Boolean).join(" + ")})
+                    </span>
+                  )}
+                </span>
+                <span className={`text-gray-400 transition-transform ${showOptions ? "rotate-180" : ""}`}>
+                  ▼
+                </span>
+              </button>
+
+              {showOptions && (
+                <div className="px-5 pb-4 space-y-4 border-t dark:border-gray-700 pt-4">
+                  {/* Material selection */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      📚 选择出题资料（可选，AI 将基于资料内容出题）
+                    </label>
+                    <div className="max-h-40 overflow-y-auto space-y-1">
+                      {materials.map((m) => (
+                        <label
+                          key={m.id}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-md cursor-pointer text-sm transition-colors ${
+                            selectedMaterialIds.includes(m.id)
+                              ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700"
+                              : "hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedMaterialIds.includes(m.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedMaterialIds((prev) => [...prev, m.id]);
+                              } else {
+                                setSelectedMaterialIds((prev) =>
+                                  prev.filter((id) => id !== m.id)
+                                );
+                              }
+                            }}
+                            className="rounded"
+                          />
+                          <span className="truncate">{m.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {selectedMaterialIds.length > 0 && (
+                      <button
+                        onClick={() => setSelectedMaterialIds([])}
+                        className="text-xs text-gray-400 hover:text-gray-600 mt-1"
+                      >
+                        清除选择
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Wrong questions toggle */}
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={useWrongQuestions}
+                      onChange={(e) => setUseWrongQuestions(e.target.checked)}
+                      className="rounded"
+                    />
+                    <span className="text-sm">
+                      🔴 针对我的薄弱点出题
+                      <span className="text-xs text-gray-400 ml-1">（错题为 AI 提供出题方向）</span>
+                    </span>
+                  </label>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* History */}
           <div>

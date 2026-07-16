@@ -44,11 +44,41 @@ export async function POST(request: NextRequest) {
     const moodCounts: Record<string, number> = {};
     weekCheckIns.forEach(c => { moodCounts[c.status] = (moodCounts[c.status] || 0) + 1; });
 
+    // Practice session stats for gap analysis
+    const recentSessions = await prisma.practiceSession.findMany({
+      where: { userId: user!.id, status: "completed" },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    });
+    const subjectScores: Record<string, { total: number; max: number; count: number }> = {};
+    for (const s of recentSessions) {
+      if (!subjectScores[s.subject]) subjectScores[s.subject] = { total: 0, max: 0, count: 0 };
+      subjectScores[s.subject].total += s.totalScore || 0;
+      subjectScores[s.subject].max += s.maxScore || 0;
+      subjectScores[s.subject].count++;
+    }
+
+    const targetScores = (goal?.targetScores as Record<string, number>) || {};
+    let scoreGap = "";
+    if (Object.keys(targetScores).length > 0 && Object.keys(subjectScores).length > 0) {
+      const gaps: string[] = [];
+      for (const [subj, target] of Object.entries(targetScores)) {
+        const st = subjectScores[subj];
+        if (st && st.count > 0) {
+          const pct = Math.round((st.total / Math.max(1, st.max)) * 100);
+          const estimated = Math.round((pct / 100) * 150); // rough 150-scale
+          const gap = estimated - target;
+          gaps.push(`${subj}: 当前估分${estimated} / 目标${target} (${gap >= 0 ? "+" : ""}${gap})`);
+        }
+      }
+      if (gaps.length > 0) scoreGap = `\n- 分数差距：${gaps.join("、")}`;
+    }
+
     const dataSummary = `本周学习数据：
 - 总学习时长：${totalHours} 小时
 - 打卡天数：${checkInDays}/7 天
 - 任务完成：${taskCompleted}/${taskTotal}
-- 状态分布：${Object.entries(moodCounts).map(([k,v]) => `${k === 'good' ? '状态好' : k === 'normal' ? '一般' : '疲惫'} ${v}天`).join('，')}
+- 状态分布：${Object.entries(moodCounts).map(([k,v]) => `${k === 'good' ? '状态好' : k === 'normal' ? '一般' : '疲惫'} ${v}天`).join('，')}${scoreGap}
 ${goal ? `- 目标院校：${goal.university} ${goal.major}，考试日期：${goal.examDate.toISOString().split("T")[0]}` : ''}`;
 
     const aiConfig = await getUserAiConfig(user!.id);

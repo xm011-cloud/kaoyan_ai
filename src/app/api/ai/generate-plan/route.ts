@@ -135,6 +135,11 @@ export async function POST(request: NextRequest) {
     if (aiConfig) {
       const { apiKey, baseURL, model } = aiConfig;
 
+      const targetScores = (goal.targetScores as Record<string, number>) || {};
+      const scoreContext = Object.keys(targetScores).length > 0
+        ? `\n- 目标分数：${Object.entries(targetScores).map(([k, v]) => `${k}: ${v}分`).join("、")}`
+        : "";
+
       const prompt = `你是一名资深的考研辅导专家。请根据以下信息为用户生成一份详细的考研复习计划。
 
 ## 用户目标
@@ -142,9 +147,10 @@ export async function POST(request: NextRequest) {
 - 目标专业：${goal.major}
 - 考试日期：${goal.examDate.toISOString().split("T")[0]}
 - 距考试还有：${daysRemaining} 天
-- 考试科目：${goal.subjects.join("、")}
+- 考试科目：${goal.subjects.join("、")}${scoreContext}
 
 ## 要求
+${Object.keys(targetScores).length > 0 ? `- 用户已设定各科目标分数，弱势科目（分数较低的科目）应安排更多学习时间\n` : ""}
 1. 将复习划分为三个阶段：基础阶段（前40%时间）、强化阶段（中间35%时间）、冲刺阶段（最后25%时间）
 2. 每个科目在每个阶段安排若干学习任务
 3. 每个任务包含：标题(title)、详细描述(description)、日期(date, YYYY-MM-DD格式)、预计时长分钟数(duration)、阶段名称(phase)、科目(subject)

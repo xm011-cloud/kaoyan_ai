@@ -52,6 +52,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "类型无效" }, { status: 400 });
     }
 
+    // Resolve "auto" wrongQuestionIds → fetch recent wrong questions for subject
+    let resolvedWrongIds: string[] | undefined;
+    if (wrongQuestionIds === "auto") {
+      const recentWrong = await prisma.wrongQuestion.findMany({
+        where: { userId: user!.id, subject },
+        select: { id: true },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+      });
+      const ids = recentWrong.map((w) => w.id);
+      resolvedWrongIds = ids.length > 0 ? ids : undefined;
+    } else if (Array.isArray(wrongQuestionIds) && wrongQuestionIds.length > 0) {
+      resolvedWrongIds = wrongQuestionIds;
+    }
+
     // Generate questions first (via AI or local fallback)
     const count = type === "daily" ? 5 : 20;
     const questions = await generatePracticeQuestions({
@@ -60,7 +75,7 @@ export async function POST(request: NextRequest) {
       subject,
       count,
       materialIds,
-      wrongQuestionIds,
+      wrongQuestionIds: resolvedWrongIds,
     });
 
     // Create session with generated questions

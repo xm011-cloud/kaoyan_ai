@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 import { envConfig } from "@/lib/env-config";
 
 const globalForPrisma = globalThis as unknown as {
@@ -7,9 +8,11 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient() {
-  return new PrismaClient({
-    adapter: new PrismaPg(envConfig.databaseUrl),
+  const pool = new Pool({
+    connectionString: envConfig.databaseUrl,
   });
+  const adapter = new PrismaPg(pool);
+  return new PrismaClient({ adapter });
 }
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();

@@ -1,0 +1,12 @@
+{
+  "buildCommand": "npx prisma generate && next build",
+  "installCommand": "npm install",
+  "outputDirectory": ".next",
+  "nodeVersion": "22.11.0",
+  "cloudFunctions": {
+    "nodejs": {
+      "maxDuration": 60,
+      "externalNodeModules": [".prisma", "prisma"]
+    }
+  }
+}

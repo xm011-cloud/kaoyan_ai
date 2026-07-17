@@ -2,5 +2,27 @@
   "buildCommand": "npx prisma generate && npm run build",
   "installCommand": "npm install",
   "outputDirectory": ".next",
-  "nodeVersion": "22.11.0"
+  "nodeVersion": "22.11.0",
+  "cloudFunctions": {
+    "nodejs": {
+      "maxDuration": 60,
+      "externalNodeModules": [
+        "@prisma/client",
+        "@prisma/adapter-pg",
+        "prisma",
+        "pg",
+        "pg-native",
+        "pg-connection-string",
+        "pg-protocol",
+        "pg-types",
+        "pgpass",
+        "react-markdown",
+        "remark-gfm",
+        "remark-parse",
+        "mdast-util-to-hast",
+        "hast-util-to-jsx-runtime",
+        "unified"
+      ]
+    }
+  }
 }

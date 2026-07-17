@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>离线 - AI 考研助手</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh; background: #f9fafb; color: #374151;
+    }
+    .card {
+      text-align: center; padding: 40px; max-width: 400px;
+    }
+    .icon { font-size: 64px; margin-bottom: 16px; }
+    h1 { font-size: 24px; margin-bottom: 8px; }
+    p { color: #6b7280; font-size: 14px; line-height: 1.6; margin-bottom: 20px; }
+    button {
+      background: #3B82F6; color: white; border: none; padding: 10px 24px;
+      border-radius: 8px; font-size: 14px; cursor: pointer;
+    }
+    button:hover { background: #2563EB; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">📡</div>
+    <h1>当前处于离线状态</h1>
+    <p>你已断开网络连接。请检查网络后重试。已缓存的页面仍可浏览。</p>
+    <button onclick="location.reload()">重新连接</button>
+  </div>
+</body>
+</html>

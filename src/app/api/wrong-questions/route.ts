@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 50);
     const skip = (page - 1) * limit;
 
+    const dueToday = searchParams.get("dueToday");
     const where: Record<string, unknown> = { userId: user!.id };
 
     if (subject) where.subject = subject;
@@ -24,17 +25,25 @@ export async function GET(request: NextRequest) {
     if (reviewed === "false") where.reviewed = false;
     if (source) where.source = source;
 
+    // dueToday: unreviewed and nextReviewDate is today or earlier
+    if (dueToday === "true") {
+      where.reviewed = false;
+      where.nextReviewDate = {
+        lte: new Date(new Date().setHours(23, 59, 59, 999)),
+      };
+    }
+
     const [questions, total] = await Promise.all([
       prisma.wrongQuestion.findMany({
         where,
-        orderBy: { createdAt: "desc" },
+        orderBy: { nextReviewDate: "asc" },
         skip,
         take: limit,
       }),
       prisma.wrongQuestion.count({ where }),
     ]);
 
-    // Client-side filter for tag and search (since Prisma doesn't easily filter arrays/strings)
+    // Client-side filter for tag and search
     let filtered = questions;
     if (tag) {
       filtered = filtered.filter((q) => q.tags.some((t) => t.includes(tag!)));

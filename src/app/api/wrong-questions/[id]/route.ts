@@ -41,7 +41,7 @@ export async function PATCH(
 
     const body = await request.json();
 
-    // Handle "mark as reviewed" — spaced repetition logic
+    // Handle "mark as reviewed" — SM-2 spaced repetition algorithm
     const data: Record<string, unknown> = {};
     if (body.question !== undefined) data.question = body.question;
     if (body.answer !== undefined) data.answer = body.answer;
@@ -50,14 +50,34 @@ export async function PATCH(
     if (body.reviewed !== undefined) {
       data.reviewed = body.reviewed;
       if (body.reviewed === true) {
-        data.reviewCount = (existing.reviewCount || 0) + 1;
-        // Spaced repetition intervals: 1d, 3d, 7d, 14d, 30d, 60d...
-        const count = data.reviewCount as number;
-        const intervals = [1, 3, 7, 14, 30, 60];
-        const days =
-          intervals[Math.min(count - 1, intervals.length - 1)];
+        const rating: number = body.rating ?? 3; // 0-5 scale, default = passing
+        const oldEase = existing.easeFactor ?? 2.5;
+        const oldInterval = existing.interval ?? 0;
+
+        // SM-2 algorithm
+        let newEase = oldEase + (0.1 - (5 - rating) * (0.08 + (5 - rating) * 0.02));
+        if (newEase < 1.3) newEase = 1.3;
+
+        let newInterval: number;
+        if (rating < 3) {
+          // Failed — reset
+          newInterval = 1;
+        } else if (oldInterval === 0) {
+          newInterval = 1;
+        } else if (oldInterval === 1) {
+          newInterval = 3;
+        } else {
+          newInterval = Math.round(oldInterval * newEase);
+        }
+
         const nextDate = new Date();
-        nextDate.setDate(nextDate.getDate() + days);
+        nextDate.setDate(nextDate.getDate() + newInterval);
+        nextDate.setHours(0, 0, 0, 0);
+
+        data.reviewCount = (existing.reviewCount || 0) + 1;
+        data.lastReviewDate = new Date();
+        data.easeFactor = newEase;
+        data.interval = newInterval;
         data.nextReviewDate = nextDate;
       }
     }

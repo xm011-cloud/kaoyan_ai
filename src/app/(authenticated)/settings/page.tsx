@@ -15,6 +15,14 @@ export default function SettingsPage() {
   const [error, setError] = useState('')
   const [showKey, setShowKey] = useState(false)
 
+  // ── Reminder settings ──
+  const [reminderEnabled, setReminderEnabled] = useState(false)
+  const [reminderTime, setReminderTime] = useState('09:00')
+  const [reminderDays, setReminderDays] = useState<string[]>(['1','2','3','4','5'])
+  const [reminderSaving, setReminderSaving] = useState(false)
+  const [reminderSaved, setReminderSaved] = useState(false)
+  const [notifyPerm, setNotifyPerm] = useState<string>('default')
+
   useEffect(() => {
     const load = async () => {
       try {
@@ -28,7 +36,51 @@ export default function SettingsPage() {
       finally { setLoading(false) }
     }
     load()
+    loadReminders()
+    // Check notification permission
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setNotifyPerm(Notification.permission)
+    }
   }, [])
+
+  const loadReminders = async () => {
+    try {
+      const res = await fetch('/api/user/reminders')
+      const data = await res.json()
+      setReminderEnabled(data.reminderEnabled)
+      setReminderTime(data.reminderTime || '09:00')
+      setReminderDays(data.reminderDays || ['1','2','3','4','5'])
+    } catch { /* ignore */ }
+  }
+
+  const handleSaveReminders = async () => {
+    setReminderSaving(true)
+    try {
+      await fetch('/api/user/reminders', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reminderEnabled, reminderTime, reminderDays }),
+      })
+      setReminderSaved(true)
+      setTimeout(() => setReminderSaved(false), 3000)
+    } catch { /* ignore */ }
+    finally { setReminderSaving(false) }
+  }
+
+  const handleRequestPermission = async () => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      const perm = await Notification.requestPermission()
+      setNotifyPerm(perm)
+    }
+  }
+
+  const toggleDay = (day: string) => {
+    setReminderDays(prev =>
+      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day].sort()
+    )
+  }
+
+  const dayLabels = ['一', '二', '三', '四', '五', '六', '日']
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -171,6 +223,105 @@ export default function SettingsPage() {
               )}
             </form>
           )}
+        </div>
+
+        {/* 学习提醒 */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border p-6 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="text-3xl">🔔</div>
+            <div>
+              <h2 className="font-bold">学习提醒</h2>
+              <p className="text-sm text-gray-500">
+                定时推送浏览器通知，提醒你开始学习
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {/* Enable toggle */}
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium">开启提醒</label>
+              <button
+                type="button"
+                onClick={() => setReminderEnabled(!reminderEnabled)}
+                className={`relative w-11 h-6 rounded-full transition-colors ${
+                  reminderEnabled ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+                    reminderEnabled ? 'translate-x-5' : ''
+                  }`}
+                />
+              </button>
+            </div>
+
+            {reminderEnabled && (
+              <>
+                {/* Time picker */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">提醒时间</label>
+                  <input
+                    type="time"
+                    value={reminderTime}
+                    onChange={(e) => setReminderTime(e.target.value)}
+                    className="px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                  />
+                </div>
+
+                {/* Day selector */}
+                <div>
+                  <label className="block text-sm font-medium mb-2">重复日期</label>
+                  <div className="flex gap-2">
+                    {dayLabels.map((label, i) => {
+                      const day = String(i + 1)
+                      const active = reminderDays.includes(day)
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() => toggleDay(day)}
+                          className={`w-9 h-9 rounded-full text-sm font-medium transition-colors ${
+                            active
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Notification permission */}
+                <div className="flex items-center justify-between py-2">
+                  <span className="text-sm text-gray-500">
+                    浏览器通知：
+                    {notifyPerm === 'granted' ? '✅ 已开启' : notifyPerm === 'denied' ? '❌ 已拒绝' : '⚠️ 未设置'}
+                  </span>
+                  {notifyPerm !== 'granted' && (
+                    <Button type="button" variant="outline" size="sm" onClick={handleRequestPermission}>
+                      开启通知
+                    </Button>
+                  )}
+                </div>
+              </>
+            )}
+
+            {reminderSaved && (
+              <p className="text-sm text-green-600">✅ 提醒设置已保存</p>
+            )}
+
+            <Button
+              type="button"
+              onClick={handleSaveReminders}
+              disabled={reminderSaving}
+              className="w-full"
+            >
+              {reminderSaving ? '保存中...' : '保存提醒设置'}
+            </Button>
+          </div>
         </div>
 
         {/* 提示 */}

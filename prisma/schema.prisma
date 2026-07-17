@@ -24,6 +24,11 @@ model User {
   pomodoroLongBreakMinutes   Int      @default(15)
   pomodoroLongBreakInterval  Int      @default(4)
 
+  // 学习提醒设置
+  reminderEnabled Boolean  @default(false)
+  reminderTime    String?  // "HH:MM" 格式
+  reminderDays    String[] // ["1","2","3","4","5"] 周一到周五
+
   // 关联
   goal              Goal?
   tasks             Task[]
@@ -37,6 +42,8 @@ model User {
   admissionInfos    AdmissionInfo[]
   importedQuestions ImportedQuestion[]
   schoolComparisons SchoolComparison[]
+  knowledgeNodes    KnowledgeNode[]
+  studyPath         StudyPath?
 }
 
 // 考研目标
@@ -147,6 +154,9 @@ model WrongQuestion {
   tags           String[]  // 标签
   reviewed       Boolean   @default(false)
   reviewCount    Int       @default(0)
+  lastReviewDate DateTime? // 上次复习日期
+  easeFactor     Float     @default(2.5) // SM-2 ease factor
+  interval       Int       @default(0)   // SM-2 复习间隔（天）
   nextReviewDate DateTime? // 下次复习日期
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
@@ -250,4 +260,78 @@ model SchoolComparison {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// 知识图谱节点
+model KnowledgeNode {
+  id        String   @id @default(uuid())
+  userId    String
+  name      String   // 知识点名称，如 "极限"
+  subject   String   // 所属科目
+  category  String   @default("concept") // "concept" | "formula" | "method" | "theorem"
+  weight    Float    @default(1.0) // 权重（根据错题数量等）
+  mastery   Float    @default(0.0) // 掌握度 0-1
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fromEdges  KnowledgeEdge[] @relation("from")
+  toEdges    KnowledgeEdge[] @relation("to")
+
+  @@unique([userId, name, subject])
+  @@index([userId])
+}
+
+// 知识图谱边
+model KnowledgeEdge {
+  id        String   @id @default(uuid())
+  fromId    String
+  toId      String
+  relation  String   @default("related") // "prerequisite" | "related" | "extends"
+  label     String?  // 边标签
+  createdAt DateTime @default(now())
+
+  from KnowledgeNode @relation("from", fields: [fromId], references: [id], onDelete: Cascade)
+  to   KnowledgeNode @relation("to", fields: [toId], references: [id], onDelete: Cascade)
+
+  @@unique([fromId, toId])
+}
+
+// AI 学习路径
+model StudyPath {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  title         String   // 路径名称，如 "2026 考研冲刺路径"
+  description   String?  // 路径描述
+  subjects      String[] // 覆盖科目
+  targetScores  Json?    // 目标分数
+  currentScores Json?    // 当前估分
+  status        String   @default("active") // "active" | "completed" | "paused"
+  generatedBy   String   @default("ai") // "ai" | "manual"
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  milestones StudyPathMilestone[]
+}
+
+// 学习路径里程碑
+model StudyPathMilestone {
+  id          String    @id @default(uuid())
+  studyPathId String
+  title       String    // 里程碑标题
+  description String?   // 详细描述
+  phase       String    // 阶段: "基础" | "强化" | "冲刺" | "查漏补缺"
+  subject     String    // 科目
+  order       Int       @default(0) // 排序
+  targetDate  DateTime? // 目标完成日期
+  completedAt DateTime? // 实际完成日期
+  progress    Float     @default(0.0) // 进度 0-1
+  tips        String?   // AI 学习建议
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  studyPath StudyPath @relation(fields: [studyPathId], references: [id], onDelete: Cascade)
+
+  @@index([studyPathId, order])
 }

@@ -6,7 +6,18 @@
   "cloudFunctions": {
     "nodejs": {
       "maxDuration": 60,
-      "externalNodeModules": [".prisma", "prisma"]
+      "externalNodeModules": [
+        ".prisma",
+        "prisma",
+        "@prisma/client",
+        "@prisma/adapter-pg",
+        "pg",
+        "pg-native",
+        "pdf2json",
+        "d3",
+        "@supabase/ssr",
+        "@supabase/supabase-js"
+      ]
     }
   }
 }

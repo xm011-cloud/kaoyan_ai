@@ -1,7 +1,18 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { Heatmap } from "./heatmap";
-import { StatsCharts } from "./stats-charts";
+
+// StatsCharts uses recharts (~2MB), load client-only to keep SSR bundle lean
+const StatsCharts = dynamic(
+  () => import("./stats-charts").then((mod) => ({ default: mod.StatsCharts })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="text-center py-6 text-sm text-gray-400">加载图表...</div>
+    ),
+  }
+);
 
 interface CheckIn {
   id: string; date: string; duration: number; status: string;
@@ -31,7 +42,7 @@ export function DashboardCharts({
         <Heatmap checkIns={heatmapData} months={3} />
       </div>
 
-      {/* 统计图表 */}
+      {/* 统计图表 — 客户端动态加载 */}
       <StatsCharts checkIns={checkIns.map(c => {
         const d = new Date(c.date); d.setHours(0,0,0,0);
         return { date: d.toISOString(), duration: c.duration, status: c.status };

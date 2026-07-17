@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // No special config needed — heavy client-only libs use dynamic import
+  serverExternalPackages: ["pdf2json"],
 };
 
 export default nextConfig;

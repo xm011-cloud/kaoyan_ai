@@ -7,9 +7,6 @@ const nextConfig: NextConfig = {
     "pg",
     "pg-native",
     "pg-connection-string",
-    "react-markdown",
-    "remark-gfm",
-    "remark-parse",
   ],
 };
 

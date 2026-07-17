@@ -13,10 +13,21 @@
         "@prisma/adapter-pg",
         "pg",
         "pg-native",
+        "pg-cloudflare",
+        "pg-connection-string",
+        "pg-int8",
+        "pg-numeric",
+        "pg-protocol",
+        "pg-types",
+        "pgpass",
         "pdf2json",
-        "d3",
         "@supabase/ssr",
-        "@supabase/supabase-js"
+        "@supabase/supabase-js",
+        "@supabase/auth-js",
+        "@supabase/functions-js",
+        "@supabase/postgrest-js",
+        "@supabase/realtime-js",
+        "@supabase/storage-js"
       ]
     }
   }

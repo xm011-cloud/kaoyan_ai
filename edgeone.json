@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npx prisma generate && npx next build",
+  "buildCommand": "npx prisma generate && npm run build",
   "installCommand": "npm install",
   "outputDirectory": ".next",
   "nodeVersion": "22.11.0",

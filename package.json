@@ -21,8 +21,6 @@
     "d3": "^7.9.0",
     "lucide-react": "^1.24.0",
     "next": "16.2.10",
-    "pdf2json": "^4.0.3",
-    "prisma": "^6.15.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-markdown": "^10.1.0",
@@ -40,6 +38,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
+    "prisma": "^6.15.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

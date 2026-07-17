@@ -1,6 +1,76 @@
 /**
  * RAG utilities — text extraction, embedding, similarity search
  */
+import { inflateSync } from "zlib";
+
+// Minimal PDF text extraction using only Node.js built-ins (no pdf2json dependency)
+function extractPdfTextFromBuffer(buffer: Buffer): string {
+  const content = buffer.toString("latin1");
+  const texts: string[] = [];
+
+  // Find all stream objects with their dictionary
+  const objRegex = /(\d+ \d+ obj[\s\S]*?endobj)/g;
+  let objMatch;
+  while ((objMatch = objRegex.exec(content)) !== null) {
+    const obj = objMatch[1];
+
+    // Check if it contains a stream
+    const streamStart = obj.indexOf("stream\r\n");
+    const streamStart2 = obj.indexOf("stream\n");
+    const start = streamStart >= 0 ? streamStart + 8 : streamStart2 >= 0 ? streamStart2 + 7 : -1;
+    if (start < 0) continue;
+
+    const endstream = obj.indexOf("endstream", start);
+    if (endstream < 0) continue;
+
+    // Check for FlateDecode (zlib) filter
+    const dict = obj.substring(0, start);
+    const useZlib = dict.includes("FlateDecode");
+
+    // Extract the stream content
+    const streamData = obj.substring(start, endstream).trim();
+
+    // Get text content
+    let textContent = "";
+    if (useZlib) {
+      try {
+        const decompressed = inflateSync(Buffer.from(streamData, "latin1"));
+        textContent = decompressed.toString("utf-8");
+      } catch {
+        textContent = streamData;
+      }
+    } else {
+      textContent = streamData;
+    }
+
+    // Extract text between BT and ET operators
+    const btRegex = /BT([\s\S]*?)ET/g;
+    let btMatch;
+    while ((btMatch = btRegex.exec(textContent)) !== null) {
+      const btBlock = btMatch[1];
+      // Extract text from Tj, TJ, and ' operators
+      // Tj: (text) Tj
+      const tjRegex = /\(([^)]*)\)\s*Tj/g;
+      let tjMatch;
+      while ((tjMatch = tjRegex.exec(btBlock)) !== null) {
+        texts.push(tjMatch[1]);
+      }
+      // TJ: [(text1) num (text2) ...] TJ
+      const tjArrayRegex = /\[([\s\S]*?)\]\s*TJ/g;
+      let taMatch;
+      while ((taMatch = tjArrayRegex.exec(btBlock)) !== null) {
+        const inner = taMatch[1];
+        const innerTexts = inner.match(/\(([^)]*)\)/g);
+        if (innerTexts) {
+          texts.push(...innerTexts.map((t) => t.slice(1, -1)));
+        }
+      }
+    }
+  }
+
+  const result = texts.join(" ");
+  return result || "[PDF 未检测到文本内容，可能为扫描件或图片型 PDF，建议将内容复制为 .txt 文件上传]";
+}
 
 // Extract text from file buffer
 export async function extractText(
@@ -12,37 +82,15 @@ export async function extractText(
     return buffer.toString("utf-8").slice(0, 50000);
   }
 
-  // PDF: use pdf2json
+  // PDF: extract text with built-in buffer search (no external dependency)
   if (mimeType === "application/pdf") {
-    return new Promise((resolve) => {
-      try {
-        const PDFParser = require("pdf2json");
-        const parser = new PDFParser();
-
-        parser.on("pdfParser_dataReady", (data: {
-          Pages?: { Texts?: { R?: { T: string }[] }[] }[];
-        }) => {
-          const text = (data.Pages || [])
-            .map((page) =>
-              (page.Texts || [])
-                .map((t) => decodeURIComponent(t.R?.[0]?.T || ""))
-                .join(" ")
-            )
-            .join("\n\n--- Page Break ---\n\n")
-            .slice(0, 50000);
-          resolve(text || "[PDF 无文本内容，可能为扫描件或图像型 PDF]");
-        });
-
-        parser.on("pdfParser_dataError", () => {
-          resolve("[PDF 解析失败，请尝试将 PDF 内容复制为 .txt 文件后重新上传]");
-        });
-
-        parser.parseBuffer(buffer);
-      } catch (e) {
-        console.error("PDF parse error:", e);
-        resolve("[PDF 解析失败，不支持此 PDF 格式]");
-      }
-    });
+    try {
+      const text = extractPdfTextFromBuffer(buffer);
+      return text.slice(0, 50000);
+    } catch (e) {
+      console.error("PDF parse error:", e);
+      return "[PDF 解析失败，建议将内容复制为 .txt 文件后上传]";
+    }
   }
 
   // Word documents

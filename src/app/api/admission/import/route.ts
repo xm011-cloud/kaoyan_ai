@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/api-auth";
-import { getUserAiConfig } from "@/lib/ai-config";
+import { getUserAiConfig, callAI, extractJson } from "@/lib/ai-config";
 import { createServiceClient } from "@/lib/supabase/service";
 import { prisma } from "@/lib/prisma";
 import { extractText } from "@/lib/rag";
@@ -83,14 +83,9 @@ ${text.slice(0, 10000)}
 3. category 只能是: score_line(分数线), enrollment(招生人数), subjects(考试科目), tuition(学费), notes(其他)
 4. 如果文本包含多个年份的数据，每个年份分别生成 entry`;
 
-  const response = await fetch(`${aiConfig.baseURL}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${aiConfig.apiKey}`,
-    },
-    body: JSON.stringify({
-      model: aiConfig.model,
+  let result;
+  try {
+    result = await callAI(aiConfig, {
       messages: [
         {
           role: "system",
@@ -100,32 +95,25 @@ ${text.slice(0, 10000)}
         { role: "user", content: prompt },
       ],
       temperature: 0.3,
-      max_tokens: 4096,
-    }),
-  });
-
-  if (!response.ok) {
-    const errText = await response.text();
-    console.error("AI import extraction error:", errText.substring(0, 300));
+      maxTokens: 4096,
+    });
+  } catch (fetchErr) {
+    console.error("AI import extraction error:", fetchErr);
     throw new Error("AI_UPSTREAM_ERROR");
   }
 
-  const data = await response.json();
-  let content = data.choices?.[0]?.message?.content || "";
-  // fallback: 推理模型 reasoning_content
-  if (!content) {
-    content = data.choices?.[0]?.message?.reasoning_content || "";
-  }
+  const content = result.text || result.reasoningText || "";
 
-  // 提取 JSON
-  content = content.replace(/```(?:json)?\s*/gi, "").replace(/```\s*/g, "");
-  const jsonMatch = content.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
+  const parsed = extractJson<{
+    university?: string;
+    major?: string;
+    entries?: Record<string, unknown>[];
+  }>(content);
+  if (!parsed) {
     console.error("AI import: no JSON found in response, first 300:", content.substring(0, 300));
     throw new Error("AI_PARSE_ERROR");
   }
 
-  const parsed = JSON.parse(jsonMatch[0]);
   const university = parsed.university || hints.university || "未知院校";
   const major = parsed.major || hints.major || "未知专业";
   const entries: Record<string, unknown>[] = parsed.entries || [];

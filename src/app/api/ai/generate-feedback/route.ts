@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/api-auth";
-import { getUserAiConfig } from "@/lib/ai-config";
+import { getUserAiConfig, callAI } from "@/lib/ai-config";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(request: NextRequest) {
@@ -86,44 +86,28 @@ ${goal ? `- 目标院校：${goal.university} ${goal.major}，考试日期：${g
     let suggestions: string[] = [];
 
     if (aiConfig) {
-      const { apiKey, baseURL, model } = aiConfig;
-
       try {
-        const response = await fetch(`${baseURL}/chat/completions`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify({
-            model,
-            messages: [
-              {
-                role: "system",
-                content: "你是考研辅导专家，负责分析学生的学习数据并给出个性化反馈。回复格式：第一段是总结（200字内），然后用 --- 分隔，之后每行一条建议（以 - 开头）。",
-              },
-              {
-                role: "user",
-                content: `请根据以下学习数据分析并给出本周反馈：\n\n${dataSummary}\n\n要求：\n1. 先给出本周总结（包含鼓励和数据分析）\n2. 用 --- 分隔\n3. 然后列出3-5条具体建议，每条以 - 开头\n4. 建议要结合目标和考试日期，有可操作性`,
-              },
-            ],
-            temperature: 0.7,
-            max_tokens: 2048,
-          }),
+        const result = await callAI(aiConfig, {
+          messages: [
+            {
+              role: "system",
+              content: "你是考研辅导专家，负责分析学生的学习数据并给出个性化反馈。回复格式：第一段是总结（200字内），然后用 --- 分隔，之后每行一条建议（以 - 开头）。",
+            },
+            {
+              role: "user",
+              content: `请根据以下学习数据分析并给出本周反馈：\n\n${dataSummary}\n\n要求：\n1. 先给出本周总结（包含鼓励和数据分析）\n2. 用 --- 分隔\n3. 然后列出3-5条具体建议，每条以 - 开头\n4. 建议要结合目标和考试日期，有可操作性`,
+            },
+          ],
+          temperature: 0.7,
+          maxTokens: 2048,
         });
-
-        if (response.ok) {
-          const data = await response.json();
-          const text = data.choices?.[0]?.message?.content || "";
-          const parts = text.split("---");
-          content = parts[0]?.trim() || text;
-          suggestions = (parts[1] || "")
-            .split("\n")
-            .map((l: string) => l.replace(/^[-*\d.]\s*/, "").trim())
-            .filter(Boolean);
-        } else {
-          throw new Error("AI 服务不可用");
-        }
+        const text = result.text || result.reasoningText || "";
+        const parts = text.split("---");
+        content = parts[0]?.trim() || text;
+        suggestions = (parts[1] || "")
+          .split("\n")
+          .map((l: string) => l.replace(/^[-*\d.]\s*/, "").trim())
+          .filter(Boolean);
       } catch {
         // fallback to local
       }

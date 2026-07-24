@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/api-auth";
-import { getUserAiConfig } from "@/lib/ai-config";
+import { getUserAiConfig, callAI, extractJsonArray } from "@/lib/ai-config";
 import { prisma } from "@/lib/prisma";
 
 interface PlanTask {
@@ -133,8 +133,6 @@ export async function POST(request: NextRequest) {
     let planTasks: PlanTask[];
 
     if (aiConfig) {
-      const { apiKey, baseURL, model } = aiConfig;
-
       const targetScores = (goal.targetScores as Record<string, number>) || {};
       const scoreContext = Object.keys(targetScores).length > 0
         ? `\n- 目标分数：${Object.entries(targetScores).map(([k, v]) => `${k}: ${v}分`).join("、")}`
@@ -170,48 +168,26 @@ ${Object.keys(targetScores).length > 0 ? `- 用户已设定各科目标分数，
 }]`;
 
       try {
-        const response = await fetch(`${baseURL}/chat/completions`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify({
-            model,
-            messages: [
-              { role: "system", content: "你是一个考研辅导专家，擅长制定详细的学习计划。你只返回JSON，不返回其他内容。" },
-              { role: "user", content: prompt },
-            ],
-            temperature: 0.7,
-            max_tokens: 16384,
-          }),
+        const result = await callAI(aiConfig, {
+          messages: [
+            { role: "system", content: "你是一个考研辅导专家，擅长制定详细的学习计划。你只返回JSON，不返回其他内容。" },
+            { role: "user", content: prompt },
+          ],
+          temperature: 0.7,
+          maxTokens: 16384,
         });
 
-        if (response.ok) {
-          const data = await response.json();
-          const content = data.choices?.[0]?.message?.content || "";
-          console.log("AI plan response length:", content.length);
+        const fullContent = result.text || result.reasoningText || "";
+        console.log("AI plan response length:", fullContent.length);
 
-          // fallback: 推理模型可能把内容放在 reasoning_content 中
-          const reasoning = data.choices?.[0]?.message?.reasoning_content || "";
-          let fullContent = content || reasoning;
-
-          // 去掉 markdown 代码块标记
-          fullContent = fullContent.replace(/```(?:json)?\s*/gi, "").replace(/```\s*/g, "");
-
-          // 提取 JSON 数组
-          const jsonMatch = fullContent.match(/\[[\s\S]*\]/);
-          if (jsonMatch) {
-            planTasks = JSON.parse(jsonMatch[0]);
-          } else {
-            console.error("AI 返回格式不正确，前200字:", fullContent.substring(0, 200));
-            throw new Error("AI 返回格式不正确");
-          }
+        const parsed = extractJsonArray<PlanTask>(fullContent);
+        if (parsed && parsed.length > 0) {
+          planTasks = parsed;
         } else {
-          const errText = await response.text();
-          console.error("MiMo API error:", errText.substring(0, 300));
-          throw new Error("AI 服务调用失败");
+          console.error("AI 返回格式不正确，前200字:", fullContent.substring(0, 200));
+          throw new Error("AI 返回格式不正确");
         }
+
       } catch (e) {
         console.error("Plan generation AI fallback:", e instanceof Error ? e.message : String(e));
         // AI 调用失败，回退到本地生成

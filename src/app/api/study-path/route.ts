@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/api-auth";
-import { getUserAiConfig } from "@/lib/ai-config";
+import { getUserAiConfig, callAI, extractJsonArray } from "@/lib/ai-config";
 import { prisma } from "@/lib/prisma";
 
 // GET: 获取用户学习路径
@@ -86,8 +86,6 @@ export async function POST(request: NextRequest) {
     }>;
 
     if (aiConfig) {
-      const { apiKey, baseURL, model } = aiConfig;
-
       const gapLines = wqStats
         .map((s) => {
           const score = targetScores[s.subject];
@@ -125,36 +123,21 @@ ${gapLines}
 }]`;
 
       try {
-        const response = await fetch(`${baseURL}/chat/completions`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify({
-            model,
-            messages: [
-              { role: "system", content: "你是考研辅导专家。只返回JSON数组，不返回其他内容。" },
-              { role: "user", content: prompt },
-            ],
-            temperature: 0.7,
-            max_tokens: 16384,
-          }),
+        const result = await callAI(aiConfig, {
+          messages: [
+            { role: "system", content: "你是考研辅导专家。只返回JSON数组，不返回其他内容。" },
+            { role: "user", content: prompt },
+          ],
+          temperature: 0.7,
+          maxTokens: 16384,
         });
 
-        if (response.ok) {
-          const data = await response.json();
-          const content = data.choices?.[0]?.message?.content || "";
-          const reasoning = data.choices?.[0]?.message?.reasoning_content || "";
-          let fullContent = (content || reasoning).replace(/```(?:json)?\s*/gi, "").replace(/```\s*/g, "");
-          const jsonMatch = fullContent.match(/\[[\s\S]*\]/);
-          if (jsonMatch) {
-            milestones = JSON.parse(jsonMatch[0]);
-          } else {
-            throw new Error("AI returned invalid format");
-          }
+        const fullContent = result.text || result.reasoningText || "";
+        const parsed = extractJsonArray<{ title: string; description: string; phase: string; subject: string; order: number; targetDate?: string; tips?: string }>(fullContent);
+        if (parsed && parsed.length > 0) {
+          milestones = parsed;
         } else {
-          throw new Error("AI service error");
+          throw new Error("AI returned invalid format");
         }
       } catch {
         // Fallback: generate locally

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/api-auth";
-import { getUserAiConfig } from "@/lib/ai-config";
+import { getUserAiConfig, callAI, extractJson } from "@/lib/ai-config";
 import { searchWeb, fetchPageContent } from "@/lib/search";
 
 // POST: 搜索院校录取信息（联网 + AI 提取）
@@ -61,23 +61,16 @@ export async function POST(request: NextRequest) {
     // If search returned no results, ask AI directly with a disclaimer
     if (!hasWebResults && aiConfig) {
       try {
-        const response = await fetch(`${aiConfig.baseURL}/chat/completions`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${aiConfig.apiKey}`,
-          },
-          body: JSON.stringify({
-            model: aiConfig.model,
-            messages: [
-              {
-                role: "system",
-                content:
-                  "你是一个考研信息助手。请基于你的训练数据提供信息，但必须明确标注你不确定的地方。只返回JSON。",
-              },
-              {
-                role: "user",
-                content: `请提供你已知的关于「${university}${major ? " " + major : ""}」的考研信息（${year || "近年"}）。
+        const result = await callAI(aiConfig, {
+          messages: [
+            {
+              role: "system",
+              content:
+                "你是一个考研信息助手。请基于你的训练数据提供信息，但必须明确标注你不确定的地方。只返回JSON。",
+            },
+            {
+              role: "user",
+              content: `请提供你已知的关于「${university}${major ? " " + major : ""}」的考研信息（${year || "近年"}）。
 
 注意：你提供的是训练数据中的信息，可能已过时或不准确，必须如实标注。
 
@@ -91,18 +84,12 @@ export async function POST(request: NextRequest) {
   ],
   "aiDisclaimer": "以下数据来自AI模型训练知识库，非联网实时搜索。可能已过时或不准确，请务必在yz.chsi.com.cn核实。"
 }`,
-              },
-            ],
-            temperature: 0.3,
-            max_tokens: 4096,
-          }),
+            },
+          ],
+          temperature: 0.3,
+          maxTokens: 4096,
         });
-        if (response.ok) {
-          const data = await response.json();
-          const text = data.choices?.[0]?.message?.content || "";
-          const jsonMatch = text.match(/\{[\s\S]*\}/);
-          if (jsonMatch) structuredData = JSON.parse(jsonMatch[0]);
-        }
+        structuredData = extractJson(result.text || result.reasoningText || "");
       } catch {
         // AI fallback also failed
       }
@@ -111,23 +98,16 @@ export async function POST(request: NextRequest) {
     // Normal path: extract from web results
     if (!structuredData && aiConfig && hasWebResults) {
       try {
-        const response = await fetch(`${aiConfig.baseURL}/chat/completions`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${aiConfig.apiKey}`,
-          },
-          body: JSON.stringify({
-            model: aiConfig.model,
-            messages: [
-              {
-                role: "system",
-                content:
-                  "你是一个考研数据提取专家。你只返回JSON，不返回其他内容。从搜索结果中提取结构化的考研录取数据。字段不存在就填null，不准编造数据。每条数据必须标注来源URL和年份。",
-              },
-              {
-                role: "user",
-                content: `请从以下搜索结果中提取关于「${university}${major ? " " + major : ""}」的考研录取信息。
+        const result = await callAI(aiConfig, {
+          messages: [
+            {
+              role: "system",
+              content:
+                "你是一个考研数据提取专家。你只返回JSON，不返回其他内容。从搜索结果中提取结构化的考研录取数据。字段不存在就填null，不准编造数据。每条数据必须标注来源URL和年份。",
+            },
+            {
+              role: "user",
+              content: `请从以下搜索结果中提取关于「${university}${major ? " " + major : ""}」的考研录取信息。
 
 要求：
 1. **必须标注数据年份**（如 2025、2024）。如果搜索结果中某条信息没有明确年份，标注 "year_unknown"。
@@ -167,21 +147,12 @@ ${webContext.slice(0, 8000)}
     }
   ]
 }`,
-              },
-            ],
-            temperature: 0.3,
-            max_tokens: 4096,
-          }),
+            },
+          ],
+          temperature: 0.3,
+          maxTokens: 4096,
         });
-
-        if (response.ok) {
-          const data = await response.json();
-          const text = data.choices?.[0]?.message?.content || "";
-          const jsonMatch = text.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            structuredData = JSON.parse(jsonMatch[0]);
-          }
-        }
+        structuredData = extractJson(result.text || result.reasoningText || "");
       } catch {
         // AI extraction failed, return raw search results
       }

@@ -24,6 +24,11 @@ export default async function DashboardPage() {
   weekEnd.setDate(weekEnd.getDate() + 6)
   weekEnd.setHours(23, 59, 59, 999)
 
+  // 图表数据范围：近 90 天
+  const chartStart = new Date(today)
+  chartStart.setDate(chartStart.getDate() - 90)
+  chartStart.setHours(0, 0, 0, 0)
+
   // ── 并行查询所有数据 ──
   const [
     todayTasks,
@@ -58,12 +63,12 @@ export default async function DashboardPage() {
       take: 5,
     }),
     prisma.checkIn.findMany({
-      where: { userId },
+      where: { userId, date: { gte: chartStart } },
       orderBy: { date: "asc" },
       select: { id: true, date: true, duration: true, status: true },
     }),
     prisma.task.findMany({
-      where: { userId },
+      where: { userId, date: { gte: chartStart } },
       select: { id: true, title: true, phase: true, completed: true, duration: true },
     }),
   ])

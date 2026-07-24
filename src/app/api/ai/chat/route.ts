@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/api-auth";
-import { getUserAiConfig } from "@/lib/ai-config";
+import { getUserAiConfig, callAI } from "@/lib/ai-config";
 import { prisma } from "@/lib/prisma";
 import { searchMaterials, buildRagContext, findRelevantSegments } from "@/lib/rag";
 
@@ -24,7 +24,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "消息格式不正确" }, { status: 400 });
     }
 
-    const { apiKey, baseURL, model } = aiConfig;
     const lastMessage = messages[messages.length - 1]?.content || "";
     const materialWhere: Record<string, unknown> = { userId: user!.id };
     if (materialIds && Array.isArray(materialIds) && materialIds.length > 0) {
@@ -58,23 +57,18 @@ export async function POST(request: NextRequest) {
       ...messages.map((m: { role: string; content: string }) => ({ role: m.role, content: m.content })),
     ];
 
-    const response = await fetch(`${baseURL}/chat/completions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model, messages: apiMessages, temperature: 0.7, max_tokens: 4096 }),
-    });
-
-    if (!response.ok) {
-      const status = response.status;
-      if (status === 401 || status === 403) {
+    let reply: string;
+    try {
+      const result = await callAI(aiConfig, { messages: apiMessages, temperature: 0.7, maxTokens: 4096 });
+      reply = result.text || "抱歉，我暂时无法回答。";
+    } catch (aiErr) {
+      const err = aiErr as Error & { status?: number };
+      if (err.status === 401 || err.status === 403) {
         return NextResponse.json({ reply: "AI API Key 无效或已过期，请在设置页面更新。", needConfig: true });
       }
-      console.error("AI API error:", status);
+      console.error("AI API error:", err.status);
       return NextResponse.json({ reply: "AI 服务暂时不可用，请稍后再试。" });
     }
-
-    const data = await response.json();
-    const reply = data.choices?.[0]?.message?.content || "抱歉，我暂时无法回答。";
 
     return NextResponse.json({
       reply,

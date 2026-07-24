@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { ChatMarkdown } from '@/components/chat-markdown'
+import { useGoal } from '@/hooks/use-goal'
 
 interface Source {
   id: string;
@@ -51,7 +52,8 @@ export default function ChatPage() {
   } | null>(null)
   const [wrongSubject, setWrongSubject] = useState('')
   const [wrongTags, setWrongTags] = useState('')
-  const [subjects, setSubjects] = useState<string[]>([])
+  const { data: goal } = useGoal();
+  const subjects = goal?.subjects ?? [];
   const [savingWrong, setSavingWrong] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -79,18 +81,12 @@ export default function ChatPage() {
     loadMaterials()
   }, [loadHistories, loadMaterials])
 
-  // 加载目标科目（用于错题本）
+  // 科目加载后自动设置默认值
   useEffect(() => {
-    fetch('/api/goal')
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.goal?.subjects) {
-          setSubjects(d.goal.subjects)
-          setWrongSubject(d.goal.subjects[0] || '')
-        }
-      })
-      .catch(() => {})
-  }, [])
+    if (subjects.length > 0 && !wrongSubject) {
+      setWrongSubject(subjects[0]);
+    }
+  }, [subjects, wrongSubject]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })

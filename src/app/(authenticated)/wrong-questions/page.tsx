@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
+import { useGoal } from "@/hooks/use-goal";
 
 interface WrongQuestion {
   id: string;
@@ -31,7 +32,8 @@ export default function WrongQuestionsPage() {
   const [tab, setTab] = useState<"all" | "unreviewed" | "reviewed" | "due">("all");
   const [subjectFilter, setSubjectFilter] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [subjects, setSubjects] = useState<string[]>([]);
+  const { data: goal } = useGoal();
+  const subjects = goal?.subjects ?? [];
 
   // Add modal
   const [showAdd, setShowAdd] = useState(false);
@@ -81,29 +83,20 @@ export default function WrongQuestionsPage() {
     }
   }, [tab, subjectFilter, searchTerm]);
 
-  const loadSubjects = useCallback(async () => {
-    try {
-      const res = await fetch("/api/goal");
-      const data = await res.json();
-      if (data.goal?.subjects) {
-        setSubjects(data.goal.subjects);
-        if (!addForm.subject) {
-          setAddForm((f) => ({ ...f, subject: data.goal.subjects[0] || "" }));
-        }
-      }
-    } catch {
-      // ignore
-    }
-  }, [addForm.subject]);
-
   useEffect(() => {
     loadQuestions();
-    loadSubjects();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     loadQuestions();
   }, [loadQuestions]);
+
+  // 科目加载后自动设置默认值
+  useEffect(() => {
+    if (subjects.length > 0 && !addForm.subject) {
+      setAddForm((f) => ({ ...f, subject: subjects[0] }));
+    }
+  }, [subjects, addForm.subject]);
 
   const handleAdd = async () => {
     if (!addForm.subject || !addForm.question || !addForm.answer) return;

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { useGoal } from "@/hooks/use-goal";
 
 interface PracticeQuestion {
   id: string;
@@ -34,7 +35,8 @@ export default function PracticePage() {
   const [view, setView] = useState<"main" | "active" | "result">("main");
   const [sessions, setSessions] = useState<PracticeSession[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(true);
-  const [subjects, setSubjects] = useState<string[]>([]);
+  const { data: goal } = useGoal();
+  const subjects = goal?.subjects ?? [];
 
   // Create form
   const [createType, setCreateType] = useState<"daily" | "mock">("daily");
@@ -78,20 +80,6 @@ export default function PracticePage() {
     }
   }, []);
 
-  const loadSubjects = useCallback(async () => {
-    try {
-      const res = await fetch("/api/goal");
-      const data = await res.json();
-      if (data.goal?.subjects) {
-        setSubjects(data.goal.subjects);
-        setCreateSubject(data.goal.subjects[0] || "");
-        setWrongSubject(data.goal.subjects[0] || "");
-      }
-    } catch {
-      // ignore
-    }
-  }, []);
-
   const loadMaterials = useCallback(async () => {
     try {
       const res = await fetch("/api/materials?brief=true");
@@ -104,9 +92,16 @@ export default function PracticePage() {
 
   useEffect(() => {
     loadSessions();
-    loadSubjects();
     loadMaterials();
-  }, [loadSessions, loadSubjects, loadMaterials]);
+  }, [loadSessions, loadMaterials]);
+
+  // 科目加载后自动设置默认值
+  useEffect(() => {
+    if (subjects.length > 0) {
+      if (!createSubject) setCreateSubject(subjects[0]);
+      if (!wrongSubject) setWrongSubject(subjects[0]);
+    }
+  }, [subjects, createSubject, wrongSubject]);
 
   // Timer logic
   useEffect(() => {

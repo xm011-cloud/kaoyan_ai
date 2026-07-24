@@ -4,6 +4,8 @@ import { getUserAiConfig } from "@/lib/ai-config";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 
+import { handleApiError } from "@/lib/api-utils";
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -23,8 +25,7 @@ export async function GET(
 
     return NextResponse.json({ session });
   } catch (err) {
-    console.error("Get practice session error:", err);
-    return NextResponse.json({ error: "获取练习详情失败" }, { status: 500 });
+    return handleApiError(err, "获取练习详情");
   }
 }
 
@@ -203,8 +204,7 @@ export async function PATCH(
 
     return NextResponse.json({ error: "无效的更新" }, { status: 400 });
   } catch (err) {
-    console.error("Update practice session error:", err);
-    return NextResponse.json({ error: "更新练习失败" }, { status: 500 });
+    return handleApiError(err, "更新练习");
   }
 }
 
@@ -228,7 +228,6 @@ export async function DELETE(
     await prisma.practiceSession.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("Delete practice session error:", err);
-    return NextResponse.json({ error: "删除练习失败" }, { status: 500 });
+    return handleApiError(err, "删除练习");
   }
 }

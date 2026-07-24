@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { handleApiError } from "@/lib/api-utils";
 
 export async function GET(request: NextRequest) {
   const { user, error } = await getAuthUser(request);
@@ -25,6 +26,20 @@ export async function GET(request: NextRequest) {
     if (reviewed === "false") where.reviewed = false;
     if (source) where.source = source;
 
+    // 标签筛选：下推到数据库
+    if (tag) {
+      where.tags = { hasSome: [tag] };
+    }
+
+    // 搜索筛选：下推到数据库
+    if (search) {
+      where.OR = [
+        { question: { contains: search } },
+        { answer: { contains: search } },
+        { tags: { hasSome: [search] } },
+      ];
+    }
+
     // dueToday: unreviewed and nextReviewDate is today or earlier
     if (dueToday === "true") {
       where.reviewed = false;
@@ -43,25 +58,9 @@ export async function GET(request: NextRequest) {
       prisma.wrongQuestion.count({ where }),
     ]);
 
-    // Client-side filter for tag and search
-    let filtered = questions;
-    if (tag) {
-      filtered = filtered.filter((q) => q.tags.some((t) => t.includes(tag!)));
-    }
-    if (search) {
-      const s = search.toLowerCase();
-      filtered = filtered.filter(
-        (q) =>
-          q.question.toLowerCase().includes(s) ||
-          q.answer.toLowerCase().includes(s) ||
-          q.tags.some((t) => t.toLowerCase().includes(s))
-      );
-    }
-
-    return NextResponse.json({ questions: filtered, total });
+    return NextResponse.json({ questions, total });
   } catch (err) {
-    console.error("List wrong-questions error:", err);
-    return NextResponse.json({ error: "获取错题列表失败" }, { status: 500 });
+    return handleApiError(err, "获取错题列表");
   }
 }
 
@@ -94,7 +93,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ question: wq });
   } catch (err) {
-    console.error("Create wrong-question error:", err);
-    return NextResponse.json({ error: "添加错题失败" }, { status: 500 });
+    return handleApiError(err, "添加错题");
   }
 }

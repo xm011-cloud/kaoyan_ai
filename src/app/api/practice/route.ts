@@ -3,6 +3,7 @@ import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { generatePracticeQuestions } from "@/lib/practice-generator";
 import { Prisma } from "@prisma/client";
+import { handleApiError } from "@/lib/api-utils";
 
 export async function GET(request: NextRequest) {
   const { user, error } = await getAuthUser(request);
@@ -28,11 +29,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ sessions });
   } catch (err) {
-    console.error("List practice sessions error:", err);
-    return NextResponse.json(
-      { error: "获取练习列表失败" },
-      { status: 500 }
-    );
+    return handleApiError(err, "获取练习列表");
   }
 }
 
@@ -95,10 +92,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ session });
   } catch (err) {
-    console.error("Create practice session error:", err);
-    return NextResponse.json(
-      { error: "创建练习失败" },
-      { status: 500 }
-    );
+    return handleApiError(err, "创建练习");
   }
 }

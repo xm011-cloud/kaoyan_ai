@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { AdmissionCompare } from "@/components/admission-compare";
+import { ImportTab } from "./_components/import-tab";
 
 interface SearchResult {
   university: string;
@@ -43,7 +44,7 @@ interface CompareSchool {
 }
 
 export default function AdmissionPage() {
-  const [tab, setTab] = useState<"search" | "compare" | "saved">("search");
+  const [tab, setTab] = useState<"search" | "compare" | "saved" | "import">("search");
 
   // Search state
   const [searchUni, setSearchUni] = useState("");
@@ -171,7 +172,7 @@ export default function AdmissionPage() {
   }, []);
 
   useEffect(() => {
-    if (tab === "saved" || tab === "compare") {
+    if (tab === "saved" || tab === "compare" || tab === "import") {
       loadSaved();
     }
   }, [tab, loadSaved]);
@@ -278,6 +279,7 @@ export default function AdmissionPage() {
           ["search", "🔍 搜索"],
           ["compare", "📊 对比"],
           ["saved", "📋 收藏"],
+          ["import", "📥 导入"],
         ] as const).map(([key, label]) => (
           <button
             key={key}
@@ -582,6 +584,13 @@ export default function AdmissionPage() {
               );
             })
           )}
+        </div>
+      )}
+
+      {/* ── IMPORT TAB ── */}
+      {tab === "import" && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl border p-5">
+          <ImportTab onImportComplete={loadSaved} />
         </div>
       )}
     </div>

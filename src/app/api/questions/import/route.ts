@@ -129,6 +129,11 @@ ${webContext.slice(0, 10000)}
       } catch {
         // AI extraction failed
       }
+    } else {
+      return NextResponse.json(
+        { error: "请先在设置中配置 AI 服务，才能智能提取题目", questions: [], totalImported: 0 },
+        { status: 400 }
+      );
     }
 
     // Save to DB

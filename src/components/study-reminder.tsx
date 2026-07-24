@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 
 interface ReminderSettings {
   reminderEnabled: boolean;
@@ -37,17 +37,26 @@ function playBeep() {
 
 export function StudyReminder() {
   const lastTriggeredRef = useRef<string>(""); // "YYYY-MM-DD HH:MM" to avoid double-fire
+  const settingsRef = useRef<ReminderSettings | null>(null);
+  const lastFetchRef = useRef<number>(0);
 
   const checkReminder = useCallback(async () => {
     try {
-      const res = await fetch("/api/user/reminders");
-      const data: ReminderSettings = await res.json();
+      const now = Date.now();
 
-      if (!data.reminderEnabled || !data.reminderTime) return;
+      // Only re-fetch settings every 5 minutes
+      if (!settingsRef.current || now - lastFetchRef.current > 300_000) {
+        const res = await fetch("/api/user/reminders");
+        settingsRef.current = await res.json();
+        lastFetchRef.current = now;
+      }
 
-      const now = new Date();
-      const currentDay = String(now.getDay() === 0 ? 7 : now.getDay()); // 1=Mon..7=Sun
-      const currentTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+      const data = settingsRef.current;
+      if (!data || !data.reminderEnabled || !data.reminderTime) return;
+
+      const currentDate = new Date();
+      const currentDay = String(currentDate.getDay() === 0 ? 7 : currentDate.getDay()); // 1=Mon..7=Sun
+      const currentTime = `${String(currentDate.getHours()).padStart(2, "0")}:${String(currentDate.getMinutes()).padStart(2, "0")}`;
 
       // Check if today is a reminder day
       if (!data.reminderDays.includes(currentDay)) return;
@@ -56,7 +65,7 @@ export function StudyReminder() {
       if (currentTime !== data.reminderTime) return;
 
       // Prevent double-firing in the same minute
-      const triggerKey = `${now.toISOString().split("T")[0]} ${currentTime}`;
+      const triggerKey = `${currentDate.toISOString().split("T")[0]} ${currentTime}`;
       if (lastTriggeredRef.current === triggerKey) return;
       lastTriggeredRef.current = triggerKey;
 
@@ -75,8 +84,8 @@ export function StudyReminder() {
       }
     }
 
-    // Check every 45 seconds
-    const interval = setInterval(checkReminder, 45_000);
+    // Check every 5 minutes (300s) instead of 45s
+    const interval = setInterval(checkReminder, 300_000);
 
     // Also check once on mount (with a small delay to let page load)
     const timeout = setTimeout(checkReminder, 3_000);

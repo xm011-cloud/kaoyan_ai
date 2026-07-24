@@ -318,7 +318,7 @@ export default function StudyPathPage() {
                                   disabled={!!updatingId}
                                 />
                                 <span className="text-xs text-gray-400 w-8 text-right">
-                                  {Math.round(m.progress * 100)}%
+                                  {Math.round((m.progress || 0) * 100)}%
                                 </span>
                               </div>
                             )}

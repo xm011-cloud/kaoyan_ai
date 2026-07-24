@@ -4,9 +4,8 @@ import { getUserAiConfig } from "@/lib/ai-config";
 import { prisma } from "@/lib/prisma";
 
 // GET: 获取用户学习路径
-export async function GET() {
-  // Note: request param not used, auth handled internally
-  const { user, error } = await getAuthUser(undefined as unknown as NextRequest);
+export async function GET(request: NextRequest) {
+  const { user, error } = await getAuthUser(request);
   if (error) return error;
 
   try {

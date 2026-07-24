@@ -41,11 +41,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Also ensure subject-level nodes exist
     const subjects = [...new Set(wqs.map((w) => w.subject))];
 
-    // 3. Upsert nodes
+    // 3. Batch upsert nodes using transaction
     const nodeMap = new Map<string, string>(); // "subject||name" → nodeId
+
+    const nodeOps: Promise<{ key: string; id: string }>[] = [];
     for (const subject of subjects) {
       const tags = tagMap.get(subject);
       if (!tags) continue;
@@ -57,25 +58,31 @@ export async function POST(request: NextRequest) {
           ? Math.max(0, 1 - stats.unreviewed / stats.total)
           : 0;
 
-        const node = await prisma.knowledgeNode.upsert({
-          where: {
-            userId_name_subject: { userId, name: tag, subject },
-          },
-          create: {
-            userId,
-            name: tag,
-            subject,
-            category: "concept",
-            weight: totalWeight,
-            mastery,
-          },
-          update: {
-            weight: totalWeight,
-            mastery,
-          },
-        });
-        nodeMap.set(key, node.id);
+        nodeOps.push(
+          prisma.knowledgeNode.upsert({
+            where: {
+              userId_name_subject: { userId, name: tag, subject },
+            },
+            create: {
+              userId,
+              name: tag,
+              subject,
+              category: "concept",
+              weight: totalWeight,
+              mastery,
+            },
+            update: {
+              weight: totalWeight,
+              mastery,
+            },
+          }).then((node) => ({ key, id: node.id }))
+        );
       }
+    }
+
+    const nodeResults = await Promise.all(nodeOps);
+    for (const { key, id } of nodeResults) {
+      nodeMap.set(key, id);
     }
 
     // 4. Build edges from tag co-occurrence within the same question
@@ -95,28 +102,28 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 5. Create edges (only if co-occurrence >= 1)
-    let edgesCreated = 0;
+    // 5. Batch upsert edges using transaction
+    const edgeOps: Promise<unknown>[] = [];
     for (const [pairKey, count] of coOccurrence) {
       const [fromId, toId] = pairKey.split("||");
-      try {
-        await prisma.knowledgeEdge.upsert({
+      edgeOps.push(
+        prisma.knowledgeEdge.upsert({
           where: { fromId_toId: { fromId, toId } },
           create: {
             fromId,
             toId,
-            relation: count >= 3 ? "related" : "related",
+            relation: count >= 3 ? "prerequisite" : "related",
             label: count >= 3 ? `共现${count}次` : undefined,
           },
           update: {
             label: count >= 3 ? `共现${count}次` : undefined,
           },
-        });
-        edgesCreated++;
-      } catch {
-        // Skip if nodes don't exist
-      }
+        }).catch(() => null) // Skip if nodes don't exist
+      );
     }
+
+    const edgeResults = await Promise.all(edgeOps);
+    const edgesCreated = edgeResults.filter(Boolean).length;
 
     return NextResponse.json({
       success: true,

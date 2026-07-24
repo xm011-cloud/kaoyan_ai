@@ -233,6 +233,7 @@ ${Object.keys(targetScores).length > 0 ? `- 用户已设定各科目标分数，
             date: new Date(t.date),
             duration: Math.min(Math.max(t.duration || 60, 15), 480),
             phase: t.phase,
+            subject: t.subject,
           },
         })
       )

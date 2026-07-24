@@ -371,7 +371,7 @@ export default function KnowledgeGraphClient() {
                         }}
                       />
                     </div>
-                    <span className="text-xs">{Math.round(selectedNode.mastery * 100)}%</span>
+                    <span className="text-xs">{Math.round((selectedNode.mastery || 0) * 100)}%</span>
                   </div>
                 </div>
                 <div>

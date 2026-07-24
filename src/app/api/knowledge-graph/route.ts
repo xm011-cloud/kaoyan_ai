@@ -21,7 +21,8 @@ export async function GET(request: NextRequest) {
       }),
       prisma.knowledgeEdge.findMany({
         where: {
-          from: { userId: user!.id },
+          from: { userId: user!.id, ...(subject ? { subject } : {}) },
+          ...(subject ? { to: { subject } } : {}),
         },
         include: {
           from: { select: { id: true, name: true, subject: true } },

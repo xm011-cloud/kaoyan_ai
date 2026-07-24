@@ -16,16 +16,7 @@ export default async function DashboardPage() {
   todayEnd.setHours(23, 59, 59, 999)
   const todayStr = today.toISOString().split("T")[0]
 
-  // ── 今日任务 ──
-  const todayTasks = await prisma.task.findMany({
-    where: { userId, date: { gte: today, lte: todayEnd } },
-    orderBy: { createdAt: "asc" },
-  })
-  const todayCompleted = todayTasks.filter(t => t.completed).length
-  const todayTotal = todayTasks.length
-  const todayMinutes = todayTasks.reduce((s, t) => s + (t.duration || 0), 0)
-
-  // ── 本周学习时长 ──
+  // ── 本周时间范围 ──
   const weekStart = new Date(today)
   weekStart.setDate(weekStart.getDate() - weekStart.getDay())
   weekStart.setHours(0, 0, 0, 0)
@@ -33,19 +24,59 @@ export default async function DashboardPage() {
   weekEnd.setDate(weekEnd.getDate() + 6)
   weekEnd.setHours(23, 59, 59, 999)
 
-  const weekCheckIns = await prisma.checkIn.findMany({
-    where: { userId, date: { gte: weekStart, lte: weekEnd } },
-  })
+  // ── 并行查询所有数据 ──
+  const [
+    todayTasks,
+    weekCheckIns,
+    recentCheckIns,
+    totalAll,
+    completedAll,
+    goal,
+    recentChecks,
+    allCheckIns,
+    allTasks,
+  ] = await Promise.all([
+    prisma.task.findMany({
+      where: { userId, date: { gte: today, lte: todayEnd } },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.checkIn.findMany({
+      where: { userId, date: { gte: weekStart, lte: weekEnd } },
+    }),
+    prisma.checkIn.findMany({
+      where: { userId },
+      orderBy: { date: "desc" },
+      take: 100,
+      select: { date: true },
+    }),
+    prisma.task.count({ where: { userId } }),
+    prisma.task.count({ where: { userId, completed: true } }),
+    prisma.goal.findUnique({ where: { userId } }),
+    prisma.checkIn.findMany({
+      where: { userId },
+      orderBy: { date: "desc" },
+      take: 5,
+    }),
+    prisma.checkIn.findMany({
+      where: { userId },
+      orderBy: { date: "asc" },
+      select: { id: true, date: true, duration: true, status: true },
+    }),
+    prisma.task.findMany({
+      where: { userId },
+      select: { id: true, title: true, phase: true, completed: true, duration: true },
+    }),
+  ])
+
+  // ── 派生数据 ──
+  const todayCompleted = todayTasks.filter(t => t.completed).length
+  const todayTotal = todayTasks.length
+  const todayMinutes = todayTasks.reduce((s, t) => s + (t.duration || 0), 0)
+
   const weekMinutes = weekCheckIns.reduce((s, c) => s + c.duration, 0)
   const weekDays = weekCheckIns.length
 
   // ── 连续打卡天数 ──
-  const recentCheckIns = await prisma.checkIn.findMany({
-    where: { userId },
-    orderBy: { date: "desc" },
-    take: 100,
-    select: { date: true },
-  })
   let streak = 0
   const checkDate = new Date(today)
   for (let i = 0; i < 365; i++) {
@@ -58,14 +89,8 @@ export default async function DashboardPage() {
     else break
   }
 
-  // ── 总任务完成率 ──
-  const totalAll = await prisma.task.count({ where: { userId } })
-  const completedAll = await prisma.task.count({ where: { userId, completed: true } })
-
-  // ── 目标 ──
-  const goal = await prisma.goal.findUnique({ where: { userId } })
   const daysLeft = goal
-    ? Math.max(0, Math.ceil((new Date(goal.examDate).getTime() - today.getTime()) / 86400000))
+    ? Math.max(0, Math.ceil((new Date(goal.examDate).getTime() - today.getTime()) / 86400000)) || 0
     : 0
 
   // ── 本周每日时长 ──
@@ -80,24 +105,6 @@ export default async function DashboardPage() {
     return { day: weekDayNames[i], minutes: mins, isToday: i === today.getDay() }
   })
   const weekMax = Math.max(...weekBars.map(b => b.minutes), 60)
-
-  // ── 最近打卡 ──
-  const recentChecks = await prisma.checkIn.findMany({
-    where: { userId },
-    orderBy: { date: "desc" },
-    take: 5,
-  })
-
-  // ── 图表数据：全部打卡 + 全部任务 ──
-  const allCheckIns = await prisma.checkIn.findMany({
-    where: { userId },
-    orderBy: { date: "asc" },
-    select: { id: true, date: true, duration: true, status: true },
-  })
-  const allTasks = await prisma.task.findMany({
-    where: { userId },
-    select: { id: true, title: true, phase: true, completed: true, duration: true },
-  })
 
   // ── 有用任务数量(今日) ──
   const todayCheckIn = weekCheckIns.find(c => {
@@ -160,7 +167,7 @@ export default async function DashboardPage() {
                     <span>{check.status === 'good' ? '😊' : check.status === 'normal' ? '😐' : '😫'}</span>
                     <span className="text-sm">{new Date(check.date).toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' })}</span>
                   </div>
-                  <span className="text-sm text-gray-500">{Math.round(check.duration / 60)} 小时</span>
+                  <span className="text-sm text-gray-500">{Math.round((check.duration || 0) / 60)} 小时</span>
                 </div>
               ))}
             </div>

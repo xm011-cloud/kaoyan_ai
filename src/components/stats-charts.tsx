@@ -81,7 +81,7 @@ export function StatsCharts({ checkIns, tasks }: Props) {
         const cd = new Date(c.date); cd.setHours(0,0,0,0);
         return cd.toISOString().split("T")[0] === dStr;
       }).reduce((s, c) => s + c.duration, 0);
-      return { name: dayNames[i], hours: +(mins / 60).toFixed(1), isToday: i === today.getDay() };
+      return { name: dayNames[i], hours: +(mins / 60).toFixed(1) || 0, isToday: i === today.getDay() };
     });
   }, [checkIns]);
 

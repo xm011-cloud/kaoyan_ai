@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import Link from "next/link"
 import { DashboardCharts } from "@/components/dashboard-charts"
+import { startOfDay, endOfDay, toDateString, getWeekStart, getWeekEnd, daysAgo } from "@/lib/date-utils"
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -10,22 +11,16 @@ export default async function DashboardPage() {
   if (!user) redirect("/login")
 
   const userId = user.id
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const todayEnd = new Date(today)
-  todayEnd.setHours(23, 59, 59, 999)
-  const todayStr = today.toISOString().split("T")[0]
+  const today = startOfDay(new Date())
+  const todayEnd = endOfDay(today)
+  const todayStr = toDateString(today)
 
   // ── 本周时间范围 ──
-  const weekStart = new Date(today)
-  weekStart.setDate(weekStart.getDate() - weekStart.getDay())
-  weekStart.setHours(0, 0, 0, 0)
-  const weekEnd = new Date(weekStart)
-  weekEnd.setDate(weekEnd.getDate() + 6)
-  weekEnd.setHours(23, 59, 59, 999)
+  const weekStart = getWeekStart()
+  const weekEnd = getWeekEnd()
 
   // 图表数据范围：近 90 天
-  const chartStart = new Date(today)
+  const chartStart = daysAgo(90)
   chartStart.setDate(chartStart.getDate() - 90)
   chartStart.setHours(0, 0, 0, 0)
 

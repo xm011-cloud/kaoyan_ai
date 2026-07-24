@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/api-auth";
 import { getUserAiConfig, callAI } from "@/lib/ai-config";
 import { prisma } from "@/lib/prisma";
+import { startOfDay, getWeekStart, getWeekEnd } from "@/lib/date-utils";
 
 export async function POST(request: NextRequest) {
   const { user, error } = await getAuthUser(request);
@@ -9,14 +10,9 @@ export async function POST(request: NextRequest) {
 
   try {
     // 计算本周范围
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const weekStart = new Date(today);
-    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-    weekStart.setHours(0, 0, 0, 0);
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekEnd.getDate() + 6);
-    weekEnd.setHours(23, 59, 59, 999);
+    const today = startOfDay(new Date());
+    const weekStart = getWeekStart(today);
+    const weekEnd = getWeekEnd(today);
 
     // 检查是否已有本周反馈
     const existing = await prisma.feedback.findFirst({

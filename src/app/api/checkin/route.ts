@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { handleApiError } from "@/lib/api-utils";
+import { startOfDay } from "@/lib/date-utils";
 
 // GET: 获取打卡记录（支持 ?date=YYYY-MM-DD）
 export async function GET(request: NextRequest) {
@@ -13,13 +14,10 @@ export async function GET(request: NextRequest) {
     const dateStr = searchParams.get("date");
 
     if (dateStr) {
-      const date = new Date(dateStr);
-      date.setHours(0, 0, 0, 0);
-
+      const date = startOfDay(new Date(dateStr));
       const checkIn = await prisma.checkIn.findFirst({
         where: { userId: user!.id, date },
       });
-
       return NextResponse.json({ checkIn });
     }
 
@@ -48,8 +46,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "日期、时长和状态为必填项" }, { status: 400 });
     }
 
-    const checkInDate = new Date(date);
-    checkInDate.setHours(0, 0, 0, 0);
+    const checkInDate = startOfDay(new Date(date));
 
     const checkIn = await prisma.checkIn.upsert({
       where: { userId_date: { userId: user!.id, date: checkInDate } },

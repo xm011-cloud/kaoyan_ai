@@ -6,6 +6,7 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer,
   BarChart, Bar,
 } from "recharts";
+import { startOfDay, toDateString, getWeekStart } from "@/lib/date-utils";
 
 interface CheckIn {
   date: string;   // ISO string
@@ -70,16 +71,15 @@ export function StatsCharts({ checkIns, tasks }: Props) {
 
   // ── 本周每日时长 ──
   const dailyData = useMemo(() => {
-    const today = new Date(); today.setHours(0,0,0,0);
-    const weekStart = new Date(today);
-    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    const today = startOfDay(new Date());
+    const ws = getWeekStart(today);
     const dayNames = ["日", "一", "二", "三", "四", "五", "六"];
     return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(weekStart); d.setDate(d.getDate() + i); d.setHours(0,0,0,0);
-      const dStr = d.toISOString().split("T")[0];
+      const d = new Date(ws); d.setDate(d.getDate() + i);
+      const dStr = toDateString(d);
       const mins = checkIns.filter(c => {
-        const cd = new Date(c.date); cd.setHours(0,0,0,0);
-        return cd.toISOString().split("T")[0] === dStr;
+        const cd = startOfDay(new Date(c.date));
+        return toDateString(cd) === dStr;
       }).reduce((s, c) => s + c.duration, 0);
       return { name: dayNames[i], hours: +(mins / 60).toFixed(1) || 0, isToday: i === today.getDay() };
     });

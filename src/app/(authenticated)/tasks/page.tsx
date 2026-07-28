@@ -10,6 +10,7 @@ interface Task {
   completed: boolean
   duration?: number
   phase?: string | null
+  subject?: string | null
   date: string
 }
 
@@ -32,6 +33,7 @@ export default function TasksPage() {
   const [editDuration, setEditDuration] = useState('')
   const [editDate, setEditDate] = useState('')
   const [editPhase, setEditPhase] = useState('')
+  const [editSubject, setEditSubject] = useState('')
   const [saving, setSaving] = useState(false)
 
   const today = new Date().toISOString().split('T')[0]
@@ -101,6 +103,7 @@ export default function TasksPage() {
           title: newTitle,
           date: selectedDate,
           duration: newDuration ? parseInt(newDuration) : null,
+          subject: null,
         }),
       })
       const data = await res.json()
@@ -135,6 +138,7 @@ export default function TasksPage() {
     setEditDuration(task.duration?.toString() || '')
     setEditDate(task.date.split('T')[0])
     setEditPhase(task.phase || '')
+    setEditSubject(task.subject || '')
   }
 
   // ── 保存编辑 ──
@@ -151,6 +155,7 @@ export default function TasksPage() {
           description: editDesc || null,
           duration: editDuration ? parseInt(editDuration) : null,
           phase: editPhase || null,
+          subject: editSubject || null,
           date: editDate,
         }),
       })
@@ -401,6 +406,17 @@ export default function TasksPage() {
                   </select>
                 </div>
               </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">科目</label>
+                <input
+                  type="text"
+                  value={editSubject}
+                  onChange={(e) => setEditSubject(e.target.value)}
+                  placeholder="例如：数学一"
+                  className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                  list="task-subjects"
+                />
+              </div>
               <div className="flex gap-2 pt-2">
                 <Button type="button" variant="outline" className="flex-1" onClick={() => setEditTask(null)}>
                   取消
@@ -438,6 +454,9 @@ export default function TasksPage() {
           <div className="flex gap-3 mt-1">
             {task.duration && (
               <span className="text-xs text-gray-500">{task.duration} 分钟</span>
+            )}
+            {task.subject && (
+              <span className="text-xs text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-1.5 rounded">{task.subject}</span>
             )}
             {task.phase && (
               <span className="text-xs text-purple-500 bg-purple-50 dark:bg-purple-900/20 px-1.5 rounded">{task.phase}</span>

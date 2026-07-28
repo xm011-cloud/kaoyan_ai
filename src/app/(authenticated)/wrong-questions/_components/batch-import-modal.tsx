@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { useBatchImportWrongQuestions } from "@/hooks/use-wrong-questions";
 
 interface BatchImportModalProps {
   onClose: () => void;
@@ -12,28 +13,26 @@ export function BatchImportModal({ onClose, onImported }: BatchImportModalProps)
   const [text, setText] = useState("");
   const [format, setFormat] = useState<"text" | "json">("text");
   const [importing, setImporting] = useState(false);
+  const { mutate } = useBatchImportWrongQuestions();
 
-  const handleImport = async () => {
+  const handleImport = () => {
     if (!text.trim()) return;
     setImporting(true);
     try {
       const body = format === "json" ? { questions: JSON.parse(text) } : { text };
-      const res = await fetch("/api/wrong-questions/batch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+      mutate(body, {
+        onSuccess: (data: { count: number }) => {
+          onImported();
+          onClose();
+          alert(`✅ 成功导入 ${data.count} 道错题`);
+        },
+        onError: (err: unknown) => {
+          alert(err instanceof Error ? err.message : "导入失败");
+        },
+        onSettled: () => setImporting(false),
       });
-      const data = await res.json();
-      if (res.ok) {
-        onImported();
-        onClose();
-        alert(`✅ 成功导入 ${data.count} 道错题`);
-      } else {
-        alert(data.error || "导入失败");
-      }
     } catch (err) {
       alert(err instanceof SyntaxError ? "JSON 格式错误，请检查" : "导入失败");
-    } finally {
       setImporting(false);
     }
   };

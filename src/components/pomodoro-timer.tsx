@@ -47,11 +47,7 @@ const modeConfig: Record<
   },
 };
 
-function formatTime(seconds: number) {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
-}
+import { formatTime } from "@/lib/time-utils";
 
 export function PomodoroTimer({
   timeLeft,

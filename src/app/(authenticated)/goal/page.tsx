@@ -3,25 +3,52 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { SubjectSelector } from './_components/subject-selector'
+import { isCustomSubject, formatCustomSubjectLabel } from '@/lib/subject-standards'
+
+function displaySubject(subj: string): string {
+  return isCustomSubject(subj) ? formatCustomSubjectLabel(subj) : subj
+}
+
+interface PlanTask {
+  id?: string
+  title: string
+  description?: string
+  date: string
+  duration?: number
+  phase?: string
+  subject: string
+}
 
 interface PlanSummary {
   totalTasks: number
   daysRemaining: number
   phases: Record<string, number>
   generatedBy: string
+  tasks: PlanTask[]
+}
+
+interface JudgeResult {
+  score: number
+  strengths: string[]
+  issues: { severity: string; description: string; fix: string }[]
+  verdict: string
+  summary: string
 }
 
 export default function GoalPage() {
   const [university, setUniversity] = useState('')
   const [major, setMajor] = useState('')
   const [examDate, setExamDate] = useState('')
-  const [subjects, setSubjects] = useState('')
+  const [subjects, setSubjects] = useState<string[]>([])
   const [targetScores, setTargetScores] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
   const [generating, setGenerating] = useState(false)
   const [planSummary, setPlanSummary] = useState<PlanSummary | null>(null)
+  const [judging, setJudging] = useState(false)
+  const [judgeResult, setJudgeResult] = useState<JudgeResult | null>(null)
   const router = useRouter()
 
   // 加载已有目标
@@ -33,7 +60,7 @@ export default function GoalPage() {
         setUniversity(data.goal.university)
         setMajor(data.goal.major)
         setExamDate(data.goal.examDate.split('T')[0])
-        setSubjects(data.goal.subjects.join('\n'))
+        setSubjects(Array.isArray(data.goal.subjects) ? data.goal.subjects : [])
         if (data.goal.targetScores && typeof data.goal.targetScores === 'object') {
           setTargetScores(data.goal.targetScores as Record<string, number>)
         }
@@ -56,6 +83,7 @@ export default function GoalPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || '生成失败')
       setPlanSummary(data)
+      setJudgeResult(null)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'AI 计划生成失败，请稍后再试')
     } finally {
@@ -69,7 +97,7 @@ export default function GoalPage() {
     setError('')
 
     try {
-      const subjectList = subjects.split('\n').filter(Boolean)
+      const subjectList = subjects.filter(Boolean)
       const res = await fetch('/api/goal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -97,12 +125,40 @@ export default function GoalPage() {
   }
 
   const handleRegenerate = async () => {
-    if (!confirm('重新生成将删除现有计划并创建新计划，确定继续？')) return
+    if (!confirm('重新生成将删除本周未完成任务并创建新计划，确定继续？')) return
+    setJudgeResult(null)
     await generatePlan()
   }
 
+  const handleJudge = async () => {
+    if (!planSummary || planSummary.tasks.length === 0) return
+    setJudging(true)
+    setJudgeResult(null)
+    try {
+      const res = await fetch('/api/ai/judge-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tasks: planSummary.tasks,
+          examDate,
+          subjects: subjects.filter(Boolean),
+        }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setJudgeResult(data as JudgeResult)
+      } else {
+        setError(data.error || '评审失败')
+      }
+    } catch {
+      setError('评审失败，请稍后再试')
+    } finally {
+      setJudging(false)
+    }
+  }
+
   // Subject list from current value
-  const subjectList = subjects.split('\n').filter(Boolean)
+  const subjectList = subjects
 
   return (
     <div className="flex flex-1 flex-col p-6">
@@ -146,14 +202,8 @@ export default function GoalPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">考试科目</label>
-            <textarea
-              value={subjects}
-              onChange={(e) => setSubjects(e.target.value)}
-              placeholder="每行一个科目，例如：&#10;政治&#10;英语一&#10;数学一&#10;专业课"
-              rows={4}
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
-            />
+            <label className="block text-sm font-medium mb-2">考试科目</label>
+            <SubjectSelector selected={subjects} onChange={setSubjects} />
           </div>
 
           {/* Target scores */}
@@ -165,8 +215,8 @@ export default function GoalPage() {
               <div className="grid grid-cols-2 gap-3">
                 {subjectList.map((subj) => (
                   <div key={subj} className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600 dark:text-gray-400 w-20 shrink-0">
-                      {subj}
+                    <span className="text-sm text-gray-600 dark:text-gray-400 w-20 shrink-0 truncate" title={subj}>
+                      {displaySubject(subj)}
                     </span>
                     <input
                       type="number"
@@ -232,10 +282,68 @@ export default function GoalPage() {
               <Button onClick={() => router.push('/tasks')} className="flex-1">
                 查看学习计划
               </Button>
-              <Button variant="outline" onClick={handleRegenerate} disabled={generating}>
+              <Button variant="outline" onClick={handleJudge} disabled={judging || generating}>
+                {judging ? '评审中...' : '🔍 评审计划'}
+              </Button>
+              <Button variant="outline" onClick={handleRegenerate} disabled={generating || judging}>
                 {generating ? '生成中...' : '重新生成'}
               </Button>
             </div>
+
+            {/* 评审结果 */}
+            {judgeResult && (
+              <div className="mt-4 border-t pt-4 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className={`text-4xl ${
+                    judgeResult.verdict === 'good' ? '' :
+                    judgeResult.verdict === 'needs_work' ? 'opacity-70' : 'opacity-50'
+                  }`}>
+                    {judgeResult.verdict === 'good' ? '✅' : judgeResult.verdict === 'needs_work' ? '⚠️' : '❌'}
+                  </div>
+                  <div>
+                    <h4 className="font-bold">
+                      评审得分：<span className={`text-lg ${
+                        judgeResult.score >= 80 ? 'text-green-600' :
+                        judgeResult.score >= 60 ? 'text-yellow-600' : 'text-red-600'
+                      }`}>{judgeResult.score} 分</span>
+                    </h4>
+                    <p className="text-sm text-gray-500">{judgeResult.summary}</p>
+                  </div>
+                </div>
+
+                {judgeResult.strengths.length > 0 && (
+                  <div>
+                    <h5 className="text-sm font-medium text-green-600 mb-1">👍 优点</h5>
+                    <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-0.5">
+                      {judgeResult.strengths.map((s, i) => (
+                        <li key={i}>• {s}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {judgeResult.issues.length > 0 && (
+                  <div>
+                    <h5 className="text-sm font-medium text-red-500 mb-1">🔧 可改进 ({judgeResult.issues.length})</h5>
+                    <div className="space-y-2">
+                      {judgeResult.issues.map((issue, i) => (
+                        <div key={i} className={`text-sm p-2 rounded ${
+                          issue.severity === 'high'
+                            ? 'bg-red-50 dark:bg-red-900/20 border-l-2 border-red-400'
+                            : issue.severity === 'medium'
+                            ? 'bg-yellow-50 dark:bg-yellow-900/20 border-l-2 border-yellow-400'
+                            : 'bg-gray-50 dark:bg-gray-900/20 border-l-2 border-gray-300'
+                        }`}>
+                          <span className="text-xs font-medium text-gray-400 uppercase">{issue.severity}</span>
+                          <p className="mt-0.5">{issue.description}</p>
+                          <p className="text-xs text-blue-500 mt-0.5">💡 {issue.fix}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

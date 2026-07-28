@@ -3,35 +3,15 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { useGoal } from "@/hooks/use-goal";
-
-interface PracticeQuestion {
-  id: string;
-  type: "choice" | "essay";
-  question: string;
-  options?: string[];
-  correctAnswer: string;
-  explanation: string;
-  scoringPoints?: string[];
-}
-
-interface PracticeSession {
-  id: string;
-  type: "daily" | "mock";
-  subject: string;
-  status: "in_progress" | "completed" | "abandoned";
-  questions: PracticeQuestion[];
-  answers: Record<string, string>;
-  scores: Record<string, { score: number; maxScore: number; feedback: string }>;
-  totalScore: number | null;
-  maxScore: number | null;
-  duration: number | null;
-  startedAt: string | null;
-  completedAt: string | null;
-  createdAt: string;
-}
+import { usePracticeTimer } from "@/hooks/use-practice-timer";
+import { formatTime } from "@/lib/time-utils";
+import type { PracticeQuestion, PracticeSession } from "@/lib/practice-types";
+import { SessionCreator } from "./_components/session-creator";
+import { ActiveSession } from "./_components/active-session";
+import { ResultView } from "./_components/result-view";
 
 export default function PracticePage() {
-  // State
+  // ── State ──
   const [view, setView] = useState<"main" | "active" | "result">("main");
   const [sessions, setSessions] = useState<PracticeSession[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(true);
@@ -50,32 +30,39 @@ export default function PracticePage() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
 
-  // Timer — use refs to avoid re-renders every second
-  const [timeLeft, setTimeLeft] = useState<number | null>(null);
-  const elapsedRef = useRef(0);
-  const [elapsedDisplay, setElapsedDisplay] = useState(0);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Timer
+  const {
+    timeLeft,
+    elapsedDisplay,
+    reset: resetTimer,
+  } = usePracticeTimer({
+    isActive: view === "active" && !!session,
+    isMock: session?.type === "mock",
+    initialDuration: session?.duration ?? 180,
+    onTimeUp: () => handleSubmit(),
+  });
 
-  // Result session (viewing past results)
+  // Result view
   const [resultSession, setResultSession] = useState<PracticeSession | null>(null);
-
-  // Wrong book integration
   const [addingWrongId, setAddingWrongId] = useState<string | null>(null);
-  const [wrongSubject, setWrongSubject] = useState("");
 
-  // Material selection & wrong question boost
+  // Advanced options
   const [materials, setMaterials] = useState<{ id: string; name: string }[]>([]);
   const [selectedMaterialIds, setSelectedMaterialIds] = useState<string[]>([]);
   const [useWrongQuestions, setUseWrongQuestions] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
 
+  // Wrong-question subject
+  const wrongSubject = useRef("");
+
+  // ── Data loading ──
   const loadSessions = useCallback(async () => {
     try {
       const res = await fetch("/api/practice?limit=30");
       const data = await res.json();
       setSessions(data.sessions || []);
     } catch {
-      // ignore
+      /* ignore */
     } finally {
       setLoadingSessions(false);
     }
@@ -87,7 +74,7 @@ export default function PracticePage() {
       const data = await res.json();
       setMaterials(data.materials || []);
     } catch {
-      // ignore
+      /* ignore */
     }
   }, []);
 
@@ -96,41 +83,13 @@ export default function PracticePage() {
     loadMaterials();
   }, [loadSessions, loadMaterials]);
 
-  // 科目加载后自动设置默认值
   useEffect(() => {
-    if (subjects.length > 0) {
-      if (!createSubject) setCreateSubject(subjects[0]);
-      if (!wrongSubject) setWrongSubject(subjects[0]);
+    if (subjects.length > 0 && !createSubject) {
+      setCreateSubject(subjects[0]);
     }
-  }, [subjects, createSubject, wrongSubject]);
+  }, [subjects, createSubject]);
 
-  // Timer logic — elapsed uses ref to avoid re-renders every second
-  useEffect(() => {
-    if (view === "active" && session?.type === "mock" && timeLeft !== null) {
-      if (timeLeft <= 0) {
-        handleSubmit();
-        return;
-      }
-      timerRef.current = setInterval(() => {
-        setTimeLeft((t) => (t !== null && t > 0 ? t - 1 : 0));
-        elapsedRef.current += 1;
-        if (elapsedRef.current % 5 === 0) setElapsedDisplay(elapsedRef.current);
-      }, 1000);
-      return () => {
-        if (timerRef.current) clearInterval(timerRef.current);
-      };
-    }
-    if (view === "active" && session?.type === "daily") {
-      timerRef.current = setInterval(() => {
-        elapsedRef.current += 1;
-        if (elapsedRef.current % 5 === 0) setElapsedDisplay(elapsedRef.current);
-      }, 1000);
-      return () => {
-        if (timerRef.current) clearInterval(timerRef.current);
-      };
-    }
-  }, [view, session?.type, timeLeft]);
-
+  // ── Handlers ──
   const handleCreate = async () => {
     if (!createSubject) return;
     setCreating(true);
@@ -143,36 +102,30 @@ export default function PracticePage() {
           subject: createSubject,
           duration: createType === "mock" ? createDuration : undefined,
           materialIds: selectedMaterialIds.length > 0 ? selectedMaterialIds : undefined,
-          wrongQuestionIds: useWrongQuestions ? "auto" : undefined,
+          wrongQuestionIds: useWrongQuestions ? [] : undefined,
         }),
       });
       const data = await res.json();
-      if (data.session) {
-        const s = data.session as PracticeSession;
+      const s: PracticeSession = data.session;
+      if (s.status === "in_progress") {
         setSession(s);
-        setAnswers({});
         setCurrentIndex(0);
-        elapsedRef.current = 0;
-        setElapsedDisplay(0);
-        if (s.type === "mock") {
-          setTimeLeft((s.duration || 180) * 60);
-        } else {
-          setTimeLeft(null);
-        }
+        setAnswers({});
+        resetTimer();
         setView("active");
+        wrongSubject.current = s.subject;
+        loadSessions();
       }
     } catch {
-      // ignore
+      /* ignore */
     } finally {
       setCreating(false);
     }
   };
 
   const handleSubmit = async () => {
-    if (!session) return;
+    if (!session || submitting) return;
     setSubmitting(true);
-    if (timerRef.current) clearInterval(timerRef.current);
-
     try {
       const res = await fetch(`/api/practice/${session.id}`, {
         method: "PATCH",
@@ -180,227 +133,109 @@ export default function PracticePage() {
         body: JSON.stringify({ answers }),
       });
       const data = await res.json();
-      if (data.session) {
-        setSession(data.session);
-        setResultSession(data.session);
-        setView("result");
-        loadSessions();
-      }
+      setResultSession(data.session as PracticeSession);
+      setView("result");
+      setSession(null);
+      loadSessions();
     } catch {
-      // ignore
+      /* ignore */
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleViewResult = async (s: PracticeSession) => {
-    if (s.status === "completed") {
-      try {
-        const res = await fetch(`/api/practice/${s.id}`);
-        const data = await res.json();
-        if (data.session) {
-          setResultSession(data.session);
-          setView("result");
-        }
-      } catch {
-        // ignore
-      }
+    if (s.status !== "completed") return;
+    try {
+      const res = await fetch(`/api/practice/${s.id}`);
+      const data = await res.json();
+      setResultSession(data.session as PracticeSession);
+      setView("result");
+    } catch {
+      /* ignore */
     }
   };
 
   const handleAddToWrongBook = async (q: PracticeQuestion) => {
-    if (!resultSession) return;
-    const userAnswer = resultSession.answers[q.id] || "";
-    const scoreData = resultSession.scores[q.id];
-
-    // Only add if answer was wrong (score < 60% of max)
-    if (
-      scoreData &&
-      scoreData.maxScore > 0 &&
-      scoreData.score / scoreData.maxScore >= 0.6
-    ) {
-      return; // Answered correctly, skip
-    }
-
+    setAddingWrongId(q.id);
     try {
       await fetch("/api/wrong-questions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          subject: resultSession.subject,
+          subject: wrongSubject.current || createSubject,
           question: q.question,
-          answer: `正确答案：${q.correctAnswer}\n解析：${q.explanation}\n你的答案：${userAnswer || "（未作答）"}`,
+          answer: q.correctAnswer,
           source: "practice",
-          tags: [resultSession.subject],
+          tags: [q.type],
         }),
       });
-      setAddingWrongId(q.id);
-      setTimeout(() => setAddingWrongId(null), 1500);
     } catch {
-      // ignore
+      /* ignore */
+    } finally {
+      setAddingWrongId(null);
     }
   };
 
-  const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
-  };
-
-  // ── MAIN VIEW ──
+  // ── Render ──
+  // MAIN VIEW
   if (view === "main") {
     return (
       <div className="p-4 lg:p-6">
         <div className="max-w-2xl mx-auto space-y-6">
           <h1 className="text-2xl font-bold">练习</h1>
 
-          {/* Create cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Daily */}
-            <div
-              className={`p-5 rounded-xl border-2 cursor-pointer transition-all ${
-                createType === "daily"
-                  ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
-                  : "border-gray-200 dark:border-gray-700 hover:border-blue-300"
-              }`}
-              onClick={() => setCreateType("daily")}
-            >
-              <div className="text-3xl mb-2">📝</div>
-              <h3 className="font-bold text-lg">每日一练</h3>
-              <p className="text-sm text-gray-500 mt-1">
-                每天 5 道题，巩固知识点，保持学习节奏
-              </p>
-            </div>
-
-            {/* Mock */}
-            <div
-              className={`p-5 rounded-xl border-2 cursor-pointer transition-all ${
-                createType === "mock"
-                  ? "border-purple-500 bg-purple-50 dark:bg-purple-900/20"
-                  : "border-gray-200 dark:border-gray-700 hover:border-purple-300"
-              }`}
-              onClick={() => setCreateType("mock")}
-            >
-              <div className="text-3xl mb-2">⏱️</div>
-              <h3 className="font-bold text-lg">模拟考试</h3>
-              <p className="text-sm text-gray-500 mt-1">
-                完整模拟考试，计时作答，检验真实水平
-              </p>
-            </div>
-          </div>
-
-          {/* Config */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl border p-5 space-y-4">
-            <div className="flex flex-wrap gap-4 items-end">
-              <div className="flex-1 min-w-[150px]">
-                <label className="block text-sm font-medium mb-1">科目</label>
-                <select
-                  value={createSubject}
-                  onChange={(e) => setCreateSubject(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2 text-sm dark:bg-gray-900 dark:border-gray-700"
-                >
-                  {subjects.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                  {subjects.length === 0 && (
-                    <option value="">请先设置考研目标</option>
-                  )}
-                </select>
-              </div>
-
-              {createType === "mock" && (
-                <div className="w-32">
-                  <label className="block text-sm font-medium mb-1">
-                    考试时长（分钟）
-                  </label>
-                  <input
-                    type="number"
-                    value={createDuration}
-                    onChange={(e) =>
-                      setCreateDuration(parseInt(e.target.value) || 180)
-                    }
-                    min={30}
-                    max={360}
-                    className="w-full border rounded-lg px-3 py-2 text-sm dark:bg-gray-900 dark:border-gray-700"
-                  />
-                </div>
-              )}
-
-              <Button
-                onClick={handleCreate}
-                disabled={creating || !createSubject}
-                className={
-                  createType === "mock"
-                    ? "bg-purple-600 hover:bg-purple-700"
-                    : ""
-                }
-              >
-                {creating
-                  ? "生成题目中..."
-                  : createType === "daily"
-                  ? "开始练习 ✏️"
-                  : "开始考试 ⏱️"}
-              </Button>
-            </div>
-          </div>
+          <SessionCreator
+            subjects={subjects}
+            createType={createType}
+            createSubject={createSubject}
+            createDuration={createDuration}
+            creating={creating}
+            onTypeChange={setCreateType}
+            onSubjectChange={setCreateSubject}
+            onDurationChange={setCreateDuration}
+            onCreate={handleCreate}
+          />
 
           {/* Advanced options */}
           {materials.length > 0 && (
             <div className="bg-white dark:bg-gray-800 rounded-xl border">
               <button
                 onClick={() => setShowOptions(!showOptions)}
-                className="w-full flex items-center justify-between px-5 py-3 text-left"
+                className="w-full px-4 py-3 flex items-center justify-between text-sm font-medium"
               >
-                <span className="text-sm font-medium">
-                  ⚙️ 出题选项
-                  {(selectedMaterialIds.length > 0 || useWrongQuestions) && (
-                    <span className="ml-2 text-xs text-blue-500">
-                      ({[
-                        selectedMaterialIds.length > 0 && `资料×${selectedMaterialIds.length}`,
-                        useWrongQuestions && "薄弱点",
-                      ].filter(Boolean).join(" + ")})
-                    </span>
-                  )}
-                </span>
-                <span className={`text-gray-400 transition-transform ${showOptions ? "rotate-180" : ""}`}>
-                  ▼
-                </span>
+                ⚙️ 高级选项
+                <span className={`transition-transform ${showOptions ? "rotate-180" : ""}`}>▼</span>
               </button>
-
               {showOptions && (
-                <div className="px-5 pb-4 space-y-4 border-t dark:border-gray-700 pt-4">
-                  {/* Material selection */}
+                <div className="px-4 pb-4 space-y-3">
                   <div>
-                    <label className="block text-sm font-medium mb-2">
-                      📚 选择出题资料（可选，AI 将基于资料内容出题）
+                    <label className="text-xs text-gray-500 block mb-2">
+                      关联学习资料（AI 会基于这些资料出题）
                     </label>
-                    <div className="max-h-40 overflow-y-auto space-y-1">
+                    <div className="flex flex-wrap gap-2">
                       {materials.map((m) => (
                         <label
                           key={m.id}
-                          className={`flex items-center gap-2 px-3 py-1.5 rounded-md cursor-pointer text-sm transition-colors ${
+                          className={`text-xs px-3 py-1.5 rounded-full border cursor-pointer transition-colors ${
                             selectedMaterialIds.includes(m.id)
-                              ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700"
-                              : "hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                              ? "bg-blue-50 border-blue-300 text-blue-700"
+                              : "bg-white border-gray-200 text-gray-500"
                           }`}
                         >
                           <input
                             type="checkbox"
                             checked={selectedMaterialIds.includes(m.id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedMaterialIds((prev) => [...prev, m.id]);
-                              } else {
-                                setSelectedMaterialIds((prev) =>
-                                  prev.filter((id) => id !== m.id)
-                                );
-                              }
-                            }}
-                            className="rounded"
+                            onChange={() =>
+                              setSelectedMaterialIds((prev) =>
+                                prev.includes(m.id)
+                                  ? prev.filter((id) => id !== m.id)
+                                  : [...prev, m.id]
+                              )
+                            }
+                            className="sr-only"
                           />
-                          <span className="truncate">{m.name}</span>
+                          {m.name}
                         </label>
                       ))}
                     </div>
@@ -413,19 +248,14 @@ export default function PracticePage() {
                       </button>
                     )}
                   </div>
-
-                  {/* Wrong questions toggle */}
-                  <label className="flex items-center gap-3 cursor-pointer">
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
                     <input
                       type="checkbox"
                       checked={useWrongQuestions}
                       onChange={(e) => setUseWrongQuestions(e.target.checked)}
                       className="rounded"
                     />
-                    <span className="text-sm">
-                      🔴 针对我的薄弱点出题
-                      <span className="text-xs text-gray-400 ml-1">（错题为 AI 提供出题方向）</span>
-                    </span>
+                    优先出薄弱知识点题目（从错题本分析）
                   </label>
                 </div>
               )}
@@ -434,62 +264,44 @@ export default function PracticePage() {
 
           {/* History */}
           <div>
-            <h2 className="font-semibold text-lg mb-3">练习记录</h2>
+            <h2 className="text-lg font-semibold mb-3">练习记录</h2>
             {loadingSessions ? (
-              <p className="text-sm text-gray-500">加载中...</p>
+              <p className="text-gray-500 text-sm">加载中...</p>
             ) : sessions.length === 0 ? (
-              <div className="text-center py-10 text-gray-500">
-                <div className="text-4xl mb-3">✏️</div>
-                <p>还没有练习记录</p>
-                <p className="text-sm">开始你的第一次练习吧</p>
-              </div>
+              <p className="text-gray-500 text-sm">还没有练习记录</p>
             ) : (
               <div className="space-y-2">
                 {sessions.map((s) => (
                   <button
                     key={s.id}
                     onClick={() => handleViewResult(s)}
-                    className="w-full flex items-center gap-4 p-4 rounded-lg border bg-white dark:bg-gray-800 hover:shadow-sm transition-shadow text-left"
+                    className="w-full text-left p-4 bg-white dark:bg-gray-800 rounded-lg border hover:shadow-sm transition-shadow"
                   >
-                    <span className="text-xl">
-                      {s.type === "daily" ? "📝" : "⏱️"}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`text-xs font-medium px-2 py-0.5 rounded ${
-                            s.type === "daily"
-                              ? "bg-blue-100 text-blue-700"
-                              : "bg-purple-100 text-purple-700"
-                          }`}
-                        >
-                          {s.type === "daily" ? "每日一练" : "模拟考试"}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="font-medium text-sm">
+                          {s.type === "daily" ? "📝 每日一练" : "⏱️ 模拟考试"}
+                        </span>
+                        <span className="text-xs text-gray-400 ml-2">{s.subject}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {s.status === "completed" && s.totalScore != null && (
+                          <span className="text-sm font-medium">
+                            {s.totalScore}/{s.maxScore}
+                          </span>
+                        )}
+                        <span className="text-xs text-gray-400">
+                          {s.status === "completed"
+                            ? "✅ 已完成"
+                            : s.status === "abandoned"
+                            ? "⏹️ 已放弃"
+                            : "🕐 进行中"}
                         </span>
                         <span className="text-xs text-gray-400">
-                          {s.subject}
+                          {new Date(s.createdAt).toLocaleDateString("zh-CN")}
                         </span>
-                        {s.status === "completed" && (
-                          <span className="text-xs bg-green-100 text-green-600 px-1.5 py-0.5 rounded">
-                            已完成
-                          </span>
-                        )}
-                        {s.status === "in_progress" && (
-                          <span className="text-xs bg-yellow-100 text-yellow-600 px-1.5 py-0.5 rounded">
-                            进行中
-                          </span>
-                        )}
                       </div>
-                      <p className="text-sm mt-1">
-                        {s.status === "completed"
-                          ? s.totalScore != null && s.maxScore
-                            ? `得分: ${s.totalScore}/${s.maxScore}`
-                            : "已完成"
-                          : `${(s.questions as PracticeQuestion[])?.length || 0} 题`}
-                      </p>
                     </div>
-                    <span className="text-xs text-gray-400 shrink-0">
-                      {new Date(s.createdAt).toLocaleDateString("zh-CN")}
-                    </span>
                   </button>
                 ))}
               </div>
@@ -500,353 +312,52 @@ export default function PracticePage() {
     );
   }
 
-  // ── ACTIVE VIEW ──
+  // ACTIVE VIEW
   if (view === "active" && session) {
     const questions = session.questions as PracticeQuestion[];
-    const q = questions[currentIndex];
-    const progress = questions.length > 0 ? ((currentIndex + 1) / questions.length) * 100 : 0;
-
     return (
-      <div className="flex flex-col h-[calc(100vh-3.5rem)] lg:h-screen">
-        {/* Header */}
-        <div className="shrink-0 border-b px-4 py-3">
-          <div className="max-w-2xl mx-auto">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium">
-                  {session.type === "daily" ? "📝 每日一练" : "⏱️ 模拟考试"}
-                </span>
-                <span className="text-xs text-gray-400">
-                  · {session.subject}
-                </span>
-              </div>
-              <div className="flex items-center gap-3">
-                {timeLeft !== null ? (
-                  <span
-                    className={`text-sm font-mono font-bold ${
-                      timeLeft < 300 ? "text-red-500" : ""
-                    }`}
-                  >
-                    ⏱️ {formatTime(timeLeft)}
-                  </span>
-                ) : (
-                  <span className="text-xs text-gray-400">
-                    已用时 {formatTime(elapsedDisplay)}
-                  </span>
-                )}
-                <span className="text-xs text-gray-500">
-                  第 {currentIndex + 1}/{questions.length} 题
-                </span>
-              </div>
-            </div>
-            <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-blue-500 transition-all rounded-full"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Question area */}
-        <div className="flex-1 overflow-y-auto px-4 py-6">
-          <div className="max-w-2xl mx-auto space-y-5">
-            {questions.length === 0 ? (
-              <div className="text-center py-16 text-gray-500">
-                <div className="text-5xl mb-4">🤔</div>
-                <p className="font-medium">题目生成中...</p>
-                <p className="text-sm mt-1">如果长时间未加载，请返回重试</p>
-                <Button
-                  variant="outline"
-                  className="mt-4"
-                  onClick={() => {
-                    setView("main");
-                    setSession(null);
-                  }}
-                >
-                  返回
-                </Button>
-              </div>
-            ) : (
-            <div className="bg-white dark:bg-gray-800 rounded-xl border p-5">
-              <span className="text-xs font-medium text-blue-500 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded">
-                {q?.type === "choice" ? "选择题" : "简答题"}
-              </span>
-              <p className="mt-3 text-sm leading-relaxed font-medium">
-                {q?.question}
-              </p>
-
-              {/* Choice options */}
-              {q?.type === "choice" && q.options && (
-                <div className="mt-4 space-y-2">
-                  {q.options.map((opt, i) => {
-                    const optLetter = opt.charAt(0);
-                    const selected = answers[q?.id || ""] === optLetter;
-                    return (
-                      <button
-                        key={i}
-                        onClick={() =>
-                          setAnswers({ ...answers, [q?.id || ""]: optLetter })
-                        }
-                        className={`w-full text-left p-3 rounded-lg border text-sm transition-colors ${
-                          selected
-                            ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 font-medium"
-                            : "border-gray-200 dark:border-gray-700 hover:border-gray-300"
-                        }`}
-                      >
-                        {opt}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Essay input */}
-              {q?.type === "essay" && (
-                <div className="mt-4">
-                  <textarea
-                    value={answers[q?.id || ""] || ""}
-                    onChange={(e) =>
-                      setAnswers({ ...answers, [q?.id || ""]: e.target.value })
-                    }
-                    rows={6}
-                    className="w-full border rounded-lg px-3 py-2 text-sm resize-y dark:bg-gray-900 dark:border-gray-700"
-                    placeholder="输入你的答案..."
-                  />
-                </div>
-              )}
-            </div>
-            )}
-          </div>
-        </div>
-
-        {/* Navigation */}
-        <div className="shrink-0 border-t px-4 py-3 bg-white dark:bg-gray-900">
-          <div className="max-w-2xl mx-auto flex items-center justify-between gap-3">
-            <Button
-              variant="outline"
-              onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
-              disabled={currentIndex === 0}
-            >
-              ← 上一题
-            </Button>
-
-            {currentIndex < questions.length - 1 ? (
-              <Button
-                onClick={() =>
-                  setCurrentIndex(
-                    Math.min(questions.length - 1, currentIndex + 1)
-                  )
-                }
-              >
-                下一题 →
-              </Button>
-            ) : (
-              <Button
-                onClick={() => {
-                  if (
-                    session.type === "mock" &&
-                    !confirm("确定提交试卷吗？提交后无法修改。")
-                  )
-                    return;
-                  handleSubmit();
-                }}
-                disabled={submitting}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                {submitting ? "提交中..." : "提交答卷 ✅"}
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
+      <ActiveSession
+        session={session}
+        questions={questions}
+        currentIndex={currentIndex}
+        answers={answers}
+        timeLeft={timeLeft}
+        elapsedDisplay={elapsedDisplay}
+        submitting={submitting}
+        onAnswerChange={(qId, val) => setAnswers({ ...answers, [qId]: val })}
+        onPrev={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
+        onNext={() => setCurrentIndex(Math.min(questions.length - 1, currentIndex + 1))}
+        onSubmit={() => {
+          if (session.type === "mock" && !confirm("确定提交试卷吗？提交后无法修改。")) return;
+          handleSubmit();
+        }}
+        onBack={() => {
+          setView("main");
+          setSession(null);
+        }}
+      />
     );
   }
 
-  // ── RESULT VIEW ──
+  // RESULT VIEW
   if (view === "result" && resultSession) {
-    const questions = resultSession.questions as PracticeQuestion[];
-    const scores = resultSession.scores;
-    const totalScore = resultSession.totalScore;
-    const maxScore = resultSession.maxScore || questions.length * 10;
-    const percentage =
-      maxScore > 0 ? Math.round((totalScore || 0) / maxScore * 100) : 0;
-
     return (
-      <div className="p-4 lg:p-6">
-        <div className="max-w-2xl mx-auto space-y-6">
-          {/* Score summary */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl border p-6 text-center">
-            <div className="text-5xl mb-3">
-              {percentage >= 80 ? "🎉" : percentage >= 60 ? "👍" : "💪"}
-            </div>
-            <h2 className="text-2xl font-bold">
-              {totalScore != null ? `${totalScore} / ${maxScore} 分` : "已完成"}
-            </h2>
-            <p className="text-gray-500 mt-1">
-              {resultSession.type === "daily" ? "每日一练" : "模拟考试"} ·{" "}
-              {resultSession.subject}
-            </p>
-            {percentage >= 80 && (
-              <p className="text-green-500 font-medium mt-2">
-                表现优秀，继续保持！
-              </p>
-            )}
-            {percentage >= 60 && percentage < 80 && (
-              <p className="text-blue-500 font-medium mt-2">
-                不错，还有提升空间！
-              </p>
-            )}
-            {percentage < 60 && (
-              <p className="text-orange-500 font-medium mt-2">
-                继续努力，多加练习！
-              </p>
-            )}
-          </div>
-
-          {/* Per-question review */}
-          <div className="space-y-3">
-            <h3 className="font-semibold">逐题回顾</h3>
-            {questions.map((q, i) => {
-              const scoreData = scores[q.id];
-              const userAnswer = (resultSession.answers as Record<string, string>)[q.id] || "";
-              const isCorrect =
-                q.type === "choice"
-                  ? userAnswer.trim().toUpperCase() ===
-                    q.correctAnswer.trim().toUpperCase()
-                  : scoreData && scoreData.maxScore > 0
-                  ? scoreData.score / scoreData.maxScore >= 0.6
-                  : false;
-
-              return (
-                <div
-                  key={q.id}
-                  className={`bg-white dark:bg-gray-800 rounded-xl border p-4 ${
-                    isCorrect
-                      ? "border-l-4 border-l-green-400"
-                      : "border-l-4 border-l-red-400"
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-3 mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
-                        第 {i + 1} 题
-                      </span>
-                      <span className="text-xs text-gray-400">
-                        {q.type === "choice" ? "选择题" : "简答题"}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {scoreData && (
-                        <span
-                          className={`text-xs font-medium ${
-                            isCorrect ? "text-green-500" : "text-red-500"
-                          }`}
-                        >
-                          {scoreData.score}/{scoreData.maxScore} 分
-                        </span>
-                      )}
-                      {!isCorrect && (
-                        <button
-                          onClick={() => handleAddToWrongBook(q)}
-                          className="text-xs text-red-400 hover:text-red-600 transition-colors"
-                          disabled={addingWrongId === q.id}
-                        >
-                          {addingWrongId === q.id ? "✅ 已加入" : "🔴 加入错题本"}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  <p className="text-sm font-medium mb-3">{q.question}</p>
-
-                  {q.type === "choice" && q.options && (
-                    <div className="text-xs space-y-1 mb-3">
-                      {q.options.map((opt, j) => {
-                        const optLetter = opt.charAt(0);
-                        const isUserAnswer = userAnswer === optLetter;
-                        const isCorrectAnswer =
-                          q.correctAnswer === optLetter;
-                        return (
-                          <div
-                            key={j}
-                            className={`px-2 py-1 rounded ${
-                              isCorrectAnswer
-                                ? "bg-green-50 dark:bg-green-900/20 text-green-700 font-medium"
-                                : isUserAnswer && !isCorrectAnswer
-                                ? "bg-red-50 dark:bg-red-900/20 text-red-500"
-                                : ""
-                            }`}
-                          >
-                            {isCorrectAnswer && "✅ "}
-                            {isUserAnswer && !isCorrectAnswer && "❌ "}
-                            {opt}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {q.type === "essay" && userAnswer && (
-                    <div className="text-xs mb-2">
-                      <span className="text-gray-400">你的答案：</span>
-                      <span className="text-gray-600 dark:text-gray-400">
-                        {userAnswer.slice(0, 200)}
-                      </span>
-                    </div>
-                  )}
-
-                  <details className="text-xs">
-                    <summary className="cursor-pointer text-blue-500 font-medium">
-                      查看解析
-                    </summary>
-                    <div className="mt-2 bg-gray-50 dark:bg-gray-900 rounded-lg p-3 space-y-1">
-                      <p>
-                        <strong>正确答案：</strong>
-                        {q.correctAnswer}
-                      </p>
-                      <p>
-                        <strong>解析：</strong>
-                        {q.explanation}
-                      </p>
-                      {scoreData?.feedback && (
-                        <p>
-                          <strong>评分反馈：</strong>
-                          {scoreData.feedback}
-                        </p>
-                      )}
-                    </div>
-                  </details>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Actions */}
-          <div className="flex gap-3">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setView("main");
-                setResultSession(null);
-              }}
-            >
-              返回列表
-            </Button>
-            <Button
-              onClick={() => {
-                setCreateType(resultSession.type);
-                setCreateSubject(resultSession.subject);
-                setView("main");
-                setResultSession(null);
-                setTimeout(() => handleCreate(), 100);
-              }}
-            >
-              再来一组
-            </Button>
-          </div>
-        </div>
-      </div>
+      <ResultView
+        resultSession={resultSession}
+        addingWrongId={addingWrongId}
+        onAddToWrongBook={handleAddToWrongBook}
+        onBack={() => {
+          setView("main");
+          setResultSession(null);
+        }}
+        onRetry={() => {
+          setCreateType(resultSession.type);
+          setCreateSubject(resultSession.subject);
+          setView("main");
+          setResultSession(null);
+          setTimeout(() => handleCreate(), 100);
+        }}
+      />
     );
   }
 

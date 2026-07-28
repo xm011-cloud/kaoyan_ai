@@ -4,16 +4,7 @@
 import { prisma } from "@/lib/prisma";
 import { getUserAiConfig } from "@/lib/ai-config";
 import { searchMaterials, findRelevantSegments } from "@/lib/rag";
-
-export interface PracticeQuestion {
-  id: string;
-  type: "choice" | "essay";
-  question: string;
-  options?: string[];
-  correctAnswer: string;
-  explanation: string;
-  scoringPoints?: string[];
-}
+import type { PracticeQuestion } from "@/lib/practice-types";
 
 interface GenerateOptions {
   userId: string;

@@ -1,8 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { useGoal } from "@/hooks/use-goal";
+import {
+  useWrongQuestions,
+  useUpdateWrongQuestion,
+  useDeleteWrongQuestion,
+} from "@/hooks/use-wrong-questions";
 import { AddModal } from "./_components/add-modal";
 import { BatchImportModal } from "./_components/batch-import-modal";
 import { ReviewModal } from "./_components/review-modal";
@@ -31,8 +36,6 @@ const SOURCE_LABELS: Record<string, string> = {
 function sourceLabel(s: string) { return SOURCE_LABELS[s] || s; }
 
 export default function WrongQuestionsPage() {
-  const [questions, setQuestions] = useState<WrongQuestion[]>([]);
-  const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"all" | "unreviewed" | "reviewed" | "due">("all");
   const [subjectFilter, setSubjectFilter] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -45,47 +48,41 @@ export default function WrongQuestionsPage() {
   const [reviewing, setReviewing] = useState<WrongQuestion | null>(null);
   const [detail, setDetail] = useState<WrongQuestion | null>(null);
 
-  // ── Data loading ──
-  const loadQuestions = useCallback(async () => {
-    try {
-      const params = new URLSearchParams();
-      if (tab === "unreviewed") params.set("reviewed", "false");
-      if (tab === "reviewed") params.set("reviewed", "true");
-      if (tab === "due") { params.set("reviewed", "false"); params.set("dueToday", "true"); }
-      if (subjectFilter) params.set("subject", subjectFilter);
-      if (searchTerm) params.set("search", searchTerm);
-      params.set("limit", "50");
+  // ── React Query data fetching ──
+  const params = useMemo(() => ({
+    subject: subjectFilter || undefined,
+    reviewed: tab === "unreviewed" ? "false" : tab === "reviewed" ? "true" : undefined,
+    search: searchTerm || undefined,
+    ...(tab === "due" ? { reviewed: "false" as const, dueToday: true as const } : {}),
+    limit: 50,
+  }), [tab, subjectFilter, searchTerm]);
 
-      const res = await fetch(`/api/wrong-questions?${params.toString()}`);
-      const data = await res.json();
-      setQuestions(data.questions || []);
-    } catch { /* ignore */ } finally { setLoading(false); }
-  }, [tab, subjectFilter, searchTerm]);
+  const { data, isLoading } = useWrongQuestions(params);
+  const questions = (data?.questions as WrongQuestion[]) ?? [];
 
-  useEffect(() => { loadQuestions(); }, [loadQuestions]);
+  const updateMut = useUpdateWrongQuestion();
+  const deleteMut = useDeleteWrongQuestion();
 
   // ── Handlers ──
-  const handleMarkReviewed = async (id: string, rating: number) => {
-    if (rating < 0) return; // skip
-    try {
-      await fetch(`/api/wrong-questions/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reviewed: true, rating }),
-      });
-      loadQuestions();
+  const handleReviewed = (id: string, rating: number) => {
+    if (rating < 0) {
       setReviewing(null);
-    } catch { /* ignore */ }
+      return;
+    }
+    updateMut.mutate(
+      { id, reviewed: true, rating },
+      { onSuccess: () => setReviewing(null) }
+    );
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string) => {
     if (!confirm("确定删除这道错题吗？")) return;
-    try {
-      await fetch(`/api/wrong-questions/${id}`, { method: "DELETE" });
-      if (detail?.id === id) setDetail(null);
-      if (reviewing?.id === id) setReviewing(null);
-      loadQuestions();
-    } catch { /* ignore */ }
+    deleteMut.mutate(id, {
+      onSuccess: () => {
+        if (detail?.id === id) setDetail(null);
+        if (reviewing?.id === id) setReviewing(null);
+      },
+    });
   };
 
   const handleExportPDF = () => {
@@ -207,7 +204,7 @@ export default function WrongQuestionsPage() {
         </div>
 
         {/* Question list */}
-        {loading ? (
+        {isLoading ? (
           <div className="text-center py-12 text-gray-500">加载中...</div>
         ) : questions.length === 0 ? (
           <div className="text-center py-16 text-gray-500">
@@ -267,20 +264,20 @@ export default function WrongQuestionsPage() {
         )}
       </div>
 
-      {/* Modals — lazy render via conditional state toggles */}
+      {/* Modals — no onSaved/onImported callbacks needed (mutation onSuccess handles invalidation) */}
       {showAdd && (
         <AddModal
           subjects={subjects}
           initialSubject={subjects[0] || ""}
           onClose={() => setShowAdd(false)}
-          onSaved={loadQuestions}
+          onSaved={() => setShowAdd(false)}
         />
       )}
 
       {showBatch && (
         <BatchImportModal
           onClose={() => setShowBatch(false)}
-          onImported={loadQuestions}
+          onImported={() => setShowBatch(false)}
         />
       )}
 
@@ -289,7 +286,7 @@ export default function WrongQuestionsPage() {
           question={reviewing}
           unreviewedList={questions.filter((q) => !q.reviewed)}
           onClose={() => setReviewing(null)}
-          onReviewed={handleMarkReviewed}
+          onReviewed={handleReviewed}
         />
       )}
 

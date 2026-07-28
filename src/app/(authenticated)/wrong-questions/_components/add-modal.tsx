@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { useCreateWrongQuestion } from "@/hooks/use-wrong-questions";
 
 interface AddForm {
   subject: string;
@@ -24,32 +25,25 @@ export function AddModal({ subjects, initialSubject, onClose, onSaved }: AddModa
     answer: "",
     tags: "",
   });
-  const [saving, setSaving] = useState(false);
+  const { mutate, isPending: saving } = useCreateWrongQuestion();
 
-  const handleAdd = async () => {
+  const handleAdd = () => {
     if (!form.subject || !form.question || !form.answer) return;
-    setSaving(true);
-    try {
-      const res = await fetch("/api/wrong-questions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          subject: form.subject,
-          question: form.question,
-          answer: form.answer,
-          source: "manual",
-          tags: form.tags.split(/[,，]/).map((t) => t.trim()).filter(Boolean),
-        }),
-      });
-      if (res.ok) {
-        onSaved();
-        onClose();
+    mutate(
+      {
+        subject: form.subject,
+        question: form.question,
+        answer: form.answer,
+        source: "manual",
+        tags: form.tags.split(/[,，]/).map((t) => t.trim()).filter(Boolean),
+      },
+      {
+        onSuccess: () => {
+          onSaved();
+          onClose();
+        },
       }
-    } catch {
-      // ignore
-    } finally {
-      setSaving(false);
-    }
+    );
   };
 
   return (

@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
     const weekStartDate = body.startDate || body.weekStartDate
       ? new Date(body.startDate || body.weekStartDate)
       : new Date();
-    weekStartDate.setHours(0, 0, 0, 0);
+    // 不调 setHours — 保持 UTC 零点，避免时区偏移
 
     const progress = body.progress as Record<string, { percent: number; note: string }> | undefined;
     const judgeFeedback = body.judgeFeedback as string | undefined;

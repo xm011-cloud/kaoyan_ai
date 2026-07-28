@@ -25,8 +25,9 @@ export async function GET(request: NextRequest) {
     if (subject) where.subject = subject;
     if (weekStart) {
       const ws = new Date(weekStart);
-      ws.setHours(0, 0, 0, 0);
-      where.weekStartDate = ws;
+      const wsEnd = new Date(weekStart);
+      wsEnd.setDate(wsEnd.getDate() + 1);
+      where.weekStartDate = { gte: ws, lt: wsEnd };
     }
 
     const tasks = await prisma.task.findMany({

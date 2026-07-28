@@ -21,6 +21,7 @@ export function SubjectSelector({ selected, onChange }: SubjectSelectorProps) {
 
   const presetSelected = selected.filter(isPresetSubject);
   const customSelected = selected.filter(isCustomSubject);
+  const legacySelected = selected.filter(s => !isPresetSubject(s) && !isCustomSubject(s));
 
   const togglePreset = (value: string) => {
     if (presetSelected.includes(value)) {
@@ -129,7 +130,7 @@ export function SubjectSelector({ selected, onChange }: SubjectSelectorProps) {
       </div>
 
       {/* Selected subjects tags */}
-      {(presetSelected.length > 0 || customSelected.length > 0) && (
+      {(presetSelected.length > 0 || customSelected.length > 0 || legacySelected.length > 0) && (
         <div>
           <label className="block text-sm font-medium mb-2 text-gray-500">
             已选科目 ({selected.length})
@@ -167,7 +168,29 @@ export function SubjectSelector({ selected, onChange }: SubjectSelectorProps) {
                 </button>
               </span>
             ))}
+            {legacySelected.map((s) => (
+              <span
+                key={s}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-sm bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 rounded-full"
+                title={`旧格式科目，建议删除后重新选择标准化科目`}
+              >
+                ⚠️ {s}
+                <button
+                  type="button"
+                  onClick={() => removeSubject(s)}
+                  className="text-amber-400 hover:text-amber-600 dark:hover:text-amber-200"
+                  title="移除旧格式科目"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
           </div>
+          {legacySelected.length > 0 && (
+            <p className="text-xs text-amber-500 mt-1">
+              ⚠️ 黄色标记为旧格式科目，无法匹配统考或自主命题。建议删除后在上方重新选择标准科目。
+            </p>
+          )}
         </div>
       )}
     </div>

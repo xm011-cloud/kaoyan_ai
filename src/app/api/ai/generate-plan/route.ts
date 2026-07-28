@@ -104,12 +104,14 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json().catch(() => ({}));
-    const weekStartDate = body.startDate
-      ? new Date(body.startDate)
+    const weekStartDate = body.startDate || body.weekStartDate
+      ? new Date(body.startDate || body.weekStartDate)
       : new Date();
-
-    // Normalize to start of day
     weekStartDate.setHours(0, 0, 0, 0);
+
+    const progress = body.progress as Record<string, { percent: number; note: string }> | undefined;
+    const judgeFeedback = body.judgeFeedback as string | undefined;
+    const regenerateDay = body.regenerateDay as string | undefined;
 
     // 获取用户目标
     const goal = await prisma.goal.findUnique({
@@ -117,10 +119,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (!goal) {
-      return NextResponse.json(
-        { error: "请先设置考研目标" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "请先设置考研目标" }, { status: 400 });
     }
 
     const examDate = new Date(goal.examDate);
@@ -128,21 +127,26 @@ export async function POST(request: NextRequest) {
     today.setHours(0, 0, 0, 0);
     const daysRemaining = Math.max(1, Math.ceil((examDate.getTime() - today.getTime()) / 86400000));
 
-    // 周范围：从 weekStartDate 开始的 7 天
+    // 周范围
     const weekEnd = new Date(weekStartDate.getTime() + 7 * 86400000);
     const weekStartStr = weekStartDate.toISOString().split("T")[0];
     const weekEndStr = weekEnd.toISOString().split("T")[0];
 
-    // ── 增量模式：只删除本周范围内的未完成任务 ──
-    // 保留：已完成任务 + 过去日期的任务 + 用户手动添加的任务
+    // ── 增量删除 ──
+    const deleteWhere: Record<string, unknown> = {
+      userId: user!.id,
+      completed: false,
+      date: { gte: weekStartDate, lt: weekEnd },
+    };
+    // 如果是指定单天重新生成
+    if (regenerateDay) {
+      const dayStart = new Date(regenerateDay); dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(regenerateDay); dayEnd.setHours(23, 59, 59, 999);
+      deleteWhere.date = { gte: dayStart, lte: dayEnd };
+    }
+    // 保留手动任务
     await prisma.task.deleteMany({
-      where: {
-        userId: user!.id,
-        completed: false,
-        date: { gte: weekStartDate, lt: weekEnd },
-        // 不删除手动添加的任务（source === 'manual' 或没有 phase 标记）
-        phase: { not: null },
-      },
+      where: { ...deleteWhere, source: { not: "manual" } },
     });
 
     const subjects = (Array.isArray(goal.subjects) ? goal.subjects : [])
@@ -150,12 +154,10 @@ export async function POST(request: NextRequest) {
       .filter(Boolean);
 
     if (subjects.length === 0) {
-      return NextResponse.json(
-        { error: "请先设置考试科目" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "请先设置考试科目" }, { status: 400 });
     }
 
+    const phase = getPhase(examDate, weekStartDate);
     const aiConfig = await getUserAiConfig(user!.id);
     let planTasks: PlanTask[];
 
@@ -163,6 +165,26 @@ export async function POST(request: NextRequest) {
       const targetScores = (goal.targetScores as Record<string, number>) || {};
       const scoreContext = Object.keys(targetScores).length > 0
         ? `\n- 目标分数：${Object.entries(targetScores).map(([k, v]) => `${k}: ${v}分`).join("、")}`
+        : "";
+
+      // 构建进度上下文
+      let progressContext = "";
+      if (progress && Object.keys(progress).length > 0) {
+        progressContext = "\n## 用户当前学习进度\n";
+        for (const [subj, p] of Object.entries(progress)) {
+          progressContext += `- ${subj}：进度 ${p.percent}%${p.note ? `（${p.note}）` : ""}\n`;
+        }
+        progressContext += "请根据各科的当前进度调整任务难度和内容，确保任务在用户的当前水平上可执行。\n";
+      }
+
+      // 评审反馈
+      let feedbackContext = "";
+      if (judgeFeedback) {
+        feedbackContext = `\n## 上次评审反馈\n${judgeFeedback}\n请根据以上反馈调整本次生成的内容。\n`;
+      }
+
+      const regenerateContext = regenerateDay
+        ? `\n## 注意\n只需要生成 ${regenerateDay} 这一天的任务（3-5个），不要生成其他日期。\n`
         : "";
 
       const prompt = `你是一名资深的考研辅导专家。请为用户的接下来一周（${weekStartStr} 至 ${weekEndStr}）生成详细的学习计划。
@@ -173,23 +195,23 @@ export async function POST(request: NextRequest) {
 - 考试日期：${goal.examDate.toISOString().split("T")[0]}
 - 距考试还有：${daysRemaining} 天
 - 考试科目：${subjects.join("、")}${scoreContext}
-
+${progressContext}${feedbackContext}
 ## 要求
-1. 当前阶段判定：距考试 ${daysRemaining} 天，属于"${getPhase(examDate, weekStartDate)}"
+1. 当前阶段判定：距考试 ${daysRemaining} 天，属于"${phase}"
 2. 每天安排 **3-5 个**具体可执行的学习任务，总时长控制在 3-6 小时
 3. 科目要交叉搭配，同一天不要全部安排同一科目
 4. 周末安排复盘 + 错题回顾
 5. 任务要具体，例如"完成多元函数微分学课后习题并订正"而非"做数学题"
 6. 每个任务包含：title(标题)、description(详细描述)、date(YYYY-MM-DD)、duration(分钟数, 30-180之间)、phase(阶段名)、subject(科目名)
-
+${regenerateContext}
 ## 输出格式
 只返回 JSON 数组，不含其他内容：
 [{
   "title": "高数 - 完成多元函数微分学课后习题",
   "description": "完成课后 1-20 题，重点掌握链式法则和隐函数求导，整理错题到错题本",
-  "date": "${weekStartStr}",
+  "date": "${regenerateDay || weekStartStr}",
   "duration": 90,
-  "phase": "${getPhase(examDate, weekStartDate)}",
+  "phase": "${phase}",
   "subject": "数学一"
 }]`;
 
@@ -204,7 +226,7 @@ export async function POST(request: NextRequest) {
         });
 
         const fullContent = result.text || result.reasoningText || "";
-        console.log("AI weekly plan response length:", fullContent.length);
+        console.log("AI plan response length:", fullContent.length);
 
         const parsed = extractJsonArray<PlanTask>(fullContent);
         if (parsed && parsed.length > 0) {
@@ -221,14 +243,14 @@ export async function POST(request: NextRequest) {
       planTasks = generateLocalWeeklyPlan(subjects, examDate, weekStartDate);
     }
 
-    // 规范化 subject 名称
+    // 规范化 + 添加周标识
     planTasks = planTasks.map((t) => ({
       ...t,
       subject: normalizeSubject(t.subject),
       phase: t.phase || getPhase(examDate, new Date(t.date)),
     }));
 
-    // 批量创建任务
+    // 批量创建任务（带 weekStartDate 和 source）
     const created = await Promise.all(
       planTasks.map((t) =>
         prisma.task.create({
@@ -240,18 +262,16 @@ export async function POST(request: NextRequest) {
             duration: Math.min(Math.max(t.duration || 60, 15), 480),
             phase: t.phase,
             subject: t.subject,
+            weekStartDate: new Date(weekStartStr),
+            source: "ai",
           },
-        }).catch(() => null) // skip duplicates
+        }).catch(() => null)
       )
     );
 
     const succeeded = created.filter(Boolean);
-
-    // 统计
     const phaseStats: Record<string, number> = {};
-    for (const t of planTasks) {
-      phaseStats[t.phase] = (phaseStats[t.phase] || 0) + 1;
-    }
+    for (const t of planTasks) { phaseStats[t.phase] = (phaseStats[t.phase] || 0) + 1; }
 
     return NextResponse.json({
       tasks: succeeded,
@@ -264,9 +284,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (err) {
     console.error("Generate plan error:", err);
-    return NextResponse.json(
-      { error: "生成计划失败，请稍后再试" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "生成计划失败，请稍后再试" }, { status: 500 });
   }
 }

@@ -9,6 +9,7 @@ interface GoalData {
   examDate: string;
   subjects: string[];
   targetScores?: Record<string, number>;
+  progress?: Record<string, { percent: number; note: string }>;
 }
 
 async function fetchGoal(): Promise<GoalData | null> {

@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { Button } from "@/components/ui/button";
+import { useState, useEffect, useRef } from "react";
 import { useGoal } from "@/hooks/use-goal";
 import { usePracticeTimer } from "@/hooks/use-practice-timer";
-import { formatTime } from "@/lib/time-utils";
+import { usePracticeSessions, useCreatePracticeSession, useSubmitPracticeSession } from "@/hooks/use-practice";
 import type { PracticeQuestion, PracticeSession } from "@/lib/practice-types";
 import { SessionCreator } from "./_components/session-creator";
 import { ActiveSession } from "./_components/active-session";
@@ -13,22 +12,27 @@ import { ResultView } from "./_components/result-view";
 export default function PracticePage() {
   // ── State ──
   const [view, setView] = useState<"main" | "active" | "result">("main");
-  const [sessions, setSessions] = useState<PracticeSession[]>([]);
-  const [loadingSessions, setLoadingSessions] = useState(true);
   const { data: goal } = useGoal();
   const subjects = goal?.subjects ?? [];
+
+  // ── React Query data ──
+  const { data: sessions = [], isLoading: loadingSessions } = usePracticeSessions();
 
   // Create form
   const [createType, setCreateType] = useState<"daily" | "mock">("daily");
   const [createSubject, setCreateSubject] = useState("");
   const [createDuration, setCreateDuration] = useState(180);
-  const [creating, setCreating] = useState(false);
+
+  // ── Mutations ──
+  const createSessionMut = useCreatePracticeSession();
+  const submitSessionMut = useSubmitPracticeSession();
+  const creating = createSessionMut.isPending;
+  const submitting = submitSessionMut.isPending;
 
   // Active session
   const [session, setSession] = useState<PracticeSession | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [submitting, setSubmitting] = useState(false);
 
   // Timer
   const {
@@ -55,33 +59,13 @@ export default function PracticePage() {
   // Wrong-question subject
   const wrongSubject = useRef("");
 
-  // ── Data loading ──
-  const loadSessions = useCallback(async () => {
-    try {
-      const res = await fetch("/api/practice?limit=30");
-      const data = await res.json();
-      setSessions(data.sessions || []);
-    } catch {
-      /* ignore */
-    } finally {
-      setLoadingSessions(false);
-    }
-  }, []);
-
-  const loadMaterials = useCallback(async () => {
-    try {
-      const res = await fetch("/api/materials?brief=true");
-      const data = await res.json();
-      setMaterials(data.materials || []);
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
+  // ── Data loading (materials only, sessions via React Query) ──
   useEffect(() => {
-    loadSessions();
-    loadMaterials();
-  }, [loadSessions, loadMaterials]);
+    fetch("/api/materials?brief=true")
+      .then(r => r.json())
+      .then(d => setMaterials(d.materials || []))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (subjects.length > 0 && !createSubject) {
@@ -90,58 +74,43 @@ export default function PracticePage() {
   }, [subjects, createSubject]);
 
   // ── Handlers ──
-  const handleCreate = async () => {
+  const handleCreate = () => {
     if (!createSubject) return;
-    setCreating(true);
-    try {
-      const res = await fetch("/api/practice", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: createType,
-          subject: createSubject,
-          duration: createType === "mock" ? createDuration : undefined,
-          materialIds: selectedMaterialIds.length > 0 ? selectedMaterialIds : undefined,
-          wrongQuestionIds: useWrongQuestions ? [] : undefined,
-        }),
-      });
-      const data = await res.json();
-      const s: PracticeSession = data.session;
-      if (s.status === "in_progress") {
-        setSession(s);
-        setCurrentIndex(0);
-        setAnswers({});
-        resetTimer();
-        setView("active");
-        wrongSubject.current = s.subject;
-        loadSessions();
+    createSessionMut.mutate(
+      {
+        type: createType,
+        subject: createSubject,
+        duration: createType === "mock" ? createDuration : undefined,
+        materialIds: selectedMaterialIds.length > 0 ? selectedMaterialIds : undefined,
+        wrongQuestionIds: useWrongQuestions ? [] : undefined,
+      },
+      {
+        onSuccess: (s: PracticeSession) => {
+          if (s.status === "in_progress") {
+            setSession(s);
+            setCurrentIndex(0);
+            setAnswers({});
+            resetTimer();
+            setView("active");
+            wrongSubject.current = s.subject;
+          }
+        },
       }
-    } catch {
-      /* ignore */
-    } finally {
-      setCreating(false);
-    }
+    );
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!session || submitting) return;
-    setSubmitting(true);
-    try {
-      const res = await fetch(`/api/practice/${session.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ answers }),
-      });
-      const data = await res.json();
-      setResultSession(data.session as PracticeSession);
-      setView("result");
-      setSession(null);
-      loadSessions();
-    } catch {
-      /* ignore */
-    } finally {
-      setSubmitting(false);
-    }
+    submitSessionMut.mutate(
+      { id: session.id, answers },
+      {
+        onSuccess: (s: PracticeSession) => {
+          setResultSession(s);
+          setView("result");
+          setSession(null);
+        },
+      }
+    );
   };
 
   const handleViewResult = async (s: PracticeSession) => {

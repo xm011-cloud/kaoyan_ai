@@ -1,7 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import * as d3 from "d3";
+import { select } from "d3-selection";
+import { zoom as d3Zoom } from "d3-zoom";
+import { forceSimulation, forceLink, forceManyBody, forceCenter, forceCollide } from "d3-force";
+import { drag as d3Drag } from "d3-drag";
+import { interpolateRgb } from "d3-interpolate";
+import type { SimulationNodeDatum, SimulationLinkDatum } from "d3-force";
 import { Button } from "@/components/ui/button";
 
 interface KnowledgeNode {
@@ -29,7 +34,7 @@ interface GraphData {
   subjects: string[];
 }
 
-interface SimNode extends d3.SimulationNodeDatum {
+interface SimNode extends SimulationNodeDatum {
   id: string;
   name: string;
   subject: string;
@@ -38,7 +43,7 @@ interface SimNode extends d3.SimulationNodeDatum {
   mastery: number;
 }
 
-interface SimLink extends d3.SimulationLinkDatum<SimNode> {
+interface SimLink extends SimulationLinkDatum<SimNode> {
   id: string;
   relation: string;
   label: string | null;
@@ -56,10 +61,10 @@ const CATEGORY_COLORS: Record<string, string> = {
 function masteryColor(mastery: number): string {
   if (mastery <= 0.5) {
     const t = mastery / 0.5;
-    return d3.interpolateRgb("#EF4444", "#EAB308")(t);
+    return interpolateRgb("#EF4444", "#EAB308")(t);
   }
   const t = (mastery - 0.5) / 0.5;
-  return d3.interpolateRgb("#EAB308", "#22C55E")(t);
+  return interpolateRgb("#EAB308", "#22C55E")(t);
 }
 
 export default function KnowledgeGraphClient() {
@@ -96,7 +101,7 @@ export default function KnowledgeGraphClient() {
   useEffect(() => {
     if (!graphData || !svgRef.current) return;
 
-    const svg = d3.select(svgRef.current);
+    const svg = select(svgRef.current);
     svg.selectAll("*").remove();
 
     const container = svgRef.current.parentElement!;
@@ -133,12 +138,12 @@ export default function KnowledgeGraphClient() {
       }));
 
     const g = svg.append("g");
-    const zoom = d3.zoom<SVGSVGElement, unknown>()
+    const zoomBehavior = d3Zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.3, 3])
       .on("zoom", (event) => {
         g.attr("transform", event.transform);
       });
-    svg.call(zoom);
+    svg.call(zoomBehavior);
 
     svg
       .append("defs")
@@ -206,7 +211,7 @@ export default function KnowledgeGraphClient() {
       .attr("fill", "#374151")
       .attr("font-weight", 500);
 
-    const drag = d3.drag<SVGGElement, SimNode>()
+    const dragBehavior = d3Drag<SVGGElement, SimNode>()
       .on("start", (event, d) => {
         if (!event.active) simulation.alphaTarget(0.3).restart();
         d.fx = d.x;
@@ -221,24 +226,22 @@ export default function KnowledgeGraphClient() {
         d.fx = null;
         d.fy = null;
       });
-    node.call(drag);
+    node.call(dragBehavior);
 
     node.append("title").text(
       (d) => `${d.name}\n科目: ${d.subject}\n掌握度: ${Math.round(d.mastery * 100)}%\n权重: ${d.weight.toFixed(1)}`
     );
 
-    const simulation = d3
-      .forceSimulation<SimNode>(simNodes)
+    const simulation = forceSimulation<SimNode>(simNodes)
       .force(
         "link",
-        d3
-          .forceLink<SimNode, SimLink>(simLinks)
+        forceLink<SimNode, SimLink>(simLinks)
           .id((d) => d.id)
           .distance(100)
       )
-      .force("charge", d3.forceManyBody().strength(-200))
-      .force("center", d3.forceCenter(width / 2, height / 2))
-      .force("collision", d3.forceCollide<SimNode>().radius((d) => 14 + d.weight * 4));
+      .force("charge", forceManyBody().strength(-200))
+      .force("center", forceCenter(width / 2, height / 2))
+      .force("collision", forceCollide<SimNode>().radius((d) => 14 + d.weight * 4));
 
     simulation.on("tick", () => {
       link

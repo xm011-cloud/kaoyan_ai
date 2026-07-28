@@ -62,7 +62,6 @@ export default function WrongQuestionsPage() {
     } catch { /* ignore */ } finally { setLoading(false); }
   }, [tab, subjectFilter, searchTerm]);
 
-  useEffect(() => { loadQuestions(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { loadQuestions(); }, [loadQuestions]);
 
   // ── Handlers ──

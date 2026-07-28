@@ -50,9 +50,10 @@ export default function PracticePage() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
 
-  // Timer
+  // Timer — use refs to avoid re-renders every second
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
-  const [elapsed, setElapsed] = useState(0);
+  const elapsedRef = useRef(0);
+  const [elapsedDisplay, setElapsedDisplay] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Result session (viewing past results)
@@ -103,7 +104,7 @@ export default function PracticePage() {
     }
   }, [subjects, createSubject, wrongSubject]);
 
-  // Timer logic
+  // Timer logic — elapsed uses ref to avoid re-renders every second
   useEffect(() => {
     if (view === "active" && session?.type === "mock" && timeLeft !== null) {
       if (timeLeft <= 0) {
@@ -112,7 +113,8 @@ export default function PracticePage() {
       }
       timerRef.current = setInterval(() => {
         setTimeLeft((t) => (t !== null && t > 0 ? t - 1 : 0));
-        setElapsed((e) => e + 1);
+        elapsedRef.current += 1;
+        if (elapsedRef.current % 5 === 0) setElapsedDisplay(elapsedRef.current);
       }, 1000);
       return () => {
         if (timerRef.current) clearInterval(timerRef.current);
@@ -120,7 +122,8 @@ export default function PracticePage() {
     }
     if (view === "active" && session?.type === "daily") {
       timerRef.current = setInterval(() => {
-        setElapsed((e) => e + 1);
+        elapsedRef.current += 1;
+        if (elapsedRef.current % 5 === 0) setElapsedDisplay(elapsedRef.current);
       }, 1000);
       return () => {
         if (timerRef.current) clearInterval(timerRef.current);
@@ -149,7 +152,8 @@ export default function PracticePage() {
         setSession(s);
         setAnswers({});
         setCurrentIndex(0);
-        setElapsed(0);
+        elapsedRef.current = 0;
+        setElapsedDisplay(0);
         if (s.type === "mock") {
           setTimeLeft((s.duration || 180) * 60);
         } else {
@@ -527,7 +531,7 @@ export default function PracticePage() {
                   </span>
                 ) : (
                   <span className="text-xs text-gray-400">
-                    已用时 {formatTime(elapsed)}
+                    已用时 {formatTime(elapsedDisplay)}
                   </span>
                 )}
                 <span className="text-xs text-gray-500">

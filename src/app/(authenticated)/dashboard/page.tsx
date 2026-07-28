@@ -24,13 +24,10 @@ export default async function DashboardPage() {
   chartStart.setDate(chartStart.getDate() - 90)
   chartStart.setHours(0, 0, 0, 0)
 
-  // ── 并行查询所有数据 ──
+  // ── 并行查询所有数据（已合并重复查询）──
   const [
     todayTasks,
-    weekCheckIns,
-    recentCheckIns,
-    totalAll,
-    completedAll,
+    taskStats,
     goal,
     recentChecks,
     allCheckIns,
@@ -40,17 +37,10 @@ export default async function DashboardPage() {
       where: { userId, date: { gte: today, lte: todayEnd } },
       orderBy: { createdAt: "asc" },
     }),
-    prisma.checkIn.findMany({
-      where: { userId, date: { gte: weekStart, lte: weekEnd } },
-    }),
-    prisma.checkIn.findMany({
+    prisma.task.aggregate({
       where: { userId },
-      orderBy: { date: "desc" },
-      take: 100,
-      select: { date: true },
+      _count: { id: true },
     }),
-    prisma.task.count({ where: { userId } }),
-    prisma.task.count({ where: { userId, completed: true } }),
     prisma.goal.findUnique({ where: { userId } }),
     prisma.checkIn.findMany({
       where: { userId },
@@ -68,49 +58,54 @@ export default async function DashboardPage() {
     }),
   ])
 
+  // 用 allCheckIns 派生本周数据和连续打卡，不再单独查询
+  const totalAll = taskStats._count.id
+  const completedAll = allTasks.filter(t => t.completed).length
+
   // ── 派生数据 ──
   const todayCompleted = todayTasks.filter(t => t.completed).length
   const todayTotal = todayTasks.length
   const todayMinutes = todayTasks.reduce((s, t) => s + (t.duration || 0), 0)
 
-  const weekMinutes = weekCheckIns.reduce((s, c) => s + c.duration, 0)
-  const weekDays = weekCheckIns.length
+  // ── 用 allCheckIns 派生本周和打卡数据（O(n) 单次遍历）──
+  const checkinDateSet = new Set<string>()
+  const weekDurationMap = new Map<string, number>()
+  const weekStartStr = toDateString(weekStart)
+  const weekEndStr = toDateString(weekEnd)
 
-  // ── 连续打卡天数 ──
+  for (const c of allCheckIns) {
+    const ds = toDateString(c.date)
+    checkinDateSet.add(ds)
+    if (ds >= weekStartStr && ds <= weekEndStr) {
+      weekDurationMap.set(ds, (weekDurationMap.get(ds) || 0) + c.duration)
+    }
+  }
+
+  const weekMinutes = Array.from(weekDurationMap.values()).reduce((s, v) => s + v, 0)
+  const weekDays = weekDurationMap.size
+
+  // ── 连续打卡天数（Set O(1) 查找）──
   let streak = 0
   const checkDate = new Date(today)
   for (let i = 0; i < 365; i++) {
-    const ds = checkDate.toISOString().split("T")[0]
-    const found = recentCheckIns.some(c => {
-      const d = new Date(c.date); d.setHours(0, 0, 0, 0)
-      return d.toISOString().split("T")[0] === ds
-    })
-    if (found) { streak++; checkDate.setDate(checkDate.getDate() - 1) }
-    else break
+    if (checkinDateSet.has(toDateString(checkDate))) {
+      streak++
+      checkDate.setDate(checkDate.getDate() - 1)
+    } else break
   }
 
   const daysLeft = goal
     ? Math.max(0, Math.ceil((new Date(goal.examDate).getTime() - today.getTime()) / 86400000)) || 0
     : 0
 
-  // ── 本周每日时长 ──
+  // ── 本周每日时长（直接从 Map 读取）──
   const weekDayNames = ["日", "一", "二", "三", "四", "五", "六"]
   const weekBars = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(weekStart); d.setDate(d.getDate() + i); d.setHours(0,0,0,0)
-    const dEnd = new Date(d); dEnd.setHours(23,59,59,999)
-    const mins = weekCheckIns.filter(c => {
-      const cd = new Date(c.date); cd.setHours(0,0,0,0)
-      return cd >= d && cd <= dEnd
-    }).reduce((s, c) => s + c.duration, 0)
-    return { day: weekDayNames[i], minutes: mins, isToday: i === today.getDay() }
+    const d = new Date(weekStart); d.setDate(d.getDate() + i)
+    const ds = toDateString(d)
+    return { day: weekDayNames[i], minutes: weekDurationMap.get(ds) || 0, isToday: i === today.getDay() }
   })
   const weekMax = Math.max(...weekBars.map(b => b.minutes), 60)
-
-  // ── 有用任务数量(今日) ──
-  const todayCheckIn = weekCheckIns.find(c => {
-    const cd = new Date(c.date); cd.setHours(0,0,0,0)
-    return cd.getTime() === today.getTime()
-  })
 
   return (
     <div className="p-4 lg:p-6 space-y-4 lg:space-y-6">

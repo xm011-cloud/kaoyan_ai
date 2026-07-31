@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
-import { handleApiError } from "@/lib/api-utils";
+import { handleApiError, jsonNoStore } from "@/lib/api-utils";
 
 // GET: 获取单个资料的所有内容
 export async function GET(
@@ -23,10 +23,10 @@ export async function GET(
     });
 
     if (!material) {
-      return NextResponse.json({ error: "资料不存在" }, { status: 404 });
+      return jsonNoStore({ error: "资料不存在" }, { status: 404 });
     }
 
-    return NextResponse.json({ material });
+    return jsonNoStore({ material });
   } catch (err) {
     return handleApiError(err, "获取资料详情");
   }

@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { jsonNoStore } from "@/lib/api-utils";
 import { getAuthUser } from "@/lib/api-auth";
 import { generatePracticeQuestions } from "@/lib/practice-generator";
 import { prisma } from "@/lib/prisma";
@@ -18,7 +19,7 @@ export async function POST(request: NextRequest) {
     } = body;
 
     if (!subject) {
-      return NextResponse.json({ error: "请选择科目" }, { status: 400 });
+      return jsonNoStore({ error: "请选择科目" }, { status: 400 });
     }
 
     // Resolve "auto" wrongQuestionIds
@@ -45,9 +46,9 @@ export async function POST(request: NextRequest) {
       wrongQuestionIds: resolvedWrongIds,
     });
 
-    return NextResponse.json({ questions });
+    return jsonNoStore({ questions });
   } catch (err) {
     console.error("Generate questions error:", err);
-    return NextResponse.json({ error: "生成题目失败" }, { status: 500 });
+    return jsonNoStore({ error: "生成题目失败" }, { status: 500 });
   }
 }

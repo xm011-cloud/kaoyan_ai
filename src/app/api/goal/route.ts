@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
-import { handleApiError } from "@/lib/api-utils";
+import { handleApiError, jsonNoStore } from "@/lib/api-utils";
 
 // GET: 获取当前用户的目标
 export async function GET(request: NextRequest) {
@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     const goal = await prisma.goal.findUnique({
       where: { userId: user!.id },
     });
-    return NextResponse.json({ goal });
+    return jsonNoStore({ goal });
   } catch (err) {
     return handleApiError(err, "获取目标");
   }
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     const { university, major, examDate, subjects, targetScores, progress } = body;
 
     if (!university || !major || !examDate || !subjects?.length) {
-      return NextResponse.json({ error: "请填写所有必填字段" }, { status: 400 });
+      return jsonNoStore({ error: "请填写所有必填字段" }, { status: 400 });
     }
 
     const goal = await prisma.goal.upsert({
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ goal });
+    return jsonNoStore({ goal });
   } catch (err) {
     return handleApiError(err, "保存目标");
   }
@@ -76,7 +76,7 @@ export async function PUT(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ goal });
+    return jsonNoStore({ goal });
   } catch (err) {
     return handleApiError(err, "更新目标");
   }

@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getAuthUser } from "@/lib/api-auth";
 import { getUserAiConfig } from "@/lib/ai-config";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 
-import { handleApiError } from "@/lib/api-utils";
+import { handleApiError, jsonNoStore } from "@/lib/api-utils";
 
 export async function GET(
   request: NextRequest,
@@ -20,10 +20,10 @@ export async function GET(
     });
 
     if (!session || session.userId !== user!.id) {
-      return NextResponse.json({ error: "练习不存在" }, { status: 404 });
+      return jsonNoStore({ error: "练习不存在" }, { status: 404 });
     }
 
-    return NextResponse.json({ session });
+    return jsonNoStore({ session });
   } catch (err) {
     return handleApiError(err, "获取练习详情");
   }
@@ -43,7 +43,7 @@ export async function PATCH(
     });
 
     if (!session || session.userId !== user!.id) {
-      return NextResponse.json({ error: "练习不存在" }, { status: 404 });
+      return jsonNoStore({ error: "练习不存在" }, { status: 404 });
     }
 
     const body = await request.json();
@@ -57,7 +57,7 @@ export async function PATCH(
           ...(body.startedAt ? { startedAt: new Date(body.startedAt) } : {}),
         },
       });
-      return NextResponse.json({ session: updated });
+      return jsonNoStore({ session: updated });
     }
 
     // Answer submission — grade and score
@@ -199,10 +199,10 @@ export async function PATCH(
         },
       });
 
-      return NextResponse.json({ session: updated });
+      return jsonNoStore({ session: updated });
     }
 
-    return NextResponse.json({ error: "无效的更新" }, { status: 400 });
+    return jsonNoStore({ error: "无效的更新" }, { status: 400 });
   } catch (err) {
     return handleApiError(err, "更新练习");
   }
@@ -222,11 +222,11 @@ export async function DELETE(
     });
 
     if (!session || session.userId !== user!.id) {
-      return NextResponse.json({ error: "练习不存在" }, { status: 404 });
+      return jsonNoStore({ error: "练习不存在" }, { status: 404 });
     }
 
     await prisma.practiceSession.delete({ where: { id } });
-    return NextResponse.json({ success: true });
+    return jsonNoStore({ success: true });
   } catch (err) {
     return handleApiError(err, "删除练习");
   }

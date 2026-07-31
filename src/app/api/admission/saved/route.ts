@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { jsonNoStore } from "@/lib/api-utils";
 import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
     grouped[key].years[r.year].push(r);
   }
 
-  return NextResponse.json({
+  return jsonNoStore({
     records,
     grouped: Object.values(grouped),
   });
@@ -53,14 +54,14 @@ export async function POST(request: NextRequest) {
   const { university, major, year, category, data, source } = body;
 
   if (!university || !major || !year || !category) {
-    return NextResponse.json(
+    return jsonNoStore(
       { error: "university, major, year, category 为必填" },
       { status: 400 }
     );
   }
 
   if (typeof year !== "number" || year < 2000 || year > 2100) {
-    return NextResponse.json({ error: "年份无效" }, { status: 400 });
+    return jsonNoStore({ error: "年份无效" }, { status: 400 });
   }
 
   const record = await prisma.admissionInfo.upsert({
@@ -87,7 +88,7 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  return NextResponse.json({ record });
+  return jsonNoStore({ record });
 }
 
 // DELETE: 删除已保存的录取数据
@@ -99,16 +100,16 @@ export async function DELETE(request: NextRequest) {
   const id = searchParams.get("id");
 
   if (!id) {
-    return NextResponse.json({ error: "缺少 ID" }, { status: 400 });
+    return jsonNoStore({ error: "缺少 ID" }, { status: 400 });
   }
 
   const record = await prisma.admissionInfo.findFirst({
     where: { id, userId: user!.id },
   });
   if (!record) {
-    return NextResponse.json({ error: "记录不存在" }, { status: 404 });
+    return jsonNoStore({ error: "记录不存在" }, { status: 404 });
   }
 
   await prisma.admissionInfo.delete({ where: { id } });
-  return NextResponse.json({ success: true });
+  return jsonNoStore({ success: true });
 }

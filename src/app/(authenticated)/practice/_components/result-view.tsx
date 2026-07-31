@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import type { PracticeQuestion, PracticeSession } from "@/lib/practice-types";
 
@@ -146,6 +147,14 @@ export function ResultView({
         <div className="flex gap-3">
           <Button variant="outline" onClick={onBack}>返回列表</Button>
           <Button onClick={onRetry}>再来一组</Button>
+        </div>
+
+        {/* 相关模块 */}
+        <div className="mt-4 pt-4 border-t">
+          <div className="flex flex-wrap gap-2">
+            <Link href="/wrong-questions" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">🔴 查看错题本</Link>
+            <Link href="/knowledge-graph" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">🧠 知识图谱</Link>
+          </div>
         </div>
       </div>
     </div>

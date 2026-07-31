@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { generatePracticeQuestions } from "@/lib/practice-generator";
 import { Prisma } from "@prisma/client";
-import { handleApiError } from "@/lib/api-utils";
+import { handleApiError, jsonNoStore } from "@/lib/api-utils";
 
 export async function GET(request: NextRequest) {
   const { user, error } = await getAuthUser(request);
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
       take: limit,
     });
 
-    return NextResponse.json({ sessions });
+    return jsonNoStore({ sessions });
   } catch (err) {
     return handleApiError(err, "获取练习列表");
   }
@@ -42,11 +42,11 @@ export async function POST(request: NextRequest) {
     const { type = "daily", subject, duration, materialIds, wrongQuestionIds } = body;
 
     if (!subject) {
-      return NextResponse.json({ error: "请选择科目" }, { status: 400 });
+      return jsonNoStore({ error: "请选择科目" }, { status: 400 });
     }
 
     if (!["daily", "mock"].includes(type)) {
-      return NextResponse.json({ error: "类型无效" }, { status: 400 });
+      return jsonNoStore({ error: "类型无效" }, { status: 400 });
     }
 
     // Resolve "auto" wrongQuestionIds → fetch recent wrong questions for subject
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ session });
+    return jsonNoStore({ session });
   } catch (err) {
     return handleApiError(err, "创建练习");
   }

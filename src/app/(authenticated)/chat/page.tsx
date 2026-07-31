@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { ChatMarkdown } from '@/components/chat-markdown'
 import { useGoal } from '@/hooks/use-goal'
@@ -33,6 +34,10 @@ interface MaterialBrief {
 }
 
 export default function ChatPage() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
+
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -81,6 +86,29 @@ export default function ChatPage() {
     loadMaterials()
   }, [loadHistories, loadMaterials])
 
+  // Restore chat from URL params
+  const restoredRef = useRef(false)
+  useEffect(() => {
+    const chatParam = searchParams.get('chat')
+    if (!chatParam || restoredRef.current) return
+    restoredRef.current = true
+    // Wait for histories to load, then find and restore
+    const tryRestore = async () => {
+      await loadHistories()
+      // Try fetching the specific chat
+      try {
+        const res = await fetch('/api/chat')
+        const data = await res.json()
+        const found = (data.chats || []).find((h: ChatHistory) => h.id === chatParam)
+        if (found) {
+          setMessages(found.messages)
+          setChatId(found.id)
+        }
+      } catch { /* ignore */ }
+    }
+    tryRestore()
+  }, [searchParams, loadHistories])
+
   // 科目加载后自动设置默认值
   useEffect(() => {
     if (subjects.length > 0 && !wrongSubject) {
@@ -104,10 +132,14 @@ export default function ChatPage() {
         body: JSON.stringify({ chatId: cId, messages: msgs }),
       })
       const data = await res.json()
-      if (res.ok && !cId) setChatId(data.chat.id)
+      if (res.ok && !cId) {
+        const newId = data.chat.id
+        setChatId(newId)
+        router.replace(`${pathname}?chat=${newId}`, { scroll: false })
+      }
       loadHistories()
     } catch { /* ignore */ }
-  }, [loadHistories])
+  }, [loadHistories, router, pathname])
 
   const toggleMaterial = (id: string) => {
     setSelectedIds(prev => {
@@ -212,11 +244,13 @@ export default function ChatPage() {
     setMessages(history.messages)
     setChatId(history.id)
     setShowHistory(false)
+    router.replace(`${pathname}?chat=${history.id}`, { scroll: false })
   }
 
   const newChat = () => {
     setMessages([])
     setChatId(null)
+    router.replace(pathname, { scroll: false })
   }
 
   const typeIcon = (t: string) => {

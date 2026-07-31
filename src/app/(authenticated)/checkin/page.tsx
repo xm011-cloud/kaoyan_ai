@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 
 export default function CheckInPage() {
@@ -103,8 +104,9 @@ export default function CheckInPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4 bg-white dark:bg-gray-800 p-6 rounded-lg border">
           <div>
-            <label className="block text-sm font-medium mb-1">学习时长（分钟）</label>
+            <label htmlFor="checkin-duration" className="block text-sm font-medium mb-1">学习时长（分钟）</label>
             <input
+              id="checkin-duration"
               type="number"
               value={duration}
               onChange={(e) => setDuration(e.target.value)}
@@ -140,8 +142,9 @@ export default function CheckInPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">备注（可选）</label>
+            <label htmlFor="checkin-note" className="block text-sm font-medium mb-1">备注（可选）</label>
             <textarea
+              id="checkin-note"
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="今天学了什么？有什么收获？"
@@ -156,6 +159,15 @@ export default function CheckInPage() {
             {loading ? '打卡中...' : '完成打卡'}
           </Button>
         </form>
+
+        {/* 相关模块 */}
+        <div className="mt-6 pt-4 border-t">
+          <h3 className="text-sm font-medium text-gray-500 mb-3">相关模块</h3>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/pomodoro" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">🍅 番茄钟</Link>
+            <Link href="/tasks" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">📋 任务计划</Link>
+          </div>
+        </div>
       </div>
     </div>
   )

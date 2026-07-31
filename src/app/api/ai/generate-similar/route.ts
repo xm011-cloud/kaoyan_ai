@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { jsonNoStore } from "@/lib/api-utils";
 import { getAuthUser } from "@/lib/api-auth";
 import { getUserAiConfig } from "@/lib/ai-config";
 import { prisma } from "@/lib/prisma";
@@ -13,7 +14,7 @@ export async function POST(request: NextRequest) {
     const { wrongQuestionId, count = 3 } = body;
 
     if (!wrongQuestionId) {
-      return NextResponse.json({ error: "请指定错题ID" }, { status: 400 });
+      return jsonNoStore({ error: "请指定错题ID" }, { status: 400 });
     }
 
     const wq = await prisma.wrongQuestion.findUnique({
@@ -21,7 +22,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (!wq || wq.userId !== user!.id) {
-      return NextResponse.json({ error: "错题不存在" }, { status: 404 });
+      return jsonNoStore({ error: "错题不存在" }, { status: 404 });
     }
 
     const aiConfig = await getUserAiConfig(user!.id);
@@ -115,10 +116,10 @@ export async function POST(request: NextRequest) {
       questions = generateLocalSimilar(wq.subject, wq.question, wq.answer, count);
     }
 
-    return NextResponse.json({ questions });
+    return jsonNoStore({ questions });
   } catch (err) {
     console.error("Generate similar error:", err);
-    return NextResponse.json({ error: "生成练习题失败" }, { status: 500 });
+    return jsonNoStore({ error: "生成练习题失败" }, { status: 500 });
   }
 }
 

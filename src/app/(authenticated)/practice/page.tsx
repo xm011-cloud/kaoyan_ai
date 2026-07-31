@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useGoal } from "@/hooks/use-goal";
 import { usePracticeTimer } from "@/hooks/use-practice-timer";
 import { usePracticeSessions, useCreatePracticeSession, useSubmitPracticeSession } from "@/hooks/use-practice";
@@ -9,7 +10,32 @@ import { SessionCreator } from "./_components/session-creator";
 import { ActiveSession } from "./_components/active-session";
 import { ResultView } from "./_components/result-view";
 
+// ── sessionStorage helpers for answers ──
+const ANSWERS_KEY_PREFIX = "practice-answers-";
+
+function saveAnswers(sessionId: string, answers: Record<string, string>) {
+  try {
+    sessionStorage.setItem(ANSWERS_KEY_PREFIX + sessionId, JSON.stringify(answers));
+  } catch { /* ignore */ }
+}
+
+function loadAnswers(sessionId: string): Record<string, string> {
+  try {
+    const raw = sessionStorage.getItem(ANSWERS_KEY_PREFIX + sessionId);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
+function clearAnswers(sessionId: string) {
+  try { sessionStorage.removeItem(ANSWERS_KEY_PREFIX + sessionId); } catch { /* ignore */ }
+}
+
 export default function PracticePage() {
+  // ── URL params ──
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
   // ── State ──
   const [view, setView] = useState<"main" | "active" | "result">("main");
   const { data: goal } = useGoal();
@@ -59,6 +85,45 @@ export default function PracticePage() {
   // Wrong-question subject
   const wrongSubject = useRef("");
 
+  // Restore session from URL params on mount
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    if (restoredRef.current) return;
+    const sessionId = searchParams.get("session");
+    const isResult = searchParams.get("result") === "1";
+    if (!sessionId) return;
+    restoredRef.current = true;
+
+    if (isResult) {
+      // Restore result view
+      fetch(`/api/practice/${sessionId}`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.session?.status === "completed") {
+            setResultSession(data.session as PracticeSession);
+            setView("result");
+          }
+        })
+        .catch(() => {});
+    } else {
+      // Restore active session
+      fetch(`/api/practice/${sessionId}`)
+        .then(r => r.json())
+        .then(data => {
+          const s = data.session as PracticeSession;
+          if (s && s.status === "in_progress") {
+            setSession(s);
+            const savedAnswers = loadAnswers(sessionId);
+            setAnswers(savedAnswers);
+            setCurrentIndex(0);
+            setView("active");
+            wrongSubject.current = s.subject;
+          }
+        })
+        .catch(() => {});
+    }
+  }, [searchParams]);
+
   // ── Data loading (materials only, sessions via React Query) ──
   useEffect(() => {
     fetch("/api/materials?brief=true")
@@ -72,6 +137,26 @@ export default function PracticePage() {
       setCreateSubject(subjects[0]);
     }
   }, [subjects, createSubject]);
+
+  // Persist answers to sessionStorage whenever they change
+  useEffect(() => {
+    if (session && view === "active") {
+      saveAnswers(session.id, answers);
+    }
+  }, [answers, session, view]);
+
+  // URL navigation helpers
+  const navigateToSession = useCallback((sessionId: string) => {
+    router.replace(`${pathname}?session=${sessionId}`, { scroll: false });
+  }, [router, pathname]);
+
+  const navigateToResult = useCallback((sessionId: string) => {
+    router.replace(`${pathname}?session=${sessionId}&result=1`, { scroll: false });
+  }, [router, pathname]);
+
+  const navigateToMain = useCallback(() => {
+    router.replace(pathname, { scroll: false });
+  }, [router, pathname]);
 
   // ── Handlers ──
   const handleCreate = () => {
@@ -93,6 +178,7 @@ export default function PracticePage() {
             resetTimer();
             setView("active");
             wrongSubject.current = s.subject;
+            navigateToSession(s.id);
           }
         },
       }
@@ -101,13 +187,16 @@ export default function PracticePage() {
 
   const handleSubmit = () => {
     if (!session || submitting) return;
+    const sessionId = session.id;
     submitSessionMut.mutate(
-      { id: session.id, answers },
+      { id: sessionId, answers },
       {
         onSuccess: (s: PracticeSession) => {
           setResultSession(s);
           setView("result");
           setSession(null);
+          clearAnswers(sessionId);
+          navigateToResult(sessionId);
         },
       }
     );
@@ -120,6 +209,7 @@ export default function PracticePage() {
       const data = await res.json();
       setResultSession(data.session as PracticeSession);
       setView("result");
+      navigateToResult(s.id);
     } catch {
       /* ignore */
     }
@@ -303,6 +393,7 @@ export default function PracticePage() {
         onBack={() => {
           setView("main");
           setSession(null);
+          navigateToMain();
         }}
       />
     );
@@ -318,12 +409,14 @@ export default function PracticePage() {
         onBack={() => {
           setView("main");
           setResultSession(null);
+          navigateToMain();
         }}
         onRetry={() => {
           setCreateType(resultSession.type);
           setCreateSubject(resultSession.subject);
           setView("main");
           setResultSession(null);
+          navigateToMain();
           setTimeout(() => handleCreate(), 100);
         }}
       />

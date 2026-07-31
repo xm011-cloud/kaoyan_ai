@@ -57,7 +57,7 @@ export function AddModal({ subjects, initialSubject, onClose, onSaved }: AddModa
       >
         <div className="px-5 py-4 border-b dark:border-gray-700 flex items-center justify-between">
           <h3 className="font-bold text-lg">添加错题</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl" aria-label="关闭">✕</button>
         </div>
         <div className="p-5 space-y-4">
           <div>

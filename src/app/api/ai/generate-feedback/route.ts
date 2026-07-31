@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { jsonNoStore } from "@/lib/api-utils";
 import { getAuthUser } from "@/lib/api-auth";
 import { getUserAiConfig, callAI } from "@/lib/ai-config";
 import { prisma } from "@/lib/prisma";
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest) {
       where: { userId: user!.id, weekStart, weekEnd },
     });
     if (existing) {
-      return NextResponse.json({ feedback: existing, regenerated: false });
+      return jsonNoStore({ feedback: existing, regenerated: false });
     }
 
     // 收集数据
@@ -140,9 +141,9 @@ ${goal ? `- 目标院校：${goal.university} ${goal.major}，考试日期：${g
       },
     });
 
-    return NextResponse.json({ feedback, regenerated: true });
+    return jsonNoStore({ feedback, regenerated: true });
   } catch (err) {
     console.error("Generate feedback error:", err);
-    return NextResponse.json({ error: "生成反馈失败" }, { status: 500 });
+    return jsonNoStore({ error: "生成反馈失败" }, { status: 500 });
   }
 }

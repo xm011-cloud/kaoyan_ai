@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useGoal } from "@/hooks/use-goal";
 import {
@@ -36,11 +38,31 @@ const SOURCE_LABELS: Record<string, string> = {
 function sourceLabel(s: string) { return SOURCE_LABELS[s] || s; }
 
 export default function WrongQuestionsPage() {
-  const [tab, setTab] = useState<"all" | "unreviewed" | "reviewed" | "due">("all");
-  const [subjectFilter, setSubjectFilter] = useState("");
-  const [searchTerm, setSearchTerm] = useState("");
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const [tab, setTab] = useState<"all" | "unreviewed" | "reviewed" | "due">(
+    () => (searchParams.get("tab") as "all" | "unreviewed" | "reviewed" | "due") || "all"
+  );
+  const [subjectFilter, setSubjectFilter] = useState(
+    () => searchParams.get("subject") || ""
+  );
+  const [searchTerm, setSearchTerm] = useState(
+    () => searchParams.get("q") || ""
+  );
   const { data: goal } = useGoal();
   const subjects = goal?.subjects ?? [];
+
+  // Sync filter state to URL
+  const syncUrl = useCallback((updates: Record<string, string>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [key, value] of Object.entries(updates)) {
+      if (value) params.set(key, value);
+      else params.delete(key);
+    }
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [searchParams, router, pathname]);
 
   // Modal toggles
   const [showAdd, setShowAdd] = useState(false);
@@ -171,7 +193,7 @@ export default function WrongQuestionsPage() {
             ].map(([k, label]) => (
               <button
                 key={k}
-                onClick={() => setTab(k as typeof tab)}
+                onClick={() => { setTab(k as typeof tab); syncUrl({ tab: k === "all" ? "" : k }); }}
                 className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
                   tab === k ? "bg-white dark:bg-gray-700 shadow-sm font-medium" : "text-gray-500 hover:text-gray-700"
                 }`}
@@ -188,7 +210,7 @@ export default function WrongQuestionsPage() {
           </div>
           <select
             value={subjectFilter}
-            onChange={(e) => setSubjectFilter(e.target.value)}
+            onChange={(e) => { setSubjectFilter(e.target.value); syncUrl({ subject: e.target.value }); }}
             className="text-sm border rounded-lg px-3 py-1.5 bg-white dark:bg-gray-800 dark:border-gray-700"
           >
             <option value="">全部科目</option>
@@ -198,7 +220,7 @@ export default function WrongQuestionsPage() {
             type="text"
             placeholder="搜索错题..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => { setSearchTerm(e.target.value); syncUrl({ q: e.target.value }); }}
             className="text-sm border rounded-lg px-3 py-1.5 bg-white dark:bg-gray-800 dark:border-gray-700 flex-1 min-w-[120px]"
           />
         </div>
@@ -254,7 +276,7 @@ export default function WrongQuestionsPage() {
                   <div className="flex flex-col gap-1 shrink-0">
                     <button
                       onClick={(e) => { e.stopPropagation(); setReviewing(q); }}
-                      className="text-xs text-blue-500 hover:text-blue-700 px-2 py-1" title="复习"
+                      className="text-xs text-blue-500 hover:text-blue-700 px-2 py-1" title="复习" aria-label="复习"
                     >📖</button>
                   </div>
                 </div>
@@ -262,6 +284,16 @@ export default function WrongQuestionsPage() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* 相关模块 */}
+      <div className="mt-6 pt-4 border-t">
+        <h3 className="text-sm font-medium text-gray-500 mb-3">相关模块</h3>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/practice" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">✏️ 去练习</Link>
+          <Link href="/knowledge-graph" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">🧠 知识图谱</Link>
+          <Link href="/chat" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">💬 AI 问答</Link>
+        </div>
       </div>
 
       {/* Modals — no onSaved/onImported callbacks needed (mutation onSuccess handles invalidation) */}

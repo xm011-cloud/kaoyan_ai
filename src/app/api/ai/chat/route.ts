@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { jsonNoStore } from "@/lib/api-utils";
 import { getAuthUser } from "@/lib/api-auth";
 import { getUserAiConfig, callAI } from "@/lib/ai-config";
 import { prisma } from "@/lib/prisma";
@@ -10,7 +11,7 @@ export async function POST(request: NextRequest) {
 
   const aiConfig = await getUserAiConfig(user!.id);
   if (!aiConfig) {
-    return NextResponse.json({
+    return jsonNoStore({
       reply: "请先在设置页面配置你的 AI API Key（支持 MiMo、DeepSeek、通义千问等兼容 OpenAI 接口的服务）后，才能使用 AI 问答功能。",
       needConfig: true,
     });
@@ -21,7 +22,7 @@ export async function POST(request: NextRequest) {
     const { messages, materialIds } = body;
 
     if (!messages || !Array.isArray(messages)) {
-      return NextResponse.json({ error: "消息格式不正确" }, { status: 400 });
+      return jsonNoStore({ error: "消息格式不正确" }, { status: 400 });
     }
 
     const lastMessage = messages[messages.length - 1]?.content || "";
@@ -64,13 +65,13 @@ export async function POST(request: NextRequest) {
     } catch (aiErr) {
       const err = aiErr as Error & { status?: number };
       if (err.status === 401 || err.status === 403) {
-        return NextResponse.json({ reply: "AI API Key 无效或已过期，请在设置页面更新。", needConfig: true });
+        return jsonNoStore({ reply: "AI API Key 无效或已过期，请在设置页面更新。", needConfig: true });
       }
       console.error("AI API error:", err.status);
-      return NextResponse.json({ reply: "AI 服务暂时不可用，请稍后再试。" });
+      return jsonNoStore({ reply: "AI 服务暂时不可用，请稍后再试。" });
     }
 
-    return NextResponse.json({
+    return jsonNoStore({
       reply,
       sources: (searchResults.length > 0 ? searchResults
         : materialIds?.length > 0 ? userMaterials.filter(m => m.content && m.content.length > 10).map(m => ({ id: m.id, name: m.name, content: m.content ?? "", score: 1 }))
@@ -84,6 +85,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (err) {
     console.error("AI Chat error:", err);
-    return NextResponse.json({ reply: "AI 服务暂时不可用，请稍后再试。" });
+    return jsonNoStore({ reply: "AI 服务暂时不可用，请稍后再试。" });
   }
 }

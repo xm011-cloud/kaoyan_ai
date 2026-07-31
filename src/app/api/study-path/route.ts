@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { jsonNoStore } from "@/lib/api-utils";
 import { getAuthUser } from "@/lib/api-auth";
 import { getUserAiConfig, callAI, extractJsonArray } from "@/lib/ai-config";
 import { prisma } from "@/lib/prisma";
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
     });
 
     if (!path) {
-      return NextResponse.json({ path: null, milestones: [] });
+      return jsonNoStore({ path: null, milestones: [] });
     }
 
     // Compute stats
@@ -28,7 +29,7 @@ export async function GET(request: NextRequest) {
         ? path.milestones.reduce((s, m) => s + m.progress, 0) / totalMilestones
         : 0;
 
-    return NextResponse.json({
+    return jsonNoStore({
       path,
       milestones: path.milestones,
       stats: {
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (err) {
     console.error("Get study-path error:", err);
-    return NextResponse.json({ error: "获取学习路径失败" }, { status: 500 });
+    return jsonNoStore({ error: "获取学习路径失败" }, { status: 500 });
   }
 }
 
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
   try {
     const goal = await prisma.goal.findUnique({ where: { userId: user!.id } });
     if (!goal) {
-      return NextResponse.json({ error: "请先设置考研目标" }, { status: 400 });
+      return jsonNoStore({ error: "请先设置考研目标" }, { status: 400 });
     }
 
     const examDate = new Date(goal.examDate);
@@ -177,7 +178,7 @@ ${gapLines}
       include: { milestones: { orderBy: { order: "asc" } } },
     });
 
-    return NextResponse.json({
+    return jsonNoStore({
       path,
       milestones: path.milestones,
       stats: {
@@ -188,7 +189,7 @@ ${gapLines}
     });
   } catch (err) {
     console.error("Generate study-path error:", err);
-    return NextResponse.json({ error: "生成学习路径失败" }, { status: 500 });
+    return jsonNoStore({ error: "生成学习路径失败" }, { status: 500 });
   }
 }
 

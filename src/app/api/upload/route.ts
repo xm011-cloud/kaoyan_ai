@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { jsonNoStore } from "@/lib/api-utils";
 import { getAuthUser } from "@/lib/api-auth";
 import { createServiceClient } from "@/lib/supabase/service";
 import { prisma } from "@/lib/prisma";
@@ -13,12 +14,12 @@ export async function POST(request: NextRequest) {
     const file = formData.get("file") as File | null;
 
     if (!file) {
-      return NextResponse.json({ error: "请选择要上传的文件" }, { status: 400 });
+      return jsonNoStore({ error: "请选择要上传的文件" }, { status: 400 });
     }
 
     // 限制文件大小（20MB）
     if (file.size > 20 * 1024 * 1024) {
-      return NextResponse.json({ error: "文件大小不能超过 20MB" }, { status: 400 });
+      return jsonNoStore({ error: "文件大小不能超过 20MB" }, { status: 400 });
     }
 
     const bytes = await file.arrayBuffer();
@@ -97,9 +98,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ material, hasContent: !!content && !content.startsWith("[") });
+    return jsonNoStore({ material, hasContent: !!content && !content.startsWith("[") });
   } catch (err) {
     console.error("Upload error:", err);
-    return NextResponse.json({ error: "文件上传失败" }, { status: 500 });
+    return jsonNoStore({ error: "文件上传失败" }, { status: 500 });
   }
 }

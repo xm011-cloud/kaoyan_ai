@@ -46,6 +46,46 @@ function requestNotificationPermission() {
   }
 }
 
+// ── sessionStorage persistence ──
+const STORAGE_KEY = "pomodoro-timer-state";
+
+interface PersistedTimerState {
+  mode: TimerMode;
+  status: "running" | "paused";
+  timeLeft: number;
+  completedFocusCount: number;
+  startedAt: number;
+  accumulated: number;
+  totalSeconds: number;
+  savedAt: number;
+}
+
+function saveTimerState(state: PersistedTimerState) {
+  try {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // sessionStorage unavailable
+  }
+}
+
+function loadTimerState(): PersistedTimerState | null {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as PersistedTimerState;
+  } catch {
+    return null;
+  }
+}
+
+function clearTimerState() {
+  try {
+    sessionStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 export default function PomodoroPage() {
   // ── Settings state ──
   const [settings, setSettings] = useState<Settings>({
@@ -71,11 +111,12 @@ export default function PomodoroPage() {
   const accumulatedRef = useRef<number>(0);
   const totalSecondsRef = useRef<number>(25 * 60);
   const modeRef = useRef<TimerMode>("focus");
+  const restoredRef = useRef(false);
 
   // Keep mode ref in sync
   modeRef.current = mode;
 
-  // ── Load settings ──
+  // ── Load settings & restore timer from sessionStorage ──
   useEffect(() => {
     async function load() {
       try {
@@ -88,9 +129,48 @@ export default function PomodoroPage() {
           longBreakInterval: data.longBreakInterval ?? 4,
         };
         setSettings(s);
-        const initial = s.focusMinutes * 60;
-        setTimeLeft(initial);
-        totalSecondsRef.current = initial;
+
+        // Try to restore timer state from sessionStorage
+        const saved = loadTimerState();
+        if (saved && !restoredRef.current) {
+          restoredRef.current = true;
+          setMode(saved.mode);
+          setCompletedFocusCount(saved.completedFocusCount);
+          totalSecondsRef.current = saved.totalSeconds;
+          accumulatedRef.current = saved.accumulated;
+
+          if (saved.status === "running") {
+            // Calculate elapsed since save and adjust
+            const elapsedSinceSave = Math.floor((Date.now() - saved.savedAt) / 1000);
+            const totalElapsed = saved.accumulated + elapsedSinceSave;
+            const remaining = Math.max(0, saved.totalSeconds - totalElapsed);
+
+            if (remaining <= 0) {
+              // Timer would have completed while away — just reset
+              clearTimerState();
+              const initial = s.focusMinutes * 60;
+              setMode("focus");
+              setStatus("idle");
+              setTimeLeft(initial);
+              totalSecondsRef.current = initial;
+              accumulatedRef.current = 0;
+            } else {
+              setTimeLeft(remaining);
+              accumulatedRef.current = saved.accumulated + elapsedSinceSave;
+              startedAtRef.current = Date.now();
+              setStatus("running");
+            }
+          } else {
+            // Paused — restore exact timeLeft
+            setTimeLeft(saved.timeLeft);
+            setStatus("paused");
+          }
+        } else {
+          // No saved state — normal init
+          const initial = s.focusMinutes * 60;
+          setTimeLeft(initial);
+          totalSecondsRef.current = initial;
+        }
       } catch {
         // use defaults
       } finally {
@@ -174,6 +254,18 @@ export default function PomodoroPage() {
       accumulatedRef.current = 0;
       startedAtRef.current = Date.now();
       totalSecondsRef.current = nextTotal;
+
+      // Persist the auto-started break
+      saveTimerState({
+        mode: nextMode,
+        status: "running",
+        timeLeft: nextTotal,
+        completedFocusCount: newCount,
+        startedAt: Date.now(),
+        accumulated: 0,
+        totalSeconds: nextTotal,
+        savedAt: Date.now(),
+      });
     } else {
       // Break completed → switch to focus, wait for user
       notify("休息结束！", "准备好开始下一个番茄钟了吗？");
@@ -185,6 +277,7 @@ export default function PomodoroPage() {
       setTimeLeft(nextTotal);
       accumulatedRef.current = 0;
       totalSecondsRef.current = nextTotal;
+      clearTimerState();
     }
   }, [
     completedFocusCount,
@@ -205,25 +298,33 @@ export default function PomodoroPage() {
 
       setTimeLeft(remaining);
 
+      // Persist to sessionStorage every tick
+      saveTimerState({
+        mode: modeRef.current,
+        status: "running",
+        timeLeft: remaining,
+        completedFocusCount,
+        startedAt: startedAtRef.current,
+        accumulated: accumulatedRef.current,
+        totalSeconds: total,
+        savedAt: Date.now(),
+      });
+
       if (remaining <= 0) {
         clearInterval(intervalId);
+        clearTimerState();
         handleSessionComplete();
       }
     }, 250);
 
     return () => clearInterval(intervalId);
-  }, [status, handleSessionComplete]);
+  }, [status, handleSessionComplete, completedFocusCount]);
 
-  // ── beforeunload warning ──
+  // ── Persist paused state on status change ──
   useEffect(() => {
-    if (status !== "running") return;
-
-    const handler = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = "";
-    };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
+    if (status === "idle") {
+      clearTimerState();
+    }
   }, [status]);
 
   // ── Controls ──
@@ -249,7 +350,19 @@ export default function PomodoroPage() {
     const elapsed = Math.floor((Date.now() - startedAtRef.current) / 1000);
     accumulatedRef.current += elapsed;
     setStatus("paused");
-  }, []);
+
+    // Persist paused state
+    saveTimerState({
+      mode: modeRef.current,
+      status: "paused",
+      timeLeft: totalSecondsRef.current - accumulatedRef.current,
+      completedFocusCount,
+      startedAt: 0,
+      accumulated: accumulatedRef.current,
+      totalSeconds: totalSecondsRef.current,
+      savedAt: Date.now(),
+    });
+  }, [completedFocusCount]);
 
   const handleReset = useCallback(() => {
     const total = getTotalSecondsForMode(mode);
@@ -257,6 +370,7 @@ export default function PomodoroPage() {
     setTimeLeft(total);
     totalSecondsRef.current = total;
     accumulatedRef.current = 0;
+    clearTimerState();
   }, [mode, getTotalSecondsForMode]);
 
   const handleSkip = useCallback(() => {

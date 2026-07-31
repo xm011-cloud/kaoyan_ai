@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { jsonNoStore } from "@/lib/api-utils";
 import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
@@ -15,15 +16,15 @@ export async function DELETE(
     const node = await prisma.knowledgeNode.findUnique({ where: { id } });
 
     if (!node || node.userId !== user!.id) {
-      return NextResponse.json({ error: "知识点不存在" }, { status: 404 });
+      return jsonNoStore({ error: "知识点不存在" }, { status: 404 });
     }
 
     // Cascade will delete associated edges
     await prisma.knowledgeNode.delete({ where: { id } });
 
-    return NextResponse.json({ success: true });
+    return jsonNoStore({ success: true });
   } catch (err) {
     console.error("Delete knowledge-node error:", err);
-    return NextResponse.json({ error: "删除知识点失败" }, { status: 500 });
+    return jsonNoStore({ error: "删除知识点失败" }, { status: 500 });
   }
 }

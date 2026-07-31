@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { jsonNoStore } from "@/lib/api-utils";
 import { getAuthUser } from "@/lib/api-auth";
 import { getUserAiConfig, callAI, extractJson } from "@/lib/ai-config";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -191,14 +192,14 @@ export async function POST(request: NextRequest) {
       const year = yearStr ? parseInt(yearStr) : undefined;
 
       if (!file) {
-        return NextResponse.json(
+        return jsonNoStore(
           { error: "请选择要上传的文件" },
           { status: 400 }
         );
       }
 
       if (file.size > 20 * 1024 * 1024) {
-        return NextResponse.json(
+        return jsonNoStore(
           { error: "文件大小不能超过 20MB" },
           { status: 400 }
         );
@@ -241,7 +242,7 @@ export async function POST(request: NextRequest) {
 
       // 检测是否有可提取的文本
       if (!extractedText || /^\[.*无法.*提取.*文本/i.test(extractedText)) {
-        return NextResponse.json(
+        return jsonNoStore(
           {
             error: "无法从此文件中提取文本，请将内容保存为 .txt 文件后重试",
             rawText: extractedText || "",
@@ -261,13 +262,13 @@ export async function POST(request: NextRequest) {
       } catch (aiErr) {
         const msg = aiErr instanceof Error ? aiErr.message : String(aiErr);
         if (msg === "NO_AI_CONFIG") {
-          return NextResponse.json(
+          return jsonNoStore(
             { error: "请先在设置中配置 AI 服务" },
             { status: 400 }
           );
         }
         console.error("AI extraction for file import failed:", msg);
-        return NextResponse.json({
+        return jsonNoStore({
           saved: 0,
           entries: [],
           rawText: extractedText.slice(0, 2000),
@@ -279,7 +280,7 @@ export async function POST(request: NextRequest) {
       }
 
       if (entries.length === 0) {
-        return NextResponse.json({
+        return jsonNoStore({
           saved: 0,
           entries: [],
           rawText: extractedText.slice(0, 2000),
@@ -288,7 +289,7 @@ export async function POST(request: NextRequest) {
       }
 
       const saved = await upsertEntries(user!.id, entries);
-      return NextResponse.json({
+      return jsonNoStore({
         saved: saved.length,
         entries,
         filePath: storedPath,
@@ -315,18 +316,18 @@ export async function POST(request: NextRequest) {
           e.data
       );
       if (valid.length === 0) {
-        return NextResponse.json(
+        return jsonNoStore(
           { error: "没有有效的条目，每条需包含 university, major, year, category, data" },
           { status: 400 }
         );
       }
       const saved = await upsertEntries(user!.id, valid);
-      return NextResponse.json({ saved: saved.length, entries: saved });
+      return jsonNoStore({ saved: saved.length, entries: saved });
     }
 
     // 文本粘贴 → AI 提取
     if (!text || !text.trim()) {
-      return NextResponse.json(
+      return jsonNoStore(
         { error: "请上传文件或粘贴文本内容" },
         { status: 400 }
       );
@@ -342,13 +343,13 @@ export async function POST(request: NextRequest) {
     } catch (aiErr) {
       const msg = aiErr instanceof Error ? aiErr.message : String(aiErr);
       if (msg === "NO_AI_CONFIG") {
-        return NextResponse.json(
+        return jsonNoStore(
           { error: "请先在设置中配置 AI 服务" },
           { status: 400 }
         );
       }
       console.error("AI extraction for text import failed:", msg);
-      return NextResponse.json({
+      return jsonNoStore({
         saved: 0,
         entries: [],
         rawText: text.slice(0, 2000),
@@ -360,7 +361,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (extracted.length === 0) {
-      return NextResponse.json({
+      return jsonNoStore({
         saved: 0,
         entries: [],
         message: "AI 未能提取到有效的录取数据，请尝试粘贴 JSON 格式手动输入",
@@ -370,14 +371,14 @@ export async function POST(request: NextRequest) {
     const saved = autoSave
       ? await upsertEntries(user!.id, extracted)
       : extracted;
-    return NextResponse.json({
+    return jsonNoStore({
       saved: Array.isArray(saved) ? saved.length : 0,
       entries: autoSave ? saved : extracted,
       autoSaved: autoSave,
     });
   } catch (err) {
     console.error("Admission import error:", err);
-    return NextResponse.json(
+    return jsonNoStore(
       { error: "导入失败，请稍后再试" },
       { status: 500 }
     );

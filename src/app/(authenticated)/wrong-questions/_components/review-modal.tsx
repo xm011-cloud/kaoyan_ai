@@ -56,13 +56,15 @@ export function ReviewModal({ question, unreviewedList, onClose, onReviewed }: R
       <div
         className="bg-white dark:bg-gray-800 rounded-xl border shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
       >
         <div className="px-5 py-4 border-b dark:border-gray-700 flex items-center justify-between shrink-0">
           <span className="text-sm text-gray-500">
             📖 复习模式 · {question.subject}
             {question.interval > 0 && ` · 间隔${question.interval}天`}
           </span>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl" aria-label="关闭">✕</button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-4">

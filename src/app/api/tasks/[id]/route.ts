@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
-import { handleApiError } from "@/lib/api-utils";
+import { handleApiError, jsonNoStore } from "@/lib/api-utils";
 
 // PATCH: 更新任务（切换完成状态等）
 export async function PATCH(
@@ -19,7 +19,7 @@ export async function PATCH(
       where: { id, userId: user!.id },
     });
     if (!task) {
-      return NextResponse.json({ error: "任务不存在" }, { status: 404 });
+      return jsonNoStore({ error: "任务不存在" }, { status: 404 });
     }
 
     const updated = await prisma.task.update({
@@ -34,7 +34,7 @@ export async function PATCH(
       },
     });
 
-    return NextResponse.json({ task: updated });
+    return jsonNoStore({ task: updated });
   } catch (err) {
     return handleApiError(err, "更新任务");
   }
@@ -55,12 +55,12 @@ export async function DELETE(
       where: { id, userId: user!.id },
     });
     if (!task) {
-      return NextResponse.json({ error: "任务不存在" }, { status: 404 });
+      return jsonNoStore({ error: "任务不存在" }, { status: 404 });
     }
 
     await prisma.task.delete({ where: { id } });
 
-    return NextResponse.json({ success: true });
+    return jsonNoStore({ success: true });
   } catch (err) {
     return handleApiError(err, "删除任务");
   }

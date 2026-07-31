@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { jsonNoStore } from "@/lib/api-utils";
 import { getAuthUser } from "@/lib/api-auth";
 import { getUserAiConfig, callAI, extractJsonArray } from "@/lib/ai-config";
 import { prisma } from "@/lib/prisma";
@@ -119,7 +120,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (!goal) {
-      return NextResponse.json({ error: "请先设置考研目标" }, { status: 400 });
+      return jsonNoStore({ error: "请先设置考研目标" }, { status: 400 });
     }
 
     const examDate = new Date(goal.examDate);
@@ -154,7 +155,7 @@ export async function POST(request: NextRequest) {
       .filter(Boolean);
 
     if (subjects.length === 0) {
-      return NextResponse.json({ error: "请先设置考试科目" }, { status: 400 });
+      return jsonNoStore({ error: "请先设置考试科目" }, { status: 400 });
     }
 
     const phase = getPhase(examDate, weekStartDate);
@@ -273,7 +274,7 @@ ${regenerateContext}
     const phaseStats: Record<string, number> = {};
     for (const t of planTasks) { phaseStats[t.phase] = (phaseStats[t.phase] || 0) + 1; }
 
-    return NextResponse.json({
+    return jsonNoStore({
       tasks: succeeded,
       totalTasks: succeeded.length,
       planned: planTasks.length,
@@ -284,6 +285,6 @@ ${regenerateContext}
     });
   } catch (err) {
     console.error("Generate plan error:", err);
-    return NextResponse.json({ error: "生成计划失败，请稍后再试" }, { status: 500 });
+    return jsonNoStore({ error: "生成计划失败，请稍后再试" }, { status: 500 });
   }
 }

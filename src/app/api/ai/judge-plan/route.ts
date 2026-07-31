@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { jsonNoStore } from "@/lib/api-utils";
 import { getAuthUser } from "@/lib/api-auth";
 import { getUserAiConfig, callAI, extractJson } from "@/lib/ai-config";
 import { prisma } from "@/lib/prisma";
@@ -41,7 +42,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => null);
     if (!body || !Array.isArray(body.tasks) || body.tasks.length === 0) {
-      return NextResponse.json(
+      return jsonNoStore(
         { error: "请提供待评审的任务列表" },
         { status: 400 }
       );
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest) {
     if (!aiConfig) {
       // 无 AI Key → 快速本地规则校验
       const localResult = localJudge(tasks, examDate, subjects);
-      return NextResponse.json(localResult);
+      return jsonNoStore(localResult);
     }
 
     // ── AI 评审 ──
@@ -124,7 +125,7 @@ ${taskSummary}
       const judged = extractJson<JudgeResult>(fullContent);
 
       if (judged && typeof judged.score === "number") {
-        return NextResponse.json(judged);
+        return jsonNoStore(judged);
       }
 
       console.error("Judge AI returned invalid format:", fullContent.substring(0, 200));
@@ -132,11 +133,11 @@ ${taskSummary}
     } catch (e) {
       console.error("Judge AI error:", e instanceof Error ? e.message : String(e));
       const localResult = localJudge(tasks, examDate, subjects);
-      return NextResponse.json(localResult);
+      return jsonNoStore(localResult);
     }
   } catch (err) {
     console.error("Judge plan error:", err);
-    return NextResponse.json(
+    return jsonNoStore(
       { error: "计划评审失败，请稍后再试" },
       { status: 500 }
     );

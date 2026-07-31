@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { jsonNoStore } from "@/lib/api-utils";
 import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
@@ -14,13 +15,13 @@ export async function GET(
     const wq = await prisma.wrongQuestion.findUnique({ where: { id } });
 
     if (!wq || wq.userId !== user!.id) {
-      return NextResponse.json({ error: "错题不存在" }, { status: 404 });
+      return jsonNoStore({ error: "错题不存在" }, { status: 404 });
     }
 
-    return NextResponse.json({ question: wq });
+    return jsonNoStore({ question: wq });
   } catch (err) {
     console.error("Get wrong-question error:", err);
-    return NextResponse.json({ error: "获取错题失败" }, { status: 500 });
+    return jsonNoStore({ error: "获取错题失败" }, { status: 500 });
   }
 }
 
@@ -36,7 +37,7 @@ export async function PATCH(
     const existing = await prisma.wrongQuestion.findUnique({ where: { id } });
 
     if (!existing || existing.userId !== user!.id) {
-      return NextResponse.json({ error: "错题不存在" }, { status: 404 });
+      return jsonNoStore({ error: "错题不存在" }, { status: 404 });
     }
 
     const body = await request.json();
@@ -89,10 +90,10 @@ export async function PATCH(
       data,
     });
 
-    return NextResponse.json({ question: updated });
+    return jsonNoStore({ question: updated });
   } catch (err) {
     console.error("Update wrong-question error:", err);
-    return NextResponse.json({ error: "更新错题失败" }, { status: 500 });
+    return jsonNoStore({ error: "更新错题失败" }, { status: 500 });
   }
 }
 
@@ -108,13 +109,13 @@ export async function DELETE(
     const existing = await prisma.wrongQuestion.findUnique({ where: { id } });
 
     if (!existing || existing.userId !== user!.id) {
-      return NextResponse.json({ error: "错题不存在" }, { status: 404 });
+      return jsonNoStore({ error: "错题不存在" }, { status: 404 });
     }
 
     await prisma.wrongQuestion.delete({ where: { id } });
-    return NextResponse.json({ success: true });
+    return jsonNoStore({ success: true });
   } catch (err) {
     console.error("Delete wrong-question error:", err);
-    return NextResponse.json({ error: "删除错题失败" }, { status: 500 });
+    return jsonNoStore({ error: "删除错题失败" }, { status: 500 });
   }
 }

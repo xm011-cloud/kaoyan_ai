@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { select } from "d3-selection";
 import { zoom as d3Zoom } from "d3-zoom";
 import { forceSimulation, forceLink, forceManyBody, forceCenter, forceCollide } from "d3-force";
@@ -68,11 +69,17 @@ function masteryColor(mastery: number): string {
 }
 
 export default function KnowledgeGraphClient() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
   const svgRef = useRef<SVGSVGElement>(null);
   const [loading, setLoading] = useState(true);
   const [building, setBuilding] = useState(false);
   const [graphData, setGraphData] = useState<GraphData | null>(null);
-  const [subjectFilter, setSubjectFilter] = useState("");
+  const [subjectFilter, setSubjectFilter] = useState(
+    () => searchParams.get("subject") || ""
+  );
   const [selectedNode, setSelectedNode] = useState<KnowledgeNode | null>(null);
   const [wrongQuestions, setWrongQuestions] = useState<
     Array<{ id: string; question: string; subject: string; reviewed: boolean }>
@@ -295,7 +302,13 @@ export default function KnowledgeGraphClient() {
           <div className="flex gap-2">
             <select
               value={subjectFilter}
-              onChange={(e) => setSubjectFilter(e.target.value)}
+              onChange={(e) => {
+                setSubjectFilter(e.target.value);
+                const params = new URLSearchParams(searchParams.toString());
+                if (e.target.value) params.set("subject", e.target.value);
+                else params.delete("subject");
+                router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+              }}
               className="text-sm border rounded-lg px-3 py-1.5 bg-white dark:bg-gray-800 dark:border-gray-700"
             >
               <option value="">全部科目</option>

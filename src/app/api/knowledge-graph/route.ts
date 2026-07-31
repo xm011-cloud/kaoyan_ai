@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { jsonNoStore } from "@/lib/api-utils";
 import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
@@ -38,14 +39,14 @@ export async function GET(request: NextRequest) {
       select: { subject: true },
     });
 
-    return NextResponse.json({
+    return jsonNoStore({
       nodes,
       edges,
       subjects: subjects.map((s) => s.subject),
     });
   } catch (err) {
     console.error("Get knowledge-graph error:", err);
-    return NextResponse.json({ error: "获取知识图谱失败" }, { status: 500 });
+    return jsonNoStore({ error: "获取知识图谱失败" }, { status: 500 });
   }
 }
 
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
     const { name, subject, category, mastery } = body;
 
     if (!name || !subject) {
-      return NextResponse.json(
+      return jsonNoStore(
         { error: "知识点名称和科目不能为空" },
         { status: 400 }
       );
@@ -86,9 +87,9 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ node });
+    return jsonNoStore({ node });
   } catch (err) {
     console.error("Create knowledge-node error:", err);
-    return NextResponse.json({ error: "添加知识点失败" }, { status: 500 });
+    return jsonNoStore({ error: "添加知识点失败" }, { status: 500 });
   }
 }

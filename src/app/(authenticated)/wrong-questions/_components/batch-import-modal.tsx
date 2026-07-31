@@ -48,7 +48,7 @@ export function BatchImportModal({ onClose, onImported }: BatchImportModalProps)
       >
         <div className="px-5 py-4 border-b dark:border-gray-700 flex items-center justify-between shrink-0">
           <h3 className="font-bold text-lg">批量导入错题</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl" aria-label="关闭">✕</button>
         </div>
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
           <div className="flex gap-2">

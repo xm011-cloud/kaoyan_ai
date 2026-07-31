@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
-import { handleApiError } from "@/lib/api-utils";
+import { handleApiError, jsonNoStore } from "@/lib/api-utils";
 
 // GET: 获取番茄钟会话记录（支持 ?date=YYYY-MM-DD）
 export async function GET(request: NextRequest) {
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
       orderBy: { startedAt: "desc" },
     });
 
-    return NextResponse.json({ sessions });
+    return jsonNoStore({ sessions });
   } catch (err) {
     return handleApiError(err, "获取番茄钟记录");
   }
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     const { type, plannedMinutes, actualSeconds, status, startedAt, endedAt } = body;
 
     if (!type || plannedMinutes === undefined || actualSeconds === undefined || !startedAt || !endedAt) {
-      return NextResponse.json(
+      return jsonNoStore(
         { error: "type, plannedMinutes, actualSeconds, startedAt, endedAt are required" },
         { status: 400 }
       );
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
 
     const validTypes = ["focus", "short_break", "long_break"];
     if (!validTypes.includes(type)) {
-      return NextResponse.json({ error: "type 只能为 focus, short_break, long_break" }, { status: 400 });
+      return jsonNoStore({ error: "type 只能为 focus, short_break, long_break" }, { status: 400 });
     }
 
     const session = await prisma.pomodoroSession.create({
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ session });
+    return jsonNoStore({ session });
   } catch (err) {
     return handleApiError(err, "记录番茄钟");
   }

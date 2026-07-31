@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { jsonNoStore } from "@/lib/api-utils";
 import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest) {
   try {
     const goal = await prisma.goal.findUnique({ where: { userId: user!.id } });
     if (!goal) {
-      return NextResponse.json({ bySubject: {}, daysLeft: 0, examDate: null });
+      return jsonNoStore({ bySubject: {}, daysLeft: 0, examDate: null });
     }
 
     const subjects = goal.subjects;
@@ -77,10 +78,10 @@ export async function GET(request: NextRequest) {
     // 阶段计算
     const phases = computePhases(examDate, today);
 
-    return NextResponse.json({ bySubject, daysLeft, examDate: goal.examDate.toISOString(), phases });
+    return jsonNoStore({ bySubject, daysLeft, examDate: goal.examDate.toISOString(), phases });
   } catch (err) {
     console.error("Progress summary error:", err);
-    return NextResponse.json({ error: "获取进度数据失败" }, { status: 500 });
+    return jsonNoStore({ error: "获取进度数据失败" }, { status: 500 });
   }
 }
 

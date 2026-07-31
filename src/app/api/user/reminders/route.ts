@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
-import { handleApiError } from "@/lib/api-utils";
+import { handleApiError, jsonNoStore } from "@/lib/api-utils";
 
 // GET: 获取提醒设置
 export async function GET(request: NextRequest) {
@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
       where: { id: user!.id },
       select: { reminderEnabled: true, reminderTime: true, reminderDays: true },
     });
-    return NextResponse.json({
+    return jsonNoStore({
       reminderEnabled: dbUser?.reminderEnabled ?? false,
       reminderTime: dbUser?.reminderTime ?? "09:00",
       reminderDays: dbUser?.reminderDays ?? ["1", "2", "3", "4", "5"],
@@ -40,7 +40,7 @@ export async function PUT(request: NextRequest) {
         reminderDays: reminderDays ?? ["1", "2", "3", "4", "5"],
       },
     });
-    return NextResponse.json({ success: true });
+    return jsonNoStore({ success: true });
   } catch (err) {
     return handleApiError(err, "保存提醒设置");
   }

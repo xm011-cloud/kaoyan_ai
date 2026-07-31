@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { jsonNoStore } from "@/lib/api-utils";
 import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
@@ -12,7 +13,7 @@ export async function PATCH(request: NextRequest) {
     const { milestoneId, progress, completed } = body;
 
     if (!milestoneId) {
-      return NextResponse.json({ error: "缺少里程碑ID" }, { status: 400 });
+      return jsonNoStore({ error: "缺少里程碑ID" }, { status: 400 });
     }
 
     const milestone = await prisma.studyPathMilestone.findUnique({
@@ -21,7 +22,7 @@ export async function PATCH(request: NextRequest) {
     });
 
     if (!milestone || milestone.studyPath.userId !== user!.id) {
-      return NextResponse.json({ error: "里程碑不存在" }, { status: 404 });
+      return jsonNoStore({ error: "里程碑不存在" }, { status: 404 });
     }
 
     const data: Record<string, unknown> = {};
@@ -36,9 +37,9 @@ export async function PATCH(request: NextRequest) {
       data,
     });
 
-    return NextResponse.json({ milestone: updated });
+    return jsonNoStore({ milestone: updated });
   } catch (err) {
     console.error("Update milestone progress error:", err);
-    return NextResponse.json({ error: "更新进度失败" }, { status: 500 });
+    return jsonNoStore({ error: "更新进度失败" }, { status: 500 });
   }
 }

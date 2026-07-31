@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
-import { handleApiError } from "@/lib/api-utils";
+import { handleApiError, jsonNoStore } from "@/lib/api-utils";
 
 // GET: 获取任务列表（支持 ?date= / ?subject= / ?weekStart= 筛选）
 export async function GET(request: NextRequest) {
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
       orderBy: { date: "asc" },
     });
 
-    return NextResponse.json({ tasks });
+    return jsonNoStore({ tasks });
   } catch (err) {
     return handleApiError(err, "获取任务列表");
   }
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     const { title, description, date, duration, phase, subject, weekStartDate, source } = body;
 
     if (!title || !date) {
-      return NextResponse.json({ error: "标题和日期为必填项" }, { status: 400 });
+      return jsonNoStore({ error: "标题和日期为必填项" }, { status: 400 });
     }
 
     const task = await prisma.task.create({
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ task });
+    return jsonNoStore({ task });
   } catch (err) {
     return handleApiError(err, "创建任务");
   }

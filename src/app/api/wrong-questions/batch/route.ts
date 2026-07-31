@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { jsonNoStore } from "@/lib/api-utils";
 import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
@@ -71,7 +72,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (items.length === 0) {
-      return NextResponse.json(
+      return jsonNoStore(
         { error: "没有有效的题目数据" },
         { status: 400 }
       );
@@ -92,13 +93,13 @@ export async function POST(request: NextRequest) {
       )
     );
 
-    return NextResponse.json({
+    return jsonNoStore({
       success: true,
       count: created.length,
       questions: created,
     });
   } catch (err) {
     console.error("Batch import wrong-questions error:", err);
-    return NextResponse.json({ error: "批量导入失败" }, { status: 500 });
+    return jsonNoStore({ error: "批量导入失败" }, { status: 500 });
   }
 }

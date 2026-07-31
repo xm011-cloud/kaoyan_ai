@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 
 interface Feedback {
@@ -137,6 +138,16 @@ export default function FeedbackPage() {
               </div>
             ))
           )}
+        </div>
+
+        {/* 相关模块 */}
+        <div className="mt-6 pt-4 border-t">
+          <h3 className="text-sm font-medium text-gray-500 mb-3">相关模块</h3>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/tasks" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">📋 任务计划</Link>
+            <Link href="/study-path" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">🗺️ 学习路径</Link>
+            <Link href="/practice" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">✏️ 练习</Link>
+          </div>
         </div>
       </div>
     </div>

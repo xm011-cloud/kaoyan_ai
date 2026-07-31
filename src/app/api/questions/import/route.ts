@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { jsonNoStore } from "@/lib/api-utils";
 import { getAuthUser } from "@/lib/api-auth";
 import { getUserAiConfig } from "@/lib/ai-config";
 import { prisma } from "@/lib/prisma";
@@ -14,7 +15,7 @@ export async function POST(request: NextRequest) {
     const { subject, year, keywords, count = 5 } = body;
 
     if (!subject) {
-      return NextResponse.json({ error: "请选择科目" }, { status: 400 });
+      return jsonNoStore({ error: "请选择科目" }, { status: 400 });
     }
 
     // Build search query
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (contents.length === 0) {
-      return NextResponse.json(
+      return jsonNoStore(
         { error: "未找到相关内容，请尝试更换搜索词" },
         { status: 404 }
       );
@@ -130,7 +131,7 @@ ${webContext.slice(0, 10000)}
         // AI extraction failed
       }
     } else {
-      return NextResponse.json(
+      return jsonNoStore(
         { error: "请先在设置中配置 AI 服务，才能智能提取题目", questions: [], totalImported: 0 },
         { status: 400 }
       );
@@ -168,7 +169,7 @@ ${webContext.slice(0, 10000)}
       }
     }
 
-    return NextResponse.json({
+    return jsonNoStore({
       questions: saved,
       totalImported: saved.length,
       sources: contents.map((c) => c.url),
@@ -176,6 +177,6 @@ ${webContext.slice(0, 10000)}
     });
   } catch (err) {
     console.error("Question import error:", err);
-    return NextResponse.json({ error: "导入失败" }, { status: 500 });
+    return jsonNoStore({ error: "导入失败" }, { status: 500 });
   }
 }

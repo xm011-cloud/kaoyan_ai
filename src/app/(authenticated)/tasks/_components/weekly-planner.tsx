@@ -120,7 +120,7 @@ export function WeeklyPlanner({
                 <p className="text-sm text-gray-500">{judgeResult.summary}</p>
               </div>
             </div>
-            <button onClick={() => setShowJudge(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+            <button onClick={() => setShowJudge(false)} className="text-gray-400 hover:text-gray-600" aria-label="关闭">✕</button>
           </div>
 
           {judgeResult.strengths.length > 0 && (
@@ -204,7 +204,7 @@ export function WeeklyPlanner({
                           </div>
                         </div>
                         <button onClick={(e) => { e.stopPropagation(); onDeleteTask(task.id); }}
-                          className="text-gray-300 hover:text-red-500 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
+                          className="text-gray-300 hover:text-red-500 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" aria-label="删除任务">✕</button>
                       </div>
                     </div>
                   ))}

@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
-import { handleApiError } from "@/lib/api-utils";
+import { handleApiError, jsonNoStore } from "@/lib/api-utils";
 
 // GET: 获取资料列表
 export async function GET(request: NextRequest) {
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
       select,
     });
 
-    return NextResponse.json({ materials });
+    return jsonNoStore({ materials });
   } catch (err) {
     return handleApiError(err, "获取资料列表");
   }
@@ -38,14 +38,14 @@ export async function POST(request: NextRequest) {
     const { name, type, url, size } = body;
 
     if (!name || !type || !url || !size) {
-      return NextResponse.json({ error: "缺少必要参数" }, { status: 400 });
+      return jsonNoStore({ error: "缺少必要参数" }, { status: 400 });
     }
 
     const material = await prisma.material.create({
       data: { userId: user!.id, name, type, url, size },
     });
 
-    return NextResponse.json({ material });
+    return jsonNoStore({ material });
   } catch (err) {
     return handleApiError(err, "创建资料");
   }
@@ -61,18 +61,18 @@ export async function DELETE(request: NextRequest) {
     const id = searchParams.get("id");
 
     if (!id) {
-      return NextResponse.json({ error: "缺少资料 ID" }, { status: 400 });
+      return jsonNoStore({ error: "缺少资料 ID" }, { status: 400 });
     }
 
     const material = await prisma.material.findFirst({
       where: { id, userId: user!.id },
     });
     if (!material) {
-      return NextResponse.json({ error: "资料不存在" }, { status: 404 });
+      return jsonNoStore({ error: "资料不存在" }, { status: 404 });
     }
 
     await prisma.material.delete({ where: { id } });
-    return NextResponse.json({ success: true });
+    return jsonNoStore({ success: true });
   } catch (err) {
     return handleApiError(err, "删除资料");
   }

@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
-import { handleApiError } from "@/lib/api-utils";
+import { handleApiError, jsonNoStore } from "@/lib/api-utils";
 import { startOfDay } from "@/lib/date-utils";
 
 // GET: 获取打卡记录（支持 ?date=YYYY-MM-DD）
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
       const checkIn = await prisma.checkIn.findFirst({
         where: { userId: user!.id, date },
       });
-      return NextResponse.json({ checkIn });
+      return jsonNoStore({ checkIn });
     }
 
     const checkIns = await prisma.checkIn.findMany({
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
       take: 30,
     });
 
-    return NextResponse.json({ checkIns });
+    return jsonNoStore({ checkIns });
   } catch (err) {
     return handleApiError(err, "获取打卡记录");
   }
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     const { date, duration, status, note } = body;
 
     if (!date || !duration || !status) {
-      return NextResponse.json({ error: "日期、时长和状态为必填项" }, { status: 400 });
+      return jsonNoStore({ error: "日期、时长和状态为必填项" }, { status: 400 });
     }
 
     const checkInDate = startOfDay(new Date(date));
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ checkIn });
+    return jsonNoStore({ checkIn });
   } catch (err) {
     return handleApiError(err, "创建打卡");
   }

@@ -182,6 +182,7 @@ export default function MaterialsPage() {
                   onClick={() => handleDelete(material.id, material.name)}
                   className="text-gray-400 hover:text-red-500 text-sm shrink-0 px-1"
                   title="删除"
+                  aria-label="删除"
                 >
                   ✕
                 </button>
@@ -209,6 +210,7 @@ export default function MaterialsPage() {
               <button
                 onClick={() => setViewing(null)}
                 className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl px-2"
+                aria-label="关闭"
               >
                 ✕
               </button>

@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { jsonNoStore } from "@/lib/api-utils";
 import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
@@ -18,7 +19,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (wqs.length === 0) {
-      return NextResponse.json({
+      return jsonNoStore({
         success: true,
         nodesCreated: 0,
         edgesCreated: 0,
@@ -135,13 +136,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({
+    return jsonNoStore({
       success: true,
       nodesCreated: nodeMap.size,
       edgesCreated,
     });
   } catch (err) {
     console.error("Build knowledge-graph error:", err);
-    return NextResponse.json({ error: "构建知识图谱失败" }, { status: 500 });
+    return jsonNoStore({ error: "构建知识图谱失败" }, { status: 500 });
   }
 }

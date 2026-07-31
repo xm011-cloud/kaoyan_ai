@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useGoal } from "@/hooks/use-goal";
 import { WeeklyPlanner } from "./_components/weekly-planner";
@@ -46,13 +48,24 @@ const PHASE_COLORS: Record<string, string> = {
 };
 
 export default function TasksPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
   // ── State ──
   const { data: goal } = useGoal();
   const subjects = goal?.subjects ?? [];
   const examDate = goal?.examDate ? new Date(goal.examDate).toISOString() : "";
   const savedProgress = (goal?.progress as Record<string, ProgressEntry>) || {};
 
-  const [weekStart, setWeekStart] = useState<Date>(getWeekStart(new Date()));
+  const [weekStart, setWeekStart] = useState<Date>(() => {
+    const urlWeek = searchParams.get("week");
+    if (urlWeek) {
+      const d = new Date(urlWeek);
+      if (!isNaN(d.getTime())) return getWeekStart(d);
+    }
+    return getWeekStart(new Date());
+  });
   const [weekTasks, setWeekTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -137,11 +150,14 @@ export default function TasksPage() {
   }, [savedProgress]);
 
   // ── Handlers ──
+  const toDateString = (d: Date) => d.toISOString().slice(0, 10);
+
   const handleWeekChange = (dir: -1 | 1) => {
     const d = new Date(weekStart.getTime() + dir * 7 * 86400000);
     setWeekStart(d);
     setLoading(true);
     setJudgeResult(null);
+    router.replace(`${pathname}?week=${toDateString(d)}`, { scroll: false });
   };
 
   const handleGenerate = async () => {
@@ -386,6 +402,16 @@ export default function TasksPage() {
             当前显示本周任务。点击上方 ◀ ▶ 按钮可以查看其他周的计划。
           </div>
         </details>
+
+        {/* 相关模块 */}
+        <div className="mt-6 pt-4 border-t">
+          <h3 className="text-sm font-medium text-gray-500 mb-3">相关模块</h3>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/knowledge-graph" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">🧠 知识图谱</Link>
+            <Link href="/wrong-questions" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">🔴 错题本</Link>
+            <Link href="/study-path" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">🗺️ 学习路径</Link>
+          </div>
+        </div>
 
         {/* Edit modal */}
         {editTask && (

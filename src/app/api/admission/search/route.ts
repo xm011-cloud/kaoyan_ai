@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { jsonNoStore } from "@/lib/api-utils";
 import { getAuthUser } from "@/lib/api-auth";
 import { getUserAiConfig, callAI, extractJson } from "@/lib/ai-config";
 import { searchWeb, fetchPageContent } from "@/lib/search";
@@ -13,7 +14,7 @@ export async function POST(request: NextRequest) {
     const { university, major = "", year } = body;
 
     if (!university) {
-      return NextResponse.json({ error: "请输入院校名称" }, { status: 400 });
+      return jsonNoStore({ error: "请输入院校名称" }, { status: 400 });
     }
 
     const yearStr = year ? `${year}年` : "";
@@ -164,7 +165,7 @@ ${webContext.slice(0, 8000)}
         ? String((structuredData as Record<string, unknown>).aiDisclaimer)
         : "";
 
-    return NextResponse.json({
+    return jsonNoStore({
       university,
       major,
       year: year || null,
@@ -180,6 +181,6 @@ ${webContext.slice(0, 8000)}
     });
   } catch (err) {
     console.error("Admission search error:", err);
-    return NextResponse.json({ error: "搜索失败，请稍后重试" }, { status: 500 });
+    return jsonNoStore({ error: "搜索失败，请稍后重试" }, { status: 500 });
   }
 }

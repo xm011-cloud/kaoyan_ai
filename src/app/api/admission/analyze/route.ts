@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { jsonNoStore } from "@/lib/api-utils";
 import { getAuthUser } from "@/lib/api-auth";
 import { getUserAiConfig } from "@/lib/ai-config";
 import { prisma } from "@/lib/prisma";
@@ -13,7 +14,7 @@ export async function POST(request: NextRequest) {
     const { university, major } = body;
 
     if (!university) {
-      return NextResponse.json(
+      return jsonNoStore(
         { error: "请指定院校" },
         { status: 400 }
       );
@@ -218,7 +219,7 @@ ${schoolContext}
       },
     });
 
-    return NextResponse.json({
+    return jsonNoStore({
       analysis,
       comparisonId: comparison.id,
       admissionData: {
@@ -233,7 +234,7 @@ ${schoolContext}
     });
   } catch (err) {
     console.error("Admission analyze error:", err);
-    return NextResponse.json({ error: "分析失败" }, { status: 500 });
+    return jsonNoStore({ error: "分析失败" }, { status: 500 });
   }
 }
 

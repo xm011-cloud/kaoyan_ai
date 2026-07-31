@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
-import { handleApiError } from "@/lib/api-utils";
+import { handleApiError, jsonNoStore } from "@/lib/api-utils";
 
 export async function GET(request: NextRequest) {
   const { user, error } = await getAuthUser(request);
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
       prisma.wrongQuestion.count({ where }),
     ]);
 
-    return NextResponse.json({ questions, total });
+    return jsonNoStore({ questions, total });
   } catch (err) {
     return handleApiError(err, "获取错题列表");
   }
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     const { subject, question, answer, source, sourceChatId, tags } = body;
 
     if (!subject || !question || !answer) {
-      return NextResponse.json(
+      return jsonNoStore(
         { error: "科目、题目和答案不能为空" },
         { status: 400 }
       );
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ question: wq });
+    return jsonNoStore({ question: wq });
   } catch (err) {
     return handleApiError(err, "添加错题");
   }

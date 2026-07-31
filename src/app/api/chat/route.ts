@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
-import { handleApiError } from "@/lib/api-utils";
+import { handleApiError, jsonNoStore } from "@/lib/api-utils";
 
 // GET: 获取对话历史
 export async function GET(request: NextRequest) {
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
       take: 20,
       select: { id: true, messages: true, createdAt: true },
     });
-    return NextResponse.json({ chats });
+    return jsonNoStore({ chats });
   } catch (err) {
     return handleApiError(err, "获取对话历史");
   }
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     const { chatId, messages } = body;
 
     if (!messages) {
-      return NextResponse.json({ error: "消息内容不能为空" }, { status: 400 });
+      return jsonNoStore({ error: "消息内容不能为空" }, { status: 400 });
     }
 
     if (chatId) {
@@ -39,18 +39,18 @@ export async function POST(request: NextRequest) {
         where: { id: chatId, userId: user!.id },
       });
       if (!chat) {
-        return NextResponse.json({ error: "对话不存在" }, { status: 404 });
+        return jsonNoStore({ error: "对话不存在" }, { status: 404 });
       }
       const updated = await prisma.chat.update({
         where: { id: chatId }, data: { messages },
       });
-      return NextResponse.json({ chat: updated });
+      return jsonNoStore({ chat: updated });
     }
 
     const chat = await prisma.chat.create({
       data: { userId: user!.id, messages },
     });
-    return NextResponse.json({ chat });
+    return jsonNoStore({ chat });
   } catch (err) {
     return handleApiError(err, "保存对话");
   }

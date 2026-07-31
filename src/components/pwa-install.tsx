@@ -69,6 +69,7 @@ export function PwaInstallPrompt() {
           <button
             onClick={() => setShowPrompt(false)}
             className="text-gray-400 hover:text-gray-600 text-sm"
+            aria-label="关闭"
           >
             ✕
           </button>

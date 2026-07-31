@@ -79,20 +79,20 @@ export default function GoalPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4 bg-white dark:bg-gray-800 p-6 rounded-lg border">
           <div>
-            <label className="block text-sm font-medium mb-1">目标院校</label>
-            <input type="text" value={university} onChange={(e) => setUniversity(e.target.value)}
+            <label htmlFor="goal-university" className="block text-sm font-medium mb-1">目标院校</label>
+            <input id="goal-university" type="text" value={university} onChange={(e) => setUniversity(e.target.value)}
               placeholder="例如：北京大学"
               className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600" />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">目标专业</label>
-            <input type="text" value={major} onChange={(e) => setMajor(e.target.value)}
+            <label htmlFor="goal-major" className="block text-sm font-medium mb-1">目标专业</label>
+            <input id="goal-major" type="text" value={major} onChange={(e) => setMajor(e.target.value)}
               placeholder="例如：计算机科学与技术"
               className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600" />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">考试日期</label>
-            <input type="date" value={examDate} onChange={(e) => setExamDate(e.target.value)}
+            <label htmlFor="goal-exam-date" className="block text-sm font-medium mb-1">考试日期</label>
+            <input id="goal-exam-date" type="date" value={examDate} onChange={(e) => setExamDate(e.target.value)}
               className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600" />
           </div>
           <div>

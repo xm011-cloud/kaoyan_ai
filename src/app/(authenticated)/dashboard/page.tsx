@@ -207,7 +207,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* 快捷入口 */}
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+      <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
         {[
           { href: '/tasks', icon: '📋', label: '计划' },
           { href: '/checkin', icon: '✅', label: '打卡' },
@@ -215,6 +215,12 @@ export default async function DashboardPage() {
           { href: '/materials', icon: '📚', label: '资料' },
           { href: '/chat', icon: '💬', label: 'AI 问答' },
           { href: '/feedback', icon: '📊', label: '反馈' },
+          { href: '/wrong-questions', icon: '🔴', label: '错题本' },
+          { href: '/knowledge-graph', icon: '🧠', label: '知识图谱' },
+          { href: '/study-path', icon: '🗺️', label: '学习路径' },
+          { href: '/practice', icon: '✏️', label: '练习' },
+          { href: '/pomodoro', icon: '🍅', label: '番茄钟' },
+          { href: '/admission', icon: '🏫', label: '院校' },
         ].map((item) => (
           <Link key={item.href} href={item.href}
             className="flex flex-col items-center gap-1 p-3 bg-white dark:bg-gray-800 rounded-xl border hover:shadow-md transition-shadow">

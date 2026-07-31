@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
-import { handleApiError } from "@/lib/api-utils";
+import { handleApiError, jsonNoStore } from "@/lib/api-utils";
 
 // GET: 获取用户 AI 配置
 export async function GET(request: NextRequest) {
@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
       where: { id: user!.id },
       select: { aiKey: true, aiUrl: true, aiModel: true },
     });
-    return NextResponse.json({
+    return jsonNoStore({
       hasKey: !!dbUser?.aiKey,
       aiUrl: dbUser?.aiUrl || "",
       aiModel: dbUser?.aiModel || "",
@@ -36,7 +36,7 @@ export async function PUT(request: NextRequest) {
     const { aiKey, aiUrl, aiModel } = body;
 
     if (!aiKey || aiKey.startsWith("sk-") === false) {
-      return NextResponse.json(
+      return jsonNoStore(
         { error: "请输入有效的 API Key（以 sk- 开头）" },
         { status: 400 }
       );
@@ -46,7 +46,7 @@ export async function PUT(request: NextRequest) {
       where: { id: user!.id },
       data: { aiKey, aiUrl: aiUrl || null, aiModel: aiModel || null },
     });
-    return NextResponse.json({ success: true });
+    return jsonNoStore({ success: true });
   } catch (err) {
     return handleApiError(err, "保存用户配置");
   }
@@ -62,7 +62,7 @@ export async function DELETE(request: NextRequest) {
       where: { id: user!.id },
       data: { aiKey: null, aiUrl: null, aiModel: null },
     });
-    return NextResponse.json({ success: true });
+    return jsonNoStore({ success: true });
   } catch (err) {
     return handleApiError(err, "删除用户配置");
   }

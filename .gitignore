@@ -44,3 +44,4 @@ next-env.d.ts
 
 .vercel
 test-results/
+e2e/.auth/

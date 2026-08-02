@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { PomodoroTimer, TimerMode, TimerStatus } from "@/components/pomodoro-timer";
 import { PomodoroSettings } from "@/components/pomodoro-settings";
 import { PomodoroHistory } from "@/components/pomodoro-history";
+import { usePomodoroStore } from "@/stores/pomodoro-store";
 
 interface Settings {
   focusMinutes: number;
@@ -87,6 +88,13 @@ function clearTimerState() {
 }
 
 export default function PomodoroPage() {
+  // ── Zustand bridge: sync local timer state so ActivityBar can see it ──
+  const storeStart = usePomodoroStore((s) => s.start);
+  const storePause = usePomodoroStore((s) => s.pause);
+  const storeResume = usePomodoroStore((s) => s.resume);
+  const storeComplete = usePomodoroStore((s) => s.complete);
+  const storeReset = usePomodoroStore((s) => s.reset);
+
   // ── Settings state ──
   const [settings, setSettings] = useState<Settings>({
     focusMinutes: 25,
@@ -228,6 +236,7 @@ export default function PomodoroPage() {
 
   // ── Handle session completion ──
   const handleSessionComplete = useCallback(() => {
+    storeComplete();
     const currentMode = modeRef.current;
     const totalSec = getTotalSecondsForMode(currentMode);
     const plannedMin = Math.ceil(totalSec / 60);
@@ -335,6 +344,7 @@ export default function PomodoroPage() {
       // Resume
       startedAtRef.current = Date.now();
       setStatus("running");
+      storeResume();
     } else {
       // Fresh start
       const total = getTotalSecondsForMode(mode);
@@ -343,15 +353,15 @@ export default function PomodoroPage() {
       accumulatedRef.current = 0;
       startedAtRef.current = Date.now();
       setStatus("running");
+      storeStart(mode, Math.ceil(total / 60));
     }
-  }, [status, mode, getTotalSecondsForMode]);
+  }, [status, mode, getTotalSecondsForMode, storeStart, storeResume]);
 
   const handlePause = useCallback(() => {
     const elapsed = Math.floor((Date.now() - startedAtRef.current) / 1000);
     accumulatedRef.current += elapsed;
     setStatus("paused");
-
-    // Persist paused state
+    storePause();
     saveTimerState({
       mode: modeRef.current,
       status: "paused",
@@ -370,8 +380,9 @@ export default function PomodoroPage() {
     setTimeLeft(total);
     totalSecondsRef.current = total;
     accumulatedRef.current = 0;
+    storeReset();
     clearTimerState();
-  }, [mode, getTotalSecondsForMode]);
+  }, [mode, getTotalSecondsForMode, storeReset]);
 
   const handleSkip = useCallback(() => {
     const currentMode = modeRef.current;

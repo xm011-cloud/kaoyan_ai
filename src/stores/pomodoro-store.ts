@@ -23,6 +23,7 @@ export interface PomodoroState {
   pause: () => void
   resume: () => void
   tick: () => void
+  syncTime: (remainingSeconds: number, subject?: string) => void
   complete: () => void
   reset: () => void
 }
@@ -61,6 +62,13 @@ export const usePomodoroStore = create<PomodoroState>()(
         }
         set({ remainingSeconds: remainingSeconds - 1 })
       },
+
+      syncTime: (remainingSeconds, subject?) =>
+        set((s) => ({
+          remainingSeconds,
+          ...(subject !== undefined ? { currentSubject: subject } : {}),
+          isRunning: s.isRunning || true,
+        })),
 
       complete: () =>
         set((s) => ({

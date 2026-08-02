@@ -30,8 +30,13 @@ export function Shell({
       <main className="flex-1 overflow-y-auto">
         {children}
       </main>
-      <ActivityBar />
-      <MobileNav />
+      {/* Desktop: ActivityBar only when active. Mobile: handled inside MobileNav */}
+      <div className="hidden lg:block">
+        <ActivityBar />
+      </div>
+      <div className="lg:hidden">
+        <MobileNav />
+      </div>
     </div>
   )
 }

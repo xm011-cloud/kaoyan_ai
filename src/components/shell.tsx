@@ -3,6 +3,7 @@
 import { Header } from '@/components/header'
 import { ActivityBar } from '@/components/activity-bar'
 import { MobileNav } from '@/components/mobile-nav'
+import { PomodoroEngine } from '@/components/pomodoro-engine'
 
 /**
  * OS 外壳布局 — Apple HIG compliant
@@ -26,6 +27,7 @@ export function Shell({
 }) {
   return (
     <div className="min-h-screen flex flex-col bg-background">
+      <PomodoroEngine />
       <Header daysLeft={daysLeft} />
       <main className="flex-1 overflow-y-auto">
         {children}

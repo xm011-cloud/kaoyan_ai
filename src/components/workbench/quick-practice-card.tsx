@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCreatePracticeSession } from '@/hooks/use-practice'
+import { useUIStore } from '@/stores/ui-store'
 
 interface QuickPracticeCardProps {
   subjects: string[]
@@ -19,18 +20,27 @@ const modes = [
 export function QuickPracticeCard({ subjects, todaySubjects, dueWrongCount }: QuickPracticeCardProps) {
   const router = useRouter()
   const createSession = useCreatePracticeSession()
+  const defaults = useUIStore((s) => s.practiceDefaults)
   const primarySubject = todaySubjects[0] || subjects[0] || ''
 
   const handleQuickStart = (mode: string) => {
-    const config = {
+    const baseConfig = {
       daily_review: { subject: primarySubject, type: 'daily' as const },
       spaced_review: { subject: primarySubject, type: 'daily' as const, wrongQuestionIds: [] as string[] },
       mock_exam: { subject: primarySubject, type: 'mock' as const, duration: 180 },
     }[mode]
 
-    if (!config) return
+    if (!baseConfig) return
+
     createSession.mutate(
-      { ...config, materialIds: undefined },
+      {
+        ...baseConfig,
+        count: defaults.count,
+        difficulty: defaults.difficulty,
+        generationMode: mode,
+        includeMermaid: true,
+        materialIds: undefined,
+      },
       { onSuccess: (s) => router.push(`/practice?session=${s.id}`) }
     )
   }

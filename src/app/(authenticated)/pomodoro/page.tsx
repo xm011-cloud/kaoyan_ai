@@ -307,6 +307,9 @@ export default function PomodoroPage() {
 
       setTimeLeft(remaining);
 
+      // Sync precise remaining time to Zustand store (so ActivityBar shows accurate timer)
+      usePomodoroStore.getState().syncTime(remaining);
+
       // Persist to sessionStorage every tick
       saveTimerState({
         mode: modeRef.current,

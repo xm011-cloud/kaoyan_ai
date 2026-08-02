@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useActivityStore } from '@/stores/activity-store'
 import { usePomodoroStore } from '@/stores/pomodoro-store'
 import { formatTime } from '@/lib/time-utils'
 import { defaultNavGroups } from '@/lib/nav'
@@ -21,7 +20,6 @@ export function Header({ daysLeft }: { daysLeft: number }) {
   const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
   const [now, setNow] = useState(new Date())
-  const activities = useActivityStore((s) => s.activities)
   const pomodoro = usePomodoroStore()
   const uiGroups = useUIStore((s) => s.navGroups)
 
@@ -49,8 +47,6 @@ export function Header({ daysLeft }: { daysLeft: number }) {
     }))
     .filter((g) => g.firstItem)
     .slice(0, 6)
-
-  const activeList = activities.filter((a) => a.status !== 'completed')
 
   // Build slide-over menu items
   const menuGroups = defaultNavGroups.map((dg) => {
@@ -128,22 +124,6 @@ export function Header({ daysLeft }: { daysLeft: number }) {
             </Link>
           )}
 
-          {activeList.filter(a => a.id !== 'pomodoro').slice(0, 1).map((a) => (
-            <Link
-              key={a.id}
-              href={a.linkTo || '#'}
-              className={cn(
-                'flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] shrink-0 border transition-colors',
-                a.status === 'running' || a.status === 'in_progress'
-                  ? 'border-brand/30 bg-brand-muted text-brand'
-                  : 'border-warning/40 bg-warning/10 text-warning'
-              )}
-            >
-              <span>{a.icon}</span>
-              <span className="hidden md:inline truncate max-w-[80px]">{a.title}</span>
-              {a.status === 'running' && <span className="w-1 h-1 rounded-full bg-success animate-pulse" />}
-            </Link>
-          ))}
         </div>
 
         {/* Settings */}

@@ -9,6 +9,8 @@ import type { PracticeQuestion, PracticeSession } from "@/lib/practice-types";
 import { SessionCreator } from "./_components/session-creator";
 import { ActiveSession } from "./_components/active-session";
 import { ResultView } from "./_components/result-view";
+import { usePracticeStore } from "@/stores/practice-store";
+import { useUIStore } from "@/stores/ui-store";
 
 // ── sessionStorage helpers for answers ──
 const ANSWERS_KEY_PREFIX = "practice-answers-";
@@ -64,6 +66,19 @@ export default function PracticePage() {
   const [session, setSession] = useState<PracticeSession | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
+
+  // ── Sync to practice-store so ActivityBar/MobileNav can see ──
+  const practiceStore = usePracticeStore;
+  useEffect(() => {
+    if (session && view === "active") {
+      practiceStore.getState().setActiveSession(session.id, session.subject, session.type as "daily" | "mock");
+      practiceStore.getState().setIndex(currentIndex);
+    } else if (view === "main" && creating) {
+      practiceStore.getState().setGenerating(true, createMode);
+    } else if (!session && !creating) {
+      practiceStore.getState().clearSession();
+    }
+  }, [session, view, currentIndex, creating, createMode]);
 
   // Timer
   const {
@@ -136,6 +151,23 @@ export default function PracticePage() {
       .then(d => setMaterials(d.materials || []))
       .catch(() => {});
   }, []);
+
+  // ── Pre-fill from user defaults ──
+  const uiDefaults = useUIStore((s) => s.practiceDefaults);
+  const defaultsLoaded = useRef(false);
+  useEffect(() => {
+    if (defaultsLoaded.current) return;
+    if (subjects.length > 0) {
+      defaultsLoaded.current = true;
+      setCreateSubject(subjects[0]);
+      setCreateMode(uiDefaults.mode);
+      setCreateCount(uiDefaults.count);
+      setCreateDifficulty(uiDefaults.difficulty);
+      setIncludeWeakPoints(uiDefaults.includeWeakPoints);
+      if (uiDefaults.mode === "mock_exam") setCreateType("mock");
+      else setCreateType("daily");
+    }
+  }, [subjects, uiDefaults]);
 
   useEffect(() => {
     if (subjects.length > 0 && !createSubject) {

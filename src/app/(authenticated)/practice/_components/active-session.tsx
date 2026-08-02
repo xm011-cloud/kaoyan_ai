@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { ChatMarkdown } from "@/components/chat-markdown";
 import { formatTime } from "@/lib/time-utils";
 import type { PracticeQuestion, PracticeSession } from "@/lib/practice-types";
 
@@ -87,7 +88,9 @@ export function ActiveSession({
               <span className="text-xs font-medium text-blue-500 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded">
                 {q?.type === "choice" ? "选择题" : "简答题"}
               </span>
-              <p className="mt-3 text-sm leading-relaxed font-medium">{q?.question}</p>
+              <div className="mt-3 text-sm leading-relaxed font-medium">
+                <ChatMarkdown content={q?.question || ""} />
+              </div>
 
               {q?.type === "choice" && q.options && (
                 <div className="mt-4 space-y-2">

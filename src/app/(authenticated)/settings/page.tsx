@@ -324,6 +324,9 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        {/* 界面定制 */}
+        <UISettings />
+
         {/* 提示 */}
         <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 text-sm text-blue-700 dark:text-blue-300 space-y-2">
           <p className="font-medium">💡 提示</p>
@@ -334,6 +337,295 @@ export default function SettingsPage() {
           </ul>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ── 界面定制组件 ──
+
+import {
+  useUIStore,
+  DEFAULT_NAV_GROUPS,
+  DEFAULT_WORKSPACE_CARDS,
+  DEFAULT_PRACTICE_DEFAULTS,
+} from '@/stores/ui-store'
+import { defaultNavGroups } from '@/lib/nav'
+
+function UISettings() {
+  const {
+    navGroups,
+    workspaceCards,
+    practiceDefaults,
+    setNavGroups,
+    setWorkspaceCards,
+    setPracticeDefaults,
+    resetNavToDefaults,
+    resetWorkspaceToDefaults,
+    resetPracticeToDefaults,
+  } = useUIStore()
+  const [savingUI, setSavingUI] = useState(false)
+
+  // Sync to server
+  const handleSaveUI = async () => {
+    setSavingUI(true)
+    try {
+      await fetch('/api/user/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          navPreferences: navGroups,
+          practicePreferences: practiceDefaults,
+        }),
+      })
+      alert('✅ 界面偏好已保存')
+    } catch {
+      alert('❌ 保存失败')
+    } finally {
+      setSavingUI(false)
+    }
+  }
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl border p-6 space-y-6">
+      <h2 className="text-lg font-bold">🎨 界面定制</h2>
+
+      {/* 导航分组 */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-sm">侧边栏分组</h3>
+          <button
+            onClick={resetNavToDefaults}
+            className="text-xs text-gray-400 hover:text-gray-600"
+          >
+            恢复默认
+          </button>
+        </div>
+        <div className="space-y-2">
+          {defaultNavGroups.map((template) => {
+            const uiGroup = navGroups.find((g) => g.id === template.id)
+            const visible = uiGroup?.visible ?? true
+
+            return (
+              <div key={template.id} className="border dark:border-gray-700 rounded-lg p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <span>{template.icon}</span>
+                  <span className="text-sm font-medium flex-1">{template.label}</span>
+                  <button
+                    onClick={() => {
+                      const updated = navGroups.map((g) =>
+                        g.id === template.id ? { ...g, visible: !visible } : g
+                      )
+                      // If group doesn't exist yet, add it
+                      if (!navGroups.find((g) => g.id === template.id)) {
+                        updated.push({
+                          id: template.id,
+                          label: template.label,
+                          icon: template.icon,
+                          visible: !visible,
+                          items: template.items.map((i) => ({ href: i.href, visible: true })),
+                        })
+                      }
+                      setNavGroups(updated)
+                    }}
+                    className={`text-xs px-2 py-0.5 rounded ${
+                      visible
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                        : 'bg-gray-100 text-gray-400 dark:bg-gray-700'
+                    }`}
+                  >
+                    {visible ? '显示' : '隐藏'}
+                  </button>
+                </div>
+                {visible && (
+                  <div className="flex flex-wrap gap-1 ml-6">
+                    {template.items.map((item) => {
+                      const uiItem = uiGroup?.items.find((i) => i.href === item.href)
+                      const itemVisible = uiItem?.visible ?? true
+                      return (
+                        <button
+                          key={item.href}
+                          onClick={() => {
+                            const updated = navGroups.map((g) => {
+                              if (g.id !== template.id) return g
+                              const existing = g.items.find((i) => i.href === item.href)
+                              return {
+                                ...g,
+                                items: existing
+                                  ? g.items.map((i) =>
+                                      i.href === item.href ? { ...i, visible: !itemVisible } : i
+                                    )
+                                  : [
+                                      ...g.items,
+                                      { href: item.href, visible: !itemVisible },
+                                    ],
+                              }
+                            })
+                            setNavGroups(updated)
+                          }}
+                          className={`text-xs px-2 py-1 rounded-full ${
+                            itemVisible
+                              ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                              : 'bg-gray-50 text-gray-300 dark:bg-gray-700/50 dark:text-gray-600 line-through'
+                          }`}
+                        >
+                          {item.icon} {item.shortLabel}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* 工作台卡片 */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-sm">工作台卡片</h3>
+          <button
+            onClick={resetWorkspaceToDefaults}
+            className="text-xs text-gray-400 hover:text-gray-600"
+          >
+            恢复默认
+          </button>
+        </div>
+        <p className="text-xs text-gray-400 mb-2">拖拽排序暂不支持，请在下方调整显示/隐藏：</p>
+        <div className="flex flex-wrap gap-2">
+          {DEFAULT_WORKSPACE_CARDS.map((cardId) => {
+            const label = {
+              stats: '📊 统计卡片',
+              'today-tasks': '📋 今日任务',
+              'quick-practice': '✏️ 快速练习',
+              'study-trend': '📈 学习趋势',
+              'recent-materials': '📚 最近资料',
+              'wrong-overview': '🔴 错题概览',
+              shortcuts: '🔗 快捷入口',
+            }[cardId] || cardId
+
+            const visible = workspaceCards.includes(cardId)
+
+            return (
+              <button
+                key={cardId}
+                onClick={() => {
+                  setWorkspaceCards(
+                    visible
+                      ? workspaceCards.filter((c) => c !== cardId)
+                      : [...workspaceCards, cardId]
+                  )
+                }}
+                className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                  visible
+                    ? 'bg-blue-50 border-blue-300 text-blue-700 dark:bg-blue-900/30'
+                    : 'bg-gray-50 border-gray-200 text-gray-400 dark:bg-gray-700/50 dark:text-gray-500'
+                }`}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* 出题默认偏好 */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-sm">出题默认偏好</h3>
+          <button
+            onClick={resetPracticeToDefaults}
+            className="text-xs text-gray-400 hover:text-gray-600"
+          >
+            恢复默认
+          </button>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">默认模式</label>
+            <select
+              value={practiceDefaults.mode}
+              onChange={(e) =>
+                setPracticeDefaults({ mode: e.target.value as typeof practiceDefaults.mode })
+              }
+              className="w-full border rounded px-2 py-1 text-xs dark:bg-gray-700 dark:border-gray-600"
+            >
+              <option value="daily_review">🎯 今日巩固</option>
+              <option value="spaced_review">🔄 间隔复习</option>
+              <option value="mock_exam">⏱️ 模拟考试</option>
+              <option value="material_based">📎 资料出题</option>
+              <option value="custom">🔧 自由定制</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">
+              默认难度：{Math.round(practiceDefaults.difficulty * 100)}%
+            </label>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={Math.round(practiceDefaults.difficulty * 100)}
+              onChange={(e) =>
+                setPracticeDefaults({ difficulty: parseInt(e.target.value) / 100 })
+              }
+              className="w-full accent-blue-500"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">默认题数</label>
+            <select
+              value={practiceDefaults.count}
+              onChange={(e) => setPracticeDefaults({ count: parseInt(e.target.value) })}
+              className="w-full border rounded px-2 py-1 text-xs dark:bg-gray-700 dark:border-gray-600"
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={15}>15</option>
+              <option value={20}>20</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">默认界面</label>
+            <select
+              value={practiceDefaults.uiMode}
+              onChange={(e) =>
+                setPracticeDefaults({ uiMode: e.target.value as typeof practiceDefaults.uiMode })
+              }
+              className="w-full border rounded px-2 py-1 text-xs dark:bg-gray-700 dark:border-gray-600"
+            >
+              <option value="simple">🎯 傻瓜模式</option>
+              <option value="smart">⚡ 智能推荐</option>
+              <option value="advanced">🔧 详细选项</option>
+            </select>
+          </div>
+          <div className="flex items-end gap-3">
+            <label className="flex items-center gap-1 text-xs cursor-pointer">
+              <input
+                type="checkbox"
+                checked={practiceDefaults.includeWeakPoints}
+                onChange={(e) => setPracticeDefaults({ includeWeakPoints: e.target.checked })}
+                className="rounded"
+              />
+              涵盖错题
+            </label>
+            <label className="flex items-center gap-1 text-xs cursor-pointer">
+              <input
+                type="checkbox"
+                checked={practiceDefaults.includeSpacedReview}
+                onChange={(e) => setPracticeDefaults({ includeSpacedReview: e.target.checked })}
+                className="rounded"
+              />
+              间隔复习
+            </label>
+          </div>
+        </div>
+      </div>
+
+      {/* Save button */}
+      <Button onClick={handleSaveUI} disabled={savingUI} className="w-full">
+        {savingUI ? '保存中...' : '💾 保存界面偏好'}
+      </Button>
     </div>
   )
 }

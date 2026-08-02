@@ -45,9 +45,14 @@ export default function PracticePage() {
   const { data: sessions = [], isLoading: loadingSessions } = usePracticeSessions();
 
   // Create form
+  const [createMode, setCreateMode] = useState<"daily_review" | "spaced_review" | "mock_exam" | "custom" | "material_based">("daily_review");
   const [createType, setCreateType] = useState<"daily" | "mock">("daily");
   const [createSubject, setCreateSubject] = useState("");
+  const [createCount, setCreateCount] = useState(10);
   const [createDuration, setCreateDuration] = useState(180);
+  const [createDifficulty, setCreateDifficulty] = useState(0.5);
+  const [includeMermaid, setIncludeMermaid] = useState(true);
+  const [includeWeakPoints, setIncludeWeakPoints] = useState(true);
 
   // ── Mutations ──
   const createSessionMut = useCreatePracticeSession();
@@ -161,13 +166,21 @@ export default function PracticePage() {
   // ── Handlers ──
   const handleCreate = () => {
     if (!createSubject) return;
+
+    // Map mode to type
+    const mappedType = createMode === "mock_exam" ? "mock" : "daily";
+
     createSessionMut.mutate(
       {
-        type: createType,
+        type: mappedType,
         subject: createSubject,
-        duration: createType === "mock" ? createDuration : undefined,
+        count: createCount,
+        duration: createMode === "mock_exam" ? createDuration : undefined,
         materialIds: selectedMaterialIds.length > 0 ? selectedMaterialIds : undefined,
-        wrongQuestionIds: useWrongQuestions ? [] : undefined,
+        wrongQuestionIds: includeWeakPoints ? [] : undefined,
+        generationMode: createMode,
+        difficulty: createDifficulty,
+        includeMermaid,
       },
       {
         onSuccess: (s: PracticeSession) => {
@@ -246,77 +259,69 @@ export default function PracticePage() {
 
           <SessionCreator
             subjects={subjects}
-            createType={createType}
-            createSubject={createSubject}
-            createDuration={createDuration}
+            todaySubjects={subjects.slice(0, 2)}
+            dueWrongCount={0}
+            mode={createMode}
+            subject={createSubject}
+            count={createCount}
+            duration={createDuration}
+            difficulty={createDifficulty}
+            includeMermaid={includeMermaid}
+            includeWeakPoints={includeWeakPoints}
             creating={creating}
-            onTypeChange={setCreateType}
+            onModeChange={(m) => {
+              setCreateMode(m);
+              // Auto-set type based on mode
+              setCreateType(m === "mock_exam" ? "mock" : "daily");
+            }}
             onSubjectChange={setCreateSubject}
+            onCountChange={setCreateCount}
             onDurationChange={setCreateDuration}
+            onDifficultyChange={setCreateDifficulty}
+            onIncludeMermaidChange={setIncludeMermaid}
+            onIncludeWeakPointsChange={setIncludeWeakPoints}
             onCreate={handleCreate}
           />
 
-          {/* Advanced options */}
+          {/* Material selection (shown for material_based mode or when materials exist) */}
           {materials.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl border">
-              <button
-                onClick={() => setShowOptions(!showOptions)}
-                className="w-full px-4 py-3 flex items-center justify-between text-sm font-medium"
-              >
-                ⚙️ 高级选项
-                <span className={`transition-transform ${showOptions ? "rotate-180" : ""}`}>▼</span>
-              </button>
-              {showOptions && (
-                <div className="px-4 pb-4 space-y-3">
-                  <div>
-                    <label className="text-xs text-gray-500 block mb-2">
-                      关联学习资料（AI 会基于这些资料出题）
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                      {materials.map((m) => (
-                        <label
-                          key={m.id}
-                          className={`text-xs px-3 py-1.5 rounded-full border cursor-pointer transition-colors ${
-                            selectedMaterialIds.includes(m.id)
-                              ? "bg-blue-50 border-blue-300 text-blue-700"
-                              : "bg-white border-gray-200 text-gray-500"
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedMaterialIds.includes(m.id)}
-                            onChange={() =>
-                              setSelectedMaterialIds((prev) =>
-                                prev.includes(m.id)
-                                  ? prev.filter((id) => id !== m.id)
-                                  : [...prev, m.id]
-                              )
-                            }
-                            className="sr-only"
-                          />
-                          {m.name}
-                        </label>
-                      ))}
-                    </div>
-                    {selectedMaterialIds.length > 0 && (
-                      <button
-                        onClick={() => setSelectedMaterialIds([])}
-                        className="text-xs text-gray-400 hover:text-gray-600 mt-1"
-                      >
-                        清除选择
-                      </button>
-                    )}
-                  </div>
-                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <div className="bg-white dark:bg-gray-800 rounded-xl border p-4">
+              <label className="text-xs text-gray-500 block mb-2">
+                📎 关联学习资料（AI 基于这些出题）
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {materials.map((m) => (
+                  <label
+                    key={m.id}
+                    className={`text-xs px-3 py-1.5 rounded-full border cursor-pointer transition-colors ${
+                      selectedMaterialIds.includes(m.id)
+                        ? "bg-blue-50 border-blue-300 text-blue-700"
+                        : "bg-white border-gray-200 text-gray-500"
+                    }`}
+                  >
                     <input
                       type="checkbox"
-                      checked={useWrongQuestions}
-                      onChange={(e) => setUseWrongQuestions(e.target.checked)}
-                      className="rounded"
+                      checked={selectedMaterialIds.includes(m.id)}
+                      onChange={() =>
+                        setSelectedMaterialIds((prev) =>
+                          prev.includes(m.id)
+                            ? prev.filter((id) => id !== m.id)
+                            : [...prev, m.id]
+                        )
+                      }
+                      className="sr-only"
                     />
-                    优先出薄弱知识点题目（从错题本分析）
+                    {m.name}
                   </label>
-                </div>
+                ))}
+              </div>
+              {selectedMaterialIds.length > 0 && (
+                <button
+                  onClick={() => setSelectedMaterialIds([])}
+                  className="text-xs text-gray-400 hover:text-gray-600 mt-2"
+                >
+                  清除选择
+                </button>
               )}
             </div>
           )}

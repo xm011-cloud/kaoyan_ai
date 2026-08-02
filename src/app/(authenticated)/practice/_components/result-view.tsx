@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { ChatMarkdown } from "@/components/chat-markdown";
 import type { PracticeQuestion, PracticeSession } from "@/lib/practice-types";
 
 interface ResultViewProps {
@@ -91,7 +92,9 @@ export function ResultView({
                   </div>
                 </div>
 
-                <p className="text-sm font-medium mb-3">{q.question}</p>
+                <div className="text-sm font-medium mb-3">
+                  <ChatMarkdown content={q.question} />
+                </div>
 
                 {q.type === "choice" && q.options && (
                   <div className="text-xs space-y-1 mb-3">

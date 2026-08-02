@@ -13,6 +13,11 @@ interface GenerateOptions {
   count?: number;
   materialIds?: string[];
   wrongQuestionIds?: string[];
+  generationMode?: "daily_review" | "spaced_review" | "mock_exam" | "custom" | "material_based";
+  todaySubjects?: string[];
+  difficulty?: number; // 0.0 ~ 1.0
+  includeMermaid?: boolean;
+  chartRatio?: number; // 0.0 ~ 1.0 how many questions should use charts
 }
 
 export async function generatePracticeQuestions(
@@ -25,6 +30,10 @@ export async function generatePracticeQuestions(
     count,
     materialIds,
     wrongQuestionIds,
+    generationMode = "custom",
+    todaySubjects,
+    difficulty = 0.5,
+    includeMermaid = true,
   } = opts;
 
   const questionCount = count || (type === "mock" ? 20 : 5);
@@ -32,24 +41,9 @@ export async function generatePracticeQuestions(
 
   // Build context: wrong questions + materials via semantic search
   let contextStr = "";
+  let materialImageUrls: string[] = []; // Supabase image URLs for reference
 
-  // Wrong questions context
-  if (wrongQuestionIds?.length) {
-    const wqs = await prisma.wrongQuestion.findMany({
-      where: { id: { in: wrongQuestionIds }, userId },
-      select: { question: true, answer: true, tags: true },
-      take: 10,
-    });
-    if (wqs.length > 0) {
-      contextStr += `\n## 用户的错题（出题时重点考察此类薄弱知识点）\n${wqs
-        .map(
-          (w) => `- ${w.question.slice(0, 200)} [标签: ${w.tags.join(", ")}]`
-        )
-        .join("\n")}`;
-    }
-  }
-
-  // Materials context via semantic search (replaces naive truncation)
+  // Materials context via semantic search
   try {
     const userMaterials = await prisma.material.findMany({
       where: {
@@ -57,14 +51,19 @@ export async function generatePracticeQuestions(
         content: { not: null },
         ...(materialIds?.length ? { id: { in: materialIds } } : {}),
       },
-      select: { id: true, name: true, content: true },
+      select: { id: true, name: true, content: true, type: true, url: true },
     });
 
     if (userMaterials.length > 0) {
-      // Use subject as query for semantic search (same pipeline as chat RAG)
+      // Collect image URLs from image-type materials
+      materialImageUrls = userMaterials
+        .filter((m) => m.type === "image" && m.url && !m.url.startsWith("local:"))
+        .map((m) => `图:${m.name}:${m.url}`);
+
+      // Use subject as query for semantic search
       const searchResults = await searchMaterials(
         subject,
-        userMaterials,
+        userMaterials.map((m) => ({ id: m.id, name: m.name, content: m.content })),
         userId
       );
 
@@ -79,7 +78,6 @@ export async function generatePracticeQuestions(
 
         contextStr += `\n## 用户的学习资料（基于以下资料内容出题，紧扣知识点）\n${ragCtx.slice(0, 8000)}`;
       } else if (materialIds?.length) {
-        // Fallback: if user explicitly selected materials but no semantic match, use them directly
         const combined = userMaterials
           .filter((m) => m.content)
           .map((m) => m.content!.slice(0, 3000))
@@ -91,16 +89,54 @@ export async function generatePracticeQuestions(
     }
   } catch (e) {
     console.error("Material search for question generation failed:", e);
-    // Non-blocking: continue without material context
   }
+
+  // Image URLs hint for prompt
+  const imageHint = materialImageUrls.length > 0
+    ? `\n## 可引用的资料图片（使用 markdown 图片语法引用，示例：![描述](URL)）\n${materialImageUrls.join("\n")}`
+    : "";
 
   // Try AI
   if (aiConfig) {
     try {
-      const modePrompt =
-        type === "mock"
-          ? "模拟真实考试，题目要有代表性，覆盖该科目的核心考点。难度分布：30%基础、50%中等、20%难题。选择题和简答题混合。如果提供了学习资料，必须基于资料内容出题，考察对资料知识的理解和应用。"
-          : "每日练习，题目简短精炼，侧重知识点的巩固和应用。2-3道选择题 + 1-2道简答题。如果提供了学习资料，必须基于资料内容出题。";
+      // Mode-specific prompt
+      let modePrompt: string
+      let systemExtra = ""
+
+      switch (generationMode) {
+        case "daily_review":
+          modePrompt = `今日巩固模式。${todaySubjects?.length ? `用户今天学习了：${todaySubjects.join("、")}。` : ""}出题范围限定在今日学习内容，侧重知识点的及时巩固和应用。难度适中（${Math.round(difficulty * 100)}%难度）。
+          ${includeMermaid ? "对于需要图表说明的知识点（如流程图、分类结构、时序关系），使用 mermaid 代码块格式（````mermaid ... ````）。禁止使用图片！如果无法用 mermaid 表达（如函数图像、几何图形），用文字详细描述。" : "禁止使用图片、图表，所有内容用纯文字描述。"}`
+          break
+        case "spaced_review":
+          modePrompt = `间隔复习模式。从用户的错题中提取薄弱知识点，出题强化。题目应该与错题题型类似但数据/角度不同，帮助用户巩固薄弱环节。
+          ${includeMermaid ? "对于需要图表说明的知识点，使用 mermaid 代码块格式。" : "禁止使用图片。"}`
+          break
+        case "mock_exam":
+          modePrompt = `模拟真实考试。题目要有代表性，覆盖该科目的核心考点。难度分布：30%基础、50%中等、20%难题。选择题和简答题混合。如果提供了学习资料，必须基于资料内容出题。
+          ${includeMermaid ? "可以适当使用 mermaid 图表辅助题目说明，但不应过度依赖图表。" : "禁止使用图片。"}`
+          break
+        case "material_based":
+          modePrompt = `基于资料出题。紧扣用户上传的学习资料内容，考察对资料中知识点的理解和应用。
+          ${includeMermaid ? "可以引用资料中的图片（使用提供的图片URL），也可以用 mermaid 代码块绘制图表。" : "禁止使用图片。"}`
+          systemExtra = "如果提供了资料图片URL，可以在题目中引用这些图片。使用格式：![图片描述](图片URL)"
+          break
+        default:
+          modePrompt = `自定义练习。题目精炼，侧重知识点的巩固和应用。难度为${Math.round(difficulty * 100)}%。
+          ${includeMermaid ? "对于需要图表的知识点，使用 mermaid 代码块格式。禁止使用外部图片！如果没有提供图片URL，不要编造图片链接。" : "禁止使用图片、图表，所有内容用纯文字描述。"}`
+      }
+
+      const difficultyGuide = difficulty <= 0.3
+        ? "以基础题为主，适合初学阶段"
+        : difficulty <= 0.6
+        ? "难易适中，基础题和中等题各半"
+        : difficulty <= 0.8
+        ? "偏难，中等题为主，少量难题"
+        : "高难度，以难题和综合题为主"
+
+      const chartGuide = includeMermaid
+        ? "\n## 图表使用规则\n如果题目涉及以下内容，使用 mermaid 代码块（```mermaid）：\n- 流程图/步骤：flowchart TD\n- 分类结构：graph TD\n- 时间关系：gantt\n- 比例关系：pie\n- 状态变化：stateDiagram-v2\n- 时序交互：sequenceDiagram\n如果无法用 mermaid 表达（如函数图像、几何图形、化学结构），用纯文字详细描述，不要使用图片URL。"
+        : "\n## 禁止事项\n不要使用任何图片、图表、mermaid。所有内容用纯文字表达。"
 
       const response = await fetch(`${aiConfig.baseURL}/chat/completions`, {
         method: "POST",
@@ -113,8 +149,8 @@ export async function generatePracticeQuestions(
           messages: [
             {
               role: "system",
-              content:
-                "你是考研命题专家。你只返回JSON，不返回其他内容。请根据要求生成练习题。如果有学习资料，必须基于资料内容出题，不要脱离资料编造。",
+              content: `你是考研命题专家。你只返回JSON，不返回其他内容。${systemExtra}
+${includeMermaid ? "你可以在题目中使用 mermaid 代码块来生成图表（流程图、分类图、时序图、饼图等）。格式：```mermaid\\n图表代码\\n```。注意：不要使用图片URL，只使用 mermaid。" : "不要使用任何图片或图表引用。"}`,
             },
             {
               role: "user",
@@ -122,14 +158,19 @@ export async function generatePracticeQuestions(
 ${subject}
 
 ## 题目类型
-${type === "mock" ? "模拟考试" : "每日练习"}
+${generationMode === "mock_exam" ? "模拟考试" : generationMode === "spaced_review" ? "间隔复习" : "每日练习"}
+
+## 出题模式
+${modePrompt}
+
+## 难度指导
+${difficultyGuide}
 
 ## 要求
 1. 生成 ${questionCount} 道练习题
-2. ${modePrompt}
-3. 每道题必须包含：id（q0, q1...）、type（choice/essay）、question（题目）、correctAnswer（正确答案）、explanation（详细解析）
-4. 选择题需包含 options（选项数组，如["A. ...", "B. ...", ...]）
-5. 简答题需包含 scoringPoints（采分点数组）${contextStr}
+2. 每道题必须包含：id（q0, q1...）、type（choice/essay）、question（题目）、correctAnswer（正确答案）、explanation（详细解析）
+3. 选择题需包含 options（选项数组，如["A. ...", "B. ...", ...]）
+4. 简答题需包含 scoringPoints（采分点数组）${contextStr}${imageHint}${chartGuide}
 
 ## 输出格式（只返回JSON数组）
 [{"id":"q0","type":"choice","question":"...","options":["A. ...","B. ...","C. ...","D. ..."],"correctAnswer":"B","explanation":"..."}]`,
@@ -146,7 +187,14 @@ ${type === "mock" ? "模拟考试" : "每日练习"}
         const jsonMatch = text.match(/\[[\s\S]*\]/);
         if (jsonMatch) {
           const parsed = JSON.parse(jsonMatch[0]) as PracticeQuestion[];
-          if (parsed.length > 0) return parsed;
+          if (parsed.length > 0) {
+            // Post-process: clean broken image references (markdown ![](url) without valid URL)
+            return parsed.map((q) => ({
+              ...q,
+              question: sanitizeImageRefs(q.question),
+              explanation: sanitizeImageRefs(q.explanation),
+            }));
+          }
         }
       }
     } catch (e) {
@@ -156,6 +204,29 @@ ${type === "mock" ? "模拟考试" : "每日练习"}
 
   // Local fallback
   return generateLocalQuestions(subject, questionCount);
+}
+
+/**
+ * Clean broken/made-up image references from generated text.
+ * Keeps image refs that have real Supabase URLs, removes fake ones.
+ */
+function sanitizeImageRefs(text: string): string {
+  if (!text) return text
+  // Remove markdown image syntax with non-URL src (empty, relative paths, made-up domains)
+  return text.replace(
+    /!\[([^\]]*)\]\(([^)]*)\)/g,
+    (_, alt, src) => {
+      // Keep valid http/https URLs that aren't obviously fake
+      if (/^https?:\/\//.test(src) && !src.includes("example.com") && !src.includes("placeholder")) {
+        return `![${alt}](${src})`
+      }
+      // Replace made-up references with a text note
+      return alt ? `（📝 ${alt}：请参考文字描述）` : ""
+    }
+  ).replace(/如下图[所示]*/g, "如下")
+   .replace(/如图[所示]*/g, "如")
+   .replace(/见下?图[所示]*/g, "见下方说明")
+   .replace(/参见图[^\s，,。.]*/g, "参见相关说明")
 }
 
 // ── Expanded local templates (5 → 20+ across 5 categories) ──

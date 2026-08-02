@@ -39,7 +39,17 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { type = "daily", subject, duration, materialIds, wrongQuestionIds } = body;
+    const {
+      type = "daily",
+      subject,
+      count: bodyCount,
+      duration,
+      materialIds,
+      wrongQuestionIds,
+      generationMode = "custom",
+      difficulty,
+      includeMermaid,
+    } = body;
 
     if (!subject) {
       return jsonNoStore({ error: "请选择科目" }, { status: 400 });
@@ -49,23 +59,30 @@ export async function POST(request: NextRequest) {
       return jsonNoStore({ error: "类型无效" }, { status: 400 });
     }
 
-    // Resolve "auto" wrongQuestionIds → fetch recent wrong questions for subject
+    // Resolve wrongQuestionIds
     let resolvedWrongIds: string[] | undefined;
-    if (wrongQuestionIds === "auto") {
-      const recentWrong = await prisma.wrongQuestion.findMany({
-        where: { userId: user!.id, subject },
+    if (wrongQuestionIds === "auto" || (Array.isArray(wrongQuestionIds) && wrongQuestionIds.length === 0)) {
+      // Fetch due or recent wrong questions
+      const wrongs = await prisma.wrongQuestion.findMany({
+        where: {
+          userId: user!.id,
+          ...(generationMode === "spaced_review" ? {
+            reviewed: false,
+            nextReviewDate: { lte: new Date() },
+          } : { subject }),
+        },
         select: { id: true },
         orderBy: { createdAt: "desc" },
         take: 20,
       });
-      const ids = recentWrong.map((w) => w.id);
+      const ids = wrongs.map((w) => w.id);
       resolvedWrongIds = ids.length > 0 ? ids : undefined;
     } else if (Array.isArray(wrongQuestionIds) && wrongQuestionIds.length > 0) {
       resolvedWrongIds = wrongQuestionIds;
     }
 
-    // Generate questions first (via AI or local fallback)
-    const count = type === "daily" ? 5 : 20;
+    // Generate questions
+    const count = bodyCount || (type === "daily" ? 10 : 20);
     const questions = await generatePracticeQuestions({
       userId: user!.id,
       type,
@@ -73,6 +90,9 @@ export async function POST(request: NextRequest) {
       count,
       materialIds,
       wrongQuestionIds: resolvedWrongIds,
+      generationMode: generationMode as "daily_review" | "spaced_review" | "mock_exam" | "custom" | "material_based",
+      difficulty: difficulty ?? 0.5,
+      includeMermaid: includeMermaid ?? true,
     });
 
     // Create session with generated questions

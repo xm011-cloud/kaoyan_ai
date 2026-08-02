@@ -1,6 +1,7 @@
 import { Sidebar } from "@/components/sidebar"
 import { StudyReminder } from "@/components/study-reminder"
 import { PwaInstallPrompt } from "@/components/pwa-install"
+import { ActivityBar } from "@/components/activity-bar"
 import { AppProviders } from "@/components/app-providers"
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
@@ -19,11 +20,15 @@ export default async function AuthenticatedLayout({
 
   return (
     <AppProviders>
-      <div className="min-h-screen lg:flex">
+      <div className="min-h-screen flex flex-col lg:flex-row">
         <Sidebar />
-        <main className="flex-1 lg:ml-56 pb-14 lg:pb-0 overflow-y-auto">
-          {children}
-        </main>
+        {/* Main area: content + activity bar */}
+        <div className="flex-1 flex flex-col min-h-0 lg:ml-56">
+          <main className="flex-1 overflow-y-auto pb-14 lg:pb-0">
+            {children}
+          </main>
+          <ActivityBar />
+        </div>
         <StudyReminder />
         <PwaInstallPrompt />
       </div>

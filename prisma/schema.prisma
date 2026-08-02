@@ -31,6 +31,10 @@ model User {
   reminderTime    String?  // "HH:MM" 格式
   reminderDays    String[] // ["1","2","3","4","5"] 周一到周五
 
+  // UI 偏好设置
+  navPreferences      Json?   // 导航分组可见性偏好
+  practicePreferences Json?   // 出题默认偏好
+
   // 关联
   goal              Goal?
   tasks             Task[]

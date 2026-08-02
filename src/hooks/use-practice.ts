@@ -20,9 +20,13 @@ async function fetchSessionDetail(id: string): Promise<PracticeSession> {
 async function createSession(body: {
   type: "daily" | "mock";
   subject: string;
+  count?: number;
   duration?: number;
   materialIds?: string[];
   wrongQuestionIds?: string[];
+  generationMode?: string;
+  difficulty?: number;
+  includeMermaid?: boolean;
 }): Promise<PracticeSession> {
   const res = await fetch("/api/practice", {
     method: "POST",

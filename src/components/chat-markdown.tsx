@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
+import { MermaidRenderer } from "@/components/mermaid-renderer";
 
 const components = {
   h1: ({ ...props }: React.HTMLAttributes<HTMLElement>) => (
@@ -30,9 +31,17 @@ const components = {
   ),
   code: ({
     className,
+    children,
     ...props
   }: React.HTMLAttributes<HTMLElement> & { className?: string }) => {
     const isInline = !className?.includes("language-");
+    const isMermaid = className?.includes("language-mermaid");
+
+    if (isMermaid) {
+      const code = String(children).replace(/\n$/, "");
+      return <MermaidRenderer chart={code} />;
+    }
+
     return isInline ? (
       <code
         className="px-1 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs font-mono text-pink-600 dark:text-pink-400"
@@ -47,6 +56,29 @@ const components = {
           <code {...props} />
         </pre>
       </div>
+    );
+  },
+  img: ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => {
+    const [broken, setBroken] = useState(false);
+
+    if (broken || !src) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-1 my-1 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-xs text-gray-400">
+          <span>🖼️</span>
+          {alt || "图片无法显示"}
+        </span>
+      );
+    }
+
+    return (
+      <img
+        src={src}
+        alt={alt || ""}
+        className="max-w-full rounded-lg my-2 border dark:border-gray-700"
+        onError={() => setBroken(true)}
+        loading="lazy"
+        {...props}
+      />
     );
   },
   a: ({ ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (

@@ -2,8 +2,17 @@
 
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
+import {
+  useUIStore, DEFAULT_NAV_GROUPS, DEFAULT_WORKSPACE_CARDS, DEFAULT_PRACTICE_DEFAULTS
+} from '@/stores/ui-store'
+import { defaultNavGroups } from '@/lib/nav'
+
+type Tab = 'ai' | 'reminders' | 'ui'
 
 export default function SettingsPage() {
+  const [tab, setTab] = useState<Tab>('ai')
+
+  // ── AI settings ──
   const [aiKey, setAiKey] = useState('')
   const [aiUrl, setAiUrl] = useState('')
   const [aiModel, setAiModel] = useState('')
@@ -23,609 +32,310 @@ export default function SettingsPage() {
   const [reminderSaved, setReminderSaved] = useState(false)
   const [notifyPerm, setNotifyPerm] = useState<string>('default')
 
+  // ── UI settings ──
+  const { navGroups, workspaceCards, practiceDefaults, setNavGroups, setWorkspaceCards, setPracticeDefaults, resetNavToDefaults, resetWorkspaceToDefaults, resetPracticeToDefaults } = useUIStore()
+  const [uiSaving, setUiSaving] = useState(false)
+
   useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await fetch('/api/user/settings')
-        const data = await res.json()
-        setHasKey(data.hasKey)
-        setKeyHint(data.keyHint)
-        if (data.aiUrl) setAiUrl(data.aiUrl)
-        if (data.aiModel) setAiModel(data.aiModel)
-      } catch { /* ignore */ }
-      finally { setLoading(false) }
-    }
-    load()
-    loadReminders()
-    // Check notification permission
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      setNotifyPerm(Notification.permission)
-    }
+    fetch('/api/user/settings').then(r => r.json()).then(d => {
+      setHasKey(d.hasKey)
+      setAiUrl(d.aiUrl || '')
+      setAiModel(d.aiModel || '')
+      setKeyHint(d.keyHint || '')
+      setLoading(false)
+    })
   }, [])
 
-  const loadReminders = async () => {
+  useEffect(() => { fetch('/api/user/settings').then(r => r.json()).then(d => {
+    setReminderEnabled(d.reminderEnabled ?? false)
+    setReminderTime(d.reminderTime || '09:00')
+    if (d.reminderDays?.length) setReminderDays(d.reminderDays)
+    setNotifyPerm(d.notifyPerm ?? 'default')
+  }).catch(() => {})}, [])
+
+  // ── AI save ──
+  const handleSaveAI = async () => {
+    setSaving(true); setError('')
     try {
-      const res = await fetch('/api/user/reminders')
-      const data = await res.json()
-      setReminderEnabled(data.reminderEnabled)
-      setReminderTime(data.reminderTime || '09:00')
-      setReminderDays(data.reminderDays || ['1','2','3','4','5'])
-    } catch { /* ignore */ }
+      const res = await fetch('/api/user/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ aiKey, aiUrl, aiModel }) })
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || '保存失败') }
+      setSaved(true); setHasKey(true); setShowKey(false)
+      setTimeout(() => setSaved(false), 3000)
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : '保存失败') }
+    finally { setSaving(false) }
   }
 
+  const handleDeleteAI = async () => {
+    setSaving(true)
+    await fetch('/api/user/settings', { method: 'DELETE' })
+    setAiKey(''); setHasKey(false); setSaved(true); setShowKey(false)
+    setTimeout(() => setSaved(false), 3000)
+    setSaving(false)
+  }
+
+  // ── Reminder save ──
   const handleSaveReminders = async () => {
     setReminderSaving(true)
     try {
-      await fetch('/api/user/reminders', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reminderEnabled, reminderTime, reminderDays }),
-      })
-      setReminderSaved(true)
-      setTimeout(() => setReminderSaved(false), 3000)
-    } catch { /* ignore */ }
-    finally { setReminderSaving(false) }
+      await fetch('/api/user/reminders', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reminderEnabled, reminderTime, reminderDays }) })
+      setReminderSaved(true); setTimeout(() => setReminderSaved(false), 3000)
+    } finally { setReminderSaving(false) }
   }
 
   const handleRequestPermission = async () => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      const perm = await Notification.requestPermission()
-      setNotifyPerm(perm)
-    }
+    if (!('Notification' in window)) return
+    const p = await Notification.requestPermission()
+    setNotifyPerm(p)
   }
 
-  const toggleDay = (day: string) => {
-    setReminderDays(prev =>
-      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day].sort()
-    )
-  }
+  const toggleDay = (day: string) => setReminderDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day])
+  const dayLabels = ['一','二','三','四','五','六','日']
 
-  const dayLabels = ['一', '二', '三', '四', '五', '六', '日']
-
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!aiKey.trim()) return
-
-    setSaving(true)
-    setError('')
-
-    try {
-      const res = await fetch('/api/user/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ aiKey, aiUrl: aiUrl || undefined, aiModel: aiModel || undefined }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || '保存失败')
-
-      setSaved(true)
-      setHasKey(true)
-      setKeyHint(`${aiKey.slice(0, 6)}...${aiKey.slice(-4)}`)
-      setShowKey(false)
-      setTimeout(() => setSaved(false), 3000)
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : '保存失败')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleRemove = async () => {
-    if (!confirm('确定要移除已保存的 API Key 吗？移除后 AI 功能将无法使用。')) return
-
-    try {
-      const res = await fetch('/api/user/settings', { method: 'DELETE' })
-      if (res.ok) {
-        setHasKey(false)
-        setKeyHint('')
-        setAiKey('')
-        setSaveMessage('')
-      }
-    } catch { /* ignore */ }
-  }
-
-  const [saveMessage, setSaveMessage] = useState('')
-
-  return (
-    <div className="p-4 lg:p-6">
-      <div className="max-w-lg mx-auto space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">设置</h1>
-          <p className="text-gray-500 mt-1">配置你的 AI 服务</p>
-        </div>
-
-        {/* AI 配置 */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border p-6 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="text-3xl">🤖</div>
-            <div>
-              <h2 className="font-bold">AI 服务配置</h2>
-              <p className="text-sm text-gray-500">
-                用你自己的 API Key 调用 AI 服务，各用各的配额不冲突
-              </p>
-            </div>
-          </div>
-
-          {loading ? (
-            <div className="text-sm text-gray-500 py-4">加载中...</div>
-          ) : (
-            <form onSubmit={handleSave} className="space-y-3">
-              {hasKey && !showKey && (
-                <div className="flex items-center justify-between bg-green-50 dark:bg-green-900/20 px-4 py-3 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <span className="text-green-500 text-lg">✓</span>
-                    <div>
-                      <p className="text-sm font-medium text-green-700 dark:text-green-400">API Key 已配置</p>
-                      <p className="text-xs text-green-600/70 dark:text-green-400/70">{keyHint}</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={() => { setShowKey(true); setAiKey(''); setHasKey(false) }}>
-                      修改
-                    </Button>
-                    <button type="button" onClick={handleRemove} className="text-xs text-red-400 hover:text-red-600 px-2 py-1">
-                      移除
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {(!hasKey || showKey) && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      API Key <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="password"
-                      value={aiKey}
-                      onChange={(e) => setAiKey(e.target.value)}
-                      placeholder="sk-..."
-                      className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
-                      required
-                    />
-                    <p className="text-xs text-gray-400 mt-1">
-                      在 MiMo/AI 平台获取，以 sk- 开头
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-1">API 地址（可选）</label>
-                    <input
-                      type="text"
-                      value={aiUrl}
-                      onChange={(e) => setAiUrl(e.target.value)}
-                      placeholder="默认：https://api.xiaomimimo.com/v1"
-                      className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-1">模型（可选）</label>
-                    <input
-                      type="text"
-                      value={aiModel}
-                      onChange={(e) => setAiModel(e.target.value)}
-                      placeholder="默认：mimo-v2.5-pro"
-                      className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
-                    />
-                  </div>
-                </>
-              )}
-
-              {error && <p className="text-sm text-red-500">{error}</p>}
-              {saveMessage && <p className="text-sm text-green-600">{saveMessage}</p>}
-
-              {(!hasKey || showKey) && (
-                <Button type="submit" className="w-full" disabled={saving}>
-                  {saving ? '保存中...' : '保存配置'}
-                </Button>
-              )}
-            </form>
-          )}
-        </div>
-
-        {/* 学习提醒 */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border p-6 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="text-3xl">🔔</div>
-            <div>
-              <h2 className="font-bold">学习提醒</h2>
-              <p className="text-sm text-gray-500">
-                定时推送浏览器通知，提醒你开始学习
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            {/* Enable toggle */}
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium">开启提醒</label>
-              <button
-                type="button"
-                onClick={() => setReminderEnabled(!reminderEnabled)}
-                className={`relative w-11 h-6 rounded-full transition-colors ${
-                  reminderEnabled ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
-                    reminderEnabled ? 'translate-x-5' : ''
-                  }`}
-                />
-              </button>
-            </div>
-
-            {reminderEnabled && (
-              <>
-                {/* Time picker */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">提醒时间</label>
-                  <input
-                    type="time"
-                    value={reminderTime}
-                    onChange={(e) => setReminderTime(e.target.value)}
-                    className="px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
-                  />
-                </div>
-
-                {/* Day selector */}
-                <div>
-                  <label className="block text-sm font-medium mb-2">重复日期</label>
-                  <div className="flex gap-2">
-                    {dayLabels.map((label, i) => {
-                      const day = String(i + 1)
-                      const active = reminderDays.includes(day)
-                      return (
-                        <button
-                          key={day}
-                          type="button"
-                          onClick={() => toggleDay(day)}
-                          className={`w-9 h-9 rounded-full text-sm font-medium transition-colors ${
-                            active
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-gray-100 dark:bg-gray-700 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600'
-                          }`}
-                        >
-                          {label}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {/* Notification permission */}
-                <div className="flex items-center justify-between py-2">
-                  <span className="text-sm text-gray-500">
-                    浏览器通知：
-                    {notifyPerm === 'granted' ? '✅ 已开启' : notifyPerm === 'denied' ? '❌ 已拒绝' : '⚠️ 未设置'}
-                  </span>
-                  {notifyPerm !== 'granted' && (
-                    <Button type="button" variant="outline" size="sm" onClick={handleRequestPermission}>
-                      开启通知
-                    </Button>
-                  )}
-                </div>
-              </>
-            )}
-
-            {reminderSaved && (
-              <p className="text-sm text-green-600">✅ 提醒设置已保存</p>
-            )}
-
-            <Button
-              type="button"
-              onClick={handleSaveReminders}
-              disabled={reminderSaving}
-              className="w-full"
-            >
-              {reminderSaving ? '保存中...' : '保存提醒设置'}
-            </Button>
-          </div>
-        </div>
-
-        {/* 界面定制 */}
-        <UISettings />
-
-        {/* 提示 */}
-        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 text-sm text-blue-700 dark:text-blue-300 space-y-2">
-          <p className="font-medium">💡 提示</p>
-          <ul className="list-disc pl-4 space-y-1 text-xs opacity-80">
-            <li>API Key 加密存储在你的数据库中，只有你自己能使用</li>
-            <li>支持任何 OpenAI 兼容接口的 AI 服务（MiMo、DeepSeek、通义千问等）</li>
-            <li>不提供 Key？发邮件要免费的</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── 界面定制组件 ──
-
-import {
-  useUIStore,
-  DEFAULT_NAV_GROUPS,
-  DEFAULT_WORKSPACE_CARDS,
-  DEFAULT_PRACTICE_DEFAULTS,
-} from '@/stores/ui-store'
-import { defaultNavGroups } from '@/lib/nav'
-
-function UISettings() {
-  const {
-    navGroups,
-    workspaceCards,
-    practiceDefaults,
-    setNavGroups,
-    setWorkspaceCards,
-    setPracticeDefaults,
-    resetNavToDefaults,
-    resetWorkspaceToDefaults,
-    resetPracticeToDefaults,
-  } = useUIStore()
-  const [savingUI, setSavingUI] = useState(false)
-
-  // Sync to server
+  // ── UI save ──
   const handleSaveUI = async () => {
-    setSavingUI(true)
+    setUiSaving(true)
     try {
-      await fetch('/api/user/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          navPreferences: navGroups,
-          practicePreferences: practiceDefaults,
-        }),
-      })
+      await fetch('/api/user/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ navPreferences: navGroups, practicePreferences: practiceDefaults }) })
       alert('✅ 界面偏好已保存')
-    } catch {
-      alert('❌ 保存失败')
-    } finally {
-      setSavingUI(false)
-    }
+    } catch { alert('❌ 保存失败') }
+    finally { setUiSaving(false) }
   }
 
+  const tabs = [
+    { id: 'ai' as const, icon: '🤖', label: 'AI 配置' },
+    { id: 'reminders' as const, icon: '🔔', label: '学习提醒' },
+    { id: 'ui' as const, icon: '🎨', label: '界面定制' },
+  ]
+
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl border p-6 space-y-6">
-      <h2 className="text-lg font-bold">🎨 界面定制</h2>
+    <div className="p-4 lg:p-6 max-w-2xl mx-auto space-y-6">
+      <h1 className="text-2xl font-bold tracking-tight">设置</h1>
 
-      {/* 导航分组 */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-sm">侧边栏分组</h3>
-          <button
-            onClick={resetNavToDefaults}
-            className="text-xs text-gray-400 hover:text-gray-600"
-          >
-            恢复默认
+      {/* Tab bar — segmented control */}
+      <div className="flex gap-1 p-1 rounded-2xl bg-muted">
+        {tabs.map((t) => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all active:scale-[0.98] ${tab === t.id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
+            <span>{t.icon}</span> <span>{t.label}</span>
           </button>
-        </div>
-        <div className="space-y-2">
-          {defaultNavGroups.map((template) => {
-            const uiGroup = navGroups.find((g) => g.id === template.id)
-            const visible = uiGroup?.visible ?? true
+        ))}
+      </div>
 
-            return (
-              <div key={template.id} className="border dark:border-gray-700 rounded-lg p-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <span>{template.icon}</span>
-                  <span className="text-sm font-medium flex-1">{template.label}</span>
-                  <button
-                    onClick={() => {
-                      const updated = navGroups.map((g) =>
-                        g.id === template.id ? { ...g, visible: !visible } : g
-                      )
-                      // If group doesn't exist yet, add it
-                      if (!navGroups.find((g) => g.id === template.id)) {
-                        updated.push({
-                          id: template.id,
-                          label: template.label,
-                          icon: template.icon,
-                          visible: !visible,
-                          items: template.items.map((i) => ({ href: i.href, visible: true })),
-                        })
-                      }
-                      setNavGroups(updated)
-                    }}
-                    className={`text-xs px-2 py-0.5 rounded ${
-                      visible
-                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                        : 'bg-gray-100 text-gray-400 dark:bg-gray-700'
-                    }`}
-                  >
-                    {visible ? '显示' : '隐藏'}
-                  </button>
-                </div>
-                {visible && (
-                  <div className="flex flex-wrap gap-1 ml-6">
-                    {template.items.map((item) => {
-                      const uiItem = uiGroup?.items.find((i) => i.href === item.href)
-                      const itemVisible = uiItem?.visible ?? true
-                      return (
-                        <button
-                          key={item.href}
-                          onClick={() => {
-                            const updated = navGroups.map((g) => {
-                              if (g.id !== template.id) return g
-                              const existing = g.items.find((i) => i.href === item.href)
-                              return {
-                                ...g,
-                                items: existing
-                                  ? g.items.map((i) =>
-                                      i.href === item.href ? { ...i, visible: !itemVisible } : i
-                                    )
-                                  : [
-                                      ...g.items,
-                                      { href: item.href, visible: !itemVisible },
-                                    ],
-                              }
-                            })
-                            setNavGroups(updated)
-                          }}
-                          className={`text-xs px-2 py-1 rounded-full ${
-                            itemVisible
-                              ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                              : 'bg-gray-50 text-gray-300 dark:bg-gray-700/50 dark:text-gray-600 line-through'
-                          }`}
-                        >
-                          {item.icon} {item.shortLabel}
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
+      {/* ── AI Config Tab ── */}
+      {tab === 'ai' && !loading && (
+        <div className="rounded-2xl bg-card border border-border/50 shadow-sm p-6 space-y-4">
+          <h2 className="font-semibold">🤖 AI 大模型配置</h2>
+          <p className="text-sm text-muted-foreground">配置 AI 服务以使用 GPT/DeepSeek/MiMo 等大模型。不提供则使用系统默认。</p>
+
+          <div className="space-y-3">
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground mb-1.5 block">API Key</label>
+              <div className="flex gap-2">
+                <input type={showKey ? 'text' : 'password'} value={aiKey}
+                  onChange={e => setAiKey(e.target.value)}
+                  placeholder={hasKey ? keyHint : 'sk-...'}
+                  className="flex-1 h-11 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20" />
+                <button onClick={() => setShowKey(!showKey)} className="h-11 w-11 rounded-xl border border-border/50 flex items-center justify-center text-muted-foreground hover:bg-muted active:scale-[0.95] transition-all">{showKey ? '🙈' : '👁️'}</button>
               </div>
-            )
-          })}
-        </div>
-      </div>
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground mb-1.5 block">API Base URL</label>
+              <input type="text" value={aiUrl} onChange={e => setAiUrl(e.target.value)}
+                placeholder="https://api.openai.com/v1"
+                className="w-full h-11 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20" />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted-foreground mb-1.5 block">模型名称</label>
+              <input type="text" value={aiModel} onChange={e => setAiModel(e.target.value)}
+                placeholder="gpt-4o / deepseek-chat / mimo-v2.5-pro"
+                className="w-full h-11 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20" />
+            </div>
+          </div>
 
-      {/* 工作台卡片 */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-sm">工作台卡片</h3>
-          <button
-            onClick={resetWorkspaceToDefaults}
-            className="text-xs text-gray-400 hover:text-gray-600"
-          >
-            恢复默认
-          </button>
-        </div>
-        <p className="text-xs text-gray-400 mb-2">拖拽排序暂不支持，请在下方调整显示/隐藏：</p>
-        <div className="flex flex-wrap gap-2">
-          {DEFAULT_WORKSPACE_CARDS.map((cardId) => {
-            const label = {
-              stats: '📊 统计卡片',
-              'today-tasks': '📋 今日任务',
-              'quick-practice': '✏️ 快速练习',
-              'study-trend': '📈 学习趋势',
-              'recent-materials': '📚 最近资料',
-              'wrong-overview': '🔴 错题概览',
-              shortcuts: '🔗 快捷入口',
-            }[cardId] || cardId
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          {saved && <p className="text-sm text-success font-medium">✅ 已保存</p>}
 
-            const visible = workspaceCards.includes(cardId)
+          <div className="flex gap-2">
+            <Button onClick={handleSaveAI} disabled={saving} className="rounded-full bg-brand hover:bg-brand/90 text-brand-foreground font-semibold h-11 px-6 active:scale-[0.98] transition-all">
+              {saving ? '保存中...' : '保存 AI 配置'}
+            </Button>
+            {hasKey && <Button variant="outline" onClick={handleDeleteAI} disabled={saving} className="rounded-full h-11 px-6 active:scale-[0.98] transition-all">移除配置</Button>}
+          </div>
 
-            return (
-              <button
-                key={cardId}
-                onClick={() => {
-                  setWorkspaceCards(
-                    visible
-                      ? workspaceCards.filter((c) => c !== cardId)
-                      : [...workspaceCards, cardId]
-                  )
-                }}
-                className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                  visible
-                    ? 'bg-blue-50 border-blue-300 text-blue-700 dark:bg-blue-900/30'
-                    : 'bg-gray-50 border-gray-200 text-gray-400 dark:bg-gray-700/50 dark:text-gray-500'
-                }`}
-              >
-                {label}
-              </button>
-            )
-          })}
+          <div className="bg-muted rounded-2xl p-4 text-sm space-y-1">
+            <p className="font-medium">💡 支持的服务</p>
+            <p className="text-muted-foreground text-xs">OpenAI / DeepSeek / MiMo / 通义千问 / 任何 OpenAI 兼容接口</p>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* 出题默认偏好 */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-sm">出题默认偏好</h3>
-          <button
-            onClick={resetPracticeToDefaults}
-            className="text-xs text-gray-400 hover:text-gray-600"
-          >
-            恢复默认
-          </button>
+      {/* ── Reminders Tab ── */}
+      {tab === 'reminders' && (
+        <div className="rounded-2xl bg-card border border-border/50 shadow-sm p-6 space-y-5">
+          <h2 className="font-semibold">🔔 学习提醒设置</h2>
+
+          <div className="flex items-center justify-between">
+            <span className="text-sm">启用提醒</span>
+            <button onClick={() => setReminderEnabled(!reminderEnabled)}
+              className={`relative w-12 h-7 rounded-full transition-colors ${reminderEnabled ? 'bg-brand' : 'bg-muted-foreground/30'}`}>
+              <span className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow transition-transform ${reminderEnabled ? 'translate-x-5' : ''}`} />
+            </button>
+          </div>
+
+          {reminderEnabled && (
+            <>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground mb-1.5 block">提醒时间</label>
+                <input type="time" value={reminderTime} onChange={e => setReminderTime(e.target.value)}
+                  className="h-11 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20" />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground mb-1.5 block">重复日期</label>
+                <div className="flex gap-2">
+                  {dayLabels.map((l, i) => {
+                    const d = String(i + 1); const a = reminderDays.includes(d)
+                    return (
+                      <button key={d} onClick={() => toggleDay(d)}
+                        className={`w-10 h-10 rounded-full text-sm font-medium transition-all active:scale-[0.95] ${a ? 'bg-brand text-white shadow-sm' : 'bg-muted text-muted-foreground hover:bg-muted-foreground/20'}`}>
+                        {l}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">浏览器通知：{notifyPerm === 'granted' ? '✅ 已开启' : notifyPerm === 'denied' ? '❌ 已拒绝' : '⚠️ 未设置'}</span>
+                {notifyPerm !== 'granted' && <Button variant="outline" size="sm" onClick={handleRequestPermission} className="rounded-full h-9 text-xs active:scale-[0.97]">开启通知</Button>}
+              </div>
+            </>
+          )}
+
+          {reminderSaved && <p className="text-sm text-success font-medium">✅ 已保存</p>}
+          <Button onClick={handleSaveReminders} disabled={reminderSaving} className="w-full rounded-full bg-brand hover:bg-brand/90 text-brand-foreground font-semibold h-11 active:scale-[0.98] transition-all">
+            {reminderSaving ? '保存中...' : '保存提醒设置'}
+          </Button>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      )}
+
+      {/* ── UI Customization Tab ── */}
+      {tab === 'ui' && (
+        <div className="rounded-2xl bg-card border border-border/50 shadow-sm p-6 space-y-6">
+          <h2 className="font-semibold">🎨 界面定制</h2>
+
+          {/* Navigation groups */}
           <div>
-            <label className="text-xs text-gray-500 block mb-1">默认模式</label>
-            <select
-              value={practiceDefaults.mode}
-              onChange={(e) =>
-                setPracticeDefaults({ mode: e.target.value as typeof practiceDefaults.mode })
-              }
-              className="w-full border rounded px-2 py-1 text-xs dark:bg-gray-700 dark:border-gray-600"
-            >
-              <option value="daily_review">🎯 今日巩固</option>
-              <option value="spaced_review">🔄 间隔复习</option>
-              <option value="mock_exam">⏱️ 模拟考试</option>
-              <option value="material_based">📎 资料出题</option>
-              <option value="custom">🔧 自由定制</option>
-            </select>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold">侧边栏分组</h3>
+              <button onClick={resetNavToDefaults} className="text-xs text-muted-foreground hover:text-foreground">恢复默认</button>
+            </div>
+            <div className="space-y-2">
+              {defaultNavGroups.map((tmpl) => {
+                const uiG = navGroups.find(g => g.id === tmpl.id)
+                const vis = uiG?.visible ?? true
+                return (
+                  <div key={tmpl.id} className="rounded-xl border border-border/50 p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span>{tmpl.icon}</span> <span className="text-sm font-medium flex-1">{tmpl.label}</span>
+                      <button onClick={() => {
+                        const up = navGroups.find(g => g.id === tmpl.id) ? navGroups.map(g => g.id === tmpl.id ? { ...g, visible: !vis } : g) : [...navGroups, { id: tmpl.id, label: tmpl.label, icon: tmpl.icon, visible: !vis, items: tmpl.items.map(i => ({ href: i.href, visible: true })) }]
+                        setNavGroups(up)
+                      }} className={`text-xs px-2 py-0.5 rounded-full ${vis ? 'bg-brand-muted text-brand' : 'bg-muted text-muted-foreground'}`}>
+                        {vis ? '显示' : '隐藏'}
+                      </button>
+                    </div>
+                    {vis && (
+                      <div className="flex flex-wrap gap-1 ml-6">
+                        {tmpl.items.map(item => {
+                          const uiI = uiG?.items.find(i => i.href === item.href)
+                          const iv = uiI?.visible ?? true
+                          return (
+                            <button key={item.href} onClick={() => {
+                              setNavGroups(navGroups.map(g => {
+                                if (g.id !== tmpl.id) return g
+                                const ex = g.items.find(i => i.href === item.href)
+                                return { ...g, items: ex ? g.items.map(i => i.href === item.href ? { ...i, visible: !iv } : i) : [...g.items, { href: item.href, visible: !iv }] }
+                              }))
+                            }} className={`text-xs px-2 py-1 rounded-full ${iv ? 'bg-brand-muted text-brand' : 'bg-muted text-muted-foreground line-through'}`}>
+                              {item.icon} {item.shortLabel}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           </div>
-          <div>
-            <label className="text-xs text-gray-500 block mb-1">
-              默认难度：{Math.round(practiceDefaults.difficulty * 100)}%
-            </label>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              value={Math.round(practiceDefaults.difficulty * 100)}
-              onChange={(e) =>
-                setPracticeDefaults({ difficulty: parseInt(e.target.value) / 100 })
-              }
-              className="w-full accent-blue-500"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-gray-500 block mb-1">默认题数</label>
-            <select
-              value={practiceDefaults.count}
-              onChange={(e) => setPracticeDefaults({ count: parseInt(e.target.value) })}
-              className="w-full border rounded px-2 py-1 text-xs dark:bg-gray-700 dark:border-gray-600"
-            >
-              <option value={5}>5</option>
-              <option value={10}>10</option>
-              <option value={15}>15</option>
-              <option value={20}>20</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-xs text-gray-500 block mb-1">默认界面</label>
-            <select
-              value={practiceDefaults.uiMode}
-              onChange={(e) =>
-                setPracticeDefaults({ uiMode: e.target.value as typeof practiceDefaults.uiMode })
-              }
-              className="w-full border rounded px-2 py-1 text-xs dark:bg-gray-700 dark:border-gray-600"
-            >
-              <option value="simple">🎯 傻瓜模式</option>
-              <option value="smart">⚡ 智能推荐</option>
-              <option value="advanced">🔧 详细选项</option>
-            </select>
-          </div>
-          <div className="flex items-end gap-3">
-            <label className="flex items-center gap-1 text-xs cursor-pointer">
-              <input
-                type="checkbox"
-                checked={practiceDefaults.includeWeakPoints}
-                onChange={(e) => setPracticeDefaults({ includeWeakPoints: e.target.checked })}
-                className="rounded"
-              />
-              涵盖错题
-            </label>
-            <label className="flex items-center gap-1 text-xs cursor-pointer">
-              <input
-                type="checkbox"
-                checked={practiceDefaults.includeSpacedReview}
-                onChange={(e) => setPracticeDefaults({ includeSpacedReview: e.target.checked })}
-                className="rounded"
-              />
-              间隔复习
-            </label>
-          </div>
-        </div>
-      </div>
 
-      {/* Save button */}
-      <Button onClick={handleSaveUI} disabled={savingUI} className="w-full">
-        {savingUI ? '保存中...' : '💾 保存界面偏好'}
-      </Button>
+          {/* Workspace cards */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold">工作台卡片</h3>
+              <button onClick={resetWorkspaceToDefaults} className="text-xs text-muted-foreground hover:text-foreground">恢复默认</button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {DEFAULT_WORKSPACE_CARDS.map(cid => {
+                const label: Record<string, string> = { stats: '📊 统计', 'today-tasks': '📋 任务', 'quick-practice': '✏️ 练习', 'study-trend': '📈 趋势', 'recent-materials': '📚 资料', 'wrong-overview': '🔴 错题', shortcuts: '🔗 快捷' }
+                const vis = workspaceCards.includes(cid)
+                return (
+                  <button key={cid} onClick={() => setWorkspaceCards(vis ? workspaceCards.filter(c => c !== cid) : [...workspaceCards, cid])}
+                    className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${vis ? 'border-brand/30 bg-brand-muted text-brand' : 'border-border/50 bg-muted text-muted-foreground'}`}>
+                    {label[cid] || cid}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Practice defaults */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold">出题默认偏好</h3>
+              <button onClick={resetPracticeToDefaults} className="text-xs text-muted-foreground hover:text-foreground">恢复默认</button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] text-muted-foreground mb-1 block">默认模式</label>
+                <select value={practiceDefaults.mode} onChange={e => setPracticeDefaults({ mode: e.target.value as typeof practiceDefaults.mode })}
+                  className="w-full h-10 rounded-xl border border-border/50 bg-muted/50 px-3 text-xs">
+                  <option value="daily_review">🎯 今日巩固</option>
+                  <option value="spaced_review">🔄 间隔复习</option>
+                  <option value="mock_exam">⏱️ 模拟考试</option>
+                  <option value="material_based">📎 资料出题</option>
+                  <option value="custom">🔧 自由定制</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground mb-1 block">难度 {Math.round(practiceDefaults.difficulty * 100)}%</label>
+                <input type="range" min={0} max={100} value={Math.round(practiceDefaults.difficulty * 100)}
+                  onChange={e => setPracticeDefaults({ difficulty: +e.target.value / 100 })}
+                  className="w-full h-10 accent-brand" />
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground mb-1 block">默认题数</label>
+                <select value={practiceDefaults.count} onChange={e => setPracticeDefaults({ count: +e.target.value })}
+                  className="w-full h-10 rounded-xl border border-border/50 bg-muted/50 px-3 text-xs">
+                  {[5,10,15,20].map(n => <option key={n}>{n}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground mb-1 block">默认界面</label>
+                <select value={practiceDefaults.uiMode} onChange={e => setPracticeDefaults({ uiMode: e.target.value as typeof practiceDefaults.uiMode })}
+                  className="w-full h-10 rounded-xl border border-border/50 bg-muted/50 px-3 text-xs">
+                  <option value="simple">🎯 傻瓜模式</option>
+                  <option value="smart">⚡ 智能推荐</option>
+                  <option value="advanced">🔧 详细选项</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <Button onClick={handleSaveUI} disabled={uiSaving} className="w-full rounded-full bg-brand hover:bg-brand/90 text-brand-foreground font-semibold h-11 active:scale-[0.98] transition-all">
+            {uiSaving ? '保存中...' : '💾 保存界面偏好'}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

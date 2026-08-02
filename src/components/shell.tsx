@@ -1,18 +1,21 @@
 'use client'
 
-import { TopBar } from '@/components/top-bar'
-import { WorkbenchTabs } from '@/components/workbench-tabs'
+import { Header } from '@/components/header'
 import { ActivityBar } from '@/components/activity-bar'
 import { MobileNav } from '@/components/mobile-nav'
 
 /**
- * OS 外壳布局
+ * OS 外壳布局 — Apple HIG compliant
  *
- * ┌─ TopBar (h-12/14) ──────────────────────────┐
- * ├─ WorkbenchTabs (h-9) ────────────────────────┤
- * ├─ Content (flex-1, scroll) ───────────────────┤
- * ├─ ActivityBar (auto-h, when active) ──────────┤
- * └─ MobileNav (lg:hidden, h-14) ────────────────┘
+ * Principles applied:
+ * - Clarity: single Header replaces TopBar+TabBar
+ * - Deference: minimal chrome, content takes full height
+ * - Depth: header floats subtly above content
+ *
+ * ┌─ Header (h-12) ───────────────────────────────┐
+ * ├─ Content (flex-1) ─────────────────────────────┤
+ * ├─ ActivityBar (conditional) ────────────────────┤
+ * └─ MobileNav (lg:hidden) ────────────────────────┘
  */
 export function Shell({
   children,
@@ -22,24 +25,12 @@ export function Shell({
   daysLeft: number
 }) {
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* Layer 1: Top Bar — always visible */}
-      <TopBar daysLeft={daysLeft} />
-
-      {/* Layer 2: Tab Bar — desktop only */}
-      <div className="hidden lg:block">
-        <WorkbenchTabs />
-      </div>
-
-      {/* Layer 3: Main Content */}
+    <div className="min-h-screen flex flex-col bg-background">
+      <Header daysLeft={daysLeft} />
       <main className="flex-1 overflow-y-auto">
         {children}
       </main>
-
-      {/* Layer 4: Activity Bar — always visible when active */}
       <ActivityBar />
-
-      {/* Layer 5: Mobile Bottom Nav — 5 group icons */}
       <MobileNav />
     </div>
   )

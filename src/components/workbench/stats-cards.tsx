@@ -7,75 +7,43 @@ interface StatsCardsProps {
   completionRate: { rate: number; completed: number; total: number }
 }
 
-export function StatsCards({
-  todayTasks,
-  weekStudy,
-  streak,
-  completionRate,
-}: StatsCardsProps) {
-  return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
-      <StatCard
-        icon="📋"
-        label="今日任务"
-        value={`${todayTasks.completed}/${todayTasks.total}`}
-        sub={`${todayTasks.minutes} 分钟`}
-        color="blue"
-      />
-      <StatCard
-        icon="⏱️"
-        label="本周学习"
-        value={`${weekStudy.hours.toFixed(1)}h`}
-        sub={`打卡 ${weekStudy.days} 天`}
-        color="green"
-      />
-      <StatCard
-        icon="🔥"
-        label="连续打卡"
-        value={`${streak} 天`}
-        sub={streak >= 7 ? '太棒了！' : streak >= 3 ? '继续加油' : '从今天开始'}
-        color="orange"
-      />
-      <StatCard
-        icon="📊"
-        label="任务完成率"
-        value={`${completionRate.rate}%`}
-        sub={`${completionRate.completed}/${completionRate.total}`}
-        color="purple"
-      />
-    </div>
-  )
-}
+const items = [
+  { key: 'today', icon: '📋', label: '今日任务', color: 'blue' as const },
+  { key: 'week', icon: '⏱️', label: '本周学习', color: 'green' as const },
+  { key: 'streak', icon: '🔥', label: '连续打卡', color: 'orange' as const },
+  { key: 'rate', icon: '📊', label: '完成率', color: 'purple' as const },
+]
 
-function StatCard({
-  icon,
-  label,
-  value,
-  sub,
-  color,
-}: {
-  icon: string
-  label: string
-  value: string
-  sub: string
-  color: 'blue' | 'green' | 'orange' | 'purple'
-}) {
-  const colors = {
-    blue: 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
-    green: 'bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400',
-    orange: 'bg-orange-50 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400',
-    purple: 'bg-purple-50 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
+export function StatsCards(p: StatsCardsProps) {
+  const getValue = (key: string) => {
+    switch (key) {
+      case 'today': return { value: `${p.todayTasks.completed}/${p.todayTasks.total}`, sub: `${p.todayTasks.minutes} 分钟` }
+      case 'week': return { value: `${p.weekStudy.hours.toFixed(1)}h`, sub: `打卡 ${p.weekStudy.days} 天` }
+      case 'streak': return { value: `${p.streak} 天`, sub: p.streak >= 7 ? '太棒了！' : p.streak >= 3 ? '继续加油' : '从今天开始' }
+      case 'rate': return { value: `${p.completionRate.rate}%`, sub: `${p.completionRate.completed}/${p.completionRate.total}` }
+      default: return { value: '', sub: '' }
+    }
   }
+
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl border p-4">
-      <div className="flex items-center gap-3">
-        <div className={`text-xl p-2 rounded-lg ${colors[color]}`}>{icon}</div>
-        <div className="min-w-0">
-          <p className="text-xs text-gray-500">{label}</p>
-          <p className="text-xl font-bold">{value}</p>
-          <p className="text-xs text-gray-400">{sub}</p>
-        </div>
-      </div>
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {items.map((item) => {
+        const { value, sub } = getValue(item.key)
+        return (
+          <div key={item.key} className="rounded-2xl bg-card border border-border/50 shadow-sm p-4 hover:shadow-md transition-shadow">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center text-lg shrink-0">
+                {item.icon}
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] text-muted-foreground font-medium">{item.label}</p>
+                <p className="text-lg font-bold tracking-tight">{value}</p>
+                <p className="text-[11px] text-muted-foreground/70">{sub}</p>
+              </div>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

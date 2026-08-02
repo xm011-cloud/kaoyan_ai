@@ -201,12 +201,6 @@ export default async function DashboardPage() {
     ),
     goal: goal ? { university: goal.university, major: goal.major } : null,
     daysLeft,
-    recentChecks: recentChecks.map((c) => ({
-      id: c.id,
-      date: c.date.toISOString(),
-      duration: c.duration,
-      status: c.status,
-    })),
   }
 
   return (

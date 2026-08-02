@@ -1,9 +1,9 @@
-import { Sidebar } from "@/components/sidebar"
+import { Shell } from "@/components/shell"
 import { StudyReminder } from "@/components/study-reminder"
 import { PwaInstallPrompt } from "@/components/pwa-install"
-import { ActivityBar } from "@/components/activity-bar"
 import { AppProviders } from "@/components/app-providers"
 import { createClient } from "@/lib/supabase/server"
+import { prisma } from "@/lib/prisma"
 import { redirect } from "next/navigation"
 
 export default async function AuthenticatedLayout({
@@ -18,20 +18,22 @@ export default async function AuthenticatedLayout({
     redirect("/login")
   }
 
+  // Compute days left for TopBar
+  let daysLeft = 0
+  try {
+    const goal = await prisma.goal.findUnique({ where: { userId: user.id } })
+    if (goal) {
+      daysLeft = Math.max(0, Math.ceil((new Date(goal.examDate).getTime() - Date.now()) / 86400000)) || 0
+    }
+  } catch { /* ignore */ }
+
   return (
     <AppProviders>
-      <div className="min-h-screen flex flex-col lg:flex-row">
-        <Sidebar />
-        {/* Main area: content + activity bar */}
-        <div className="flex-1 flex flex-col min-h-0 lg:ml-56">
-          <main className="flex-1 overflow-y-auto pb-14 lg:pb-0">
-            {children}
-          </main>
-          <ActivityBar />
-        </div>
-        <StudyReminder />
-        <PwaInstallPrompt />
-      </div>
+      <Shell daysLeft={daysLeft}>
+        {children}
+      </Shell>
+      <StudyReminder />
+      <PwaInstallPrompt />
     </AppProviders>
   )
 }

@@ -95,6 +95,19 @@ export default function PomodoroPage() {
   const storeComplete = usePomodoroStore((s) => s.complete);
   const storeReset = usePomodoroStore((s) => s.reset);
 
+  // ── On mount: if store has pendingComplete, the engine already saved it ──
+  useEffect(() => {
+    const pending = usePomodoroStore.getState().pendingComplete
+    if (pending) {
+      usePomodoroStore.getState().markSaved()
+    }
+    // Also sync completedFocusCount from store
+    const storeCompleted = usePomodoroStore.getState().completedSessions
+    if (storeCompleted > 0) {
+      setCompletedFocusCount(storeCompleted)
+    }
+  }, [])
+
   // ── Settings state ──
   const [settings, setSettings] = useState<Settings>({
     focusMinutes: 25,
@@ -154,14 +167,18 @@ export default function PomodoroPage() {
             const remaining = Math.max(0, saved.totalSeconds - totalElapsed);
 
             if (remaining <= 0) {
-              // Timer would have completed while away — just reset
+              // Timer completed while away — engine already saved to DB, just sync counts
               clearTimerState();
+              const storeCompleted = usePomodoroStore.getState().completedSessions
+              if (storeCompleted > 0) setCompletedFocusCount(storeCompleted)
               const initial = s.focusMinutes * 60;
               setMode("focus");
               setStatus("idle");
               setTimeLeft(initial);
               totalSecondsRef.current = initial;
               accumulatedRef.current = 0;
+              // Notify user that a session completed in the background
+              notify("番茄钟已完成！🍅", "你在查看其他页面时，一个番茄钟已自动完成并保存。")
             } else {
               setTimeLeft(remaining);
               accumulatedRef.current = saved.accumulated + elapsedSinceSave;
@@ -245,6 +262,8 @@ export default function PomodoroPage() {
 
     // Save completed session
     saveSession(currentMode, plannedMin, totalSec, "completed", startedAt, endedAt);
+    // Mark saved so PomodoroEngine doesn't double-save
+    usePomodoroStore.getState().markSaved();
 
     if (currentMode === "focus") {
       const newCount = completedFocusCount + 1;

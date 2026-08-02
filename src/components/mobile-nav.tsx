@@ -21,6 +21,9 @@ export function MobileNav() {
   const uiGroups = useUIStore((s) => s.navGroups)
   const pomodoro = usePomodoroStore()
   const practice = usePracticeStore()
+  const storePause = usePomodoroStore((s) => s.pause)
+  const storeResume = usePomodoroStore((s) => s.resume)
+  const storeReset = usePomodoroStore((s) => s.reset)
 
   const hasActivity = pomodoro.isRunning || !!practice.activeSessionId
 
@@ -41,29 +44,62 @@ export function MobileNav() {
   return (
     <nav className="lg:hidden shrink-0 border-t border-border/50 bg-card/95 backdrop-blur-xl safe-area-bottom">
       {hasActivity ? (
-        /* ── Active mode: full-width progress bars ── */
-        <div className="flex items-center gap-2 px-3 py-2">
+        /* ── Active mode: progress + controls ── */
+        <div className="flex items-center gap-2 px-2 py-2">
           {pomodoro.isRunning && (
-            <Link href="/pomodoro"
-              className={cn(
-                'flex-1 flex items-center gap-3 px-3 py-2.5 rounded-xl border active:scale-[0.98] transition-all',
-                pomodoro.isPaused ? 'border-warning/40 bg-warning/5' : 'border-destructive/20 bg-destructive/5'
-              )}>
-              <span className="text-xl">🍅</span>
+            <div className={cn(
+              'flex-1 flex items-center gap-2 px-3 py-2.5 rounded-xl border',
+              pomodoro.isPaused ? 'border-warning/40 bg-warning/5' : 'border-destructive/20 bg-destructive/5'
+            )}>
+              <span className="text-xl shrink-0">🍅</span>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium truncate">
                     {pomodoro.isPaused ? '⏸ 已暂停' : '专注中'}
                     {pomodoro.currentSubject ? ` · ${pomodoro.currentSubject}` : ''}
                   </span>
-                  <span className="text-xs font-mono font-bold ml-2">{formatTime(remaining)}</span>
+                  <span className="text-xs font-mono font-bold ml-1">{formatTime(remaining)}</span>
                 </div>
                 <div className="w-full h-1.5 rounded-full bg-muted mt-1 overflow-hidden">
                   <div className={cn('h-full rounded-full transition-all', pomodoro.isPaused ? 'bg-warning' : 'bg-destructive')}
                     style={{ width: `${pct}%` }} />
                 </div>
               </div>
-            </Link>
+
+              {/* Mobile inline controls */}
+              <div className="flex items-center gap-1 shrink-0">
+                {pomodoro.isPaused ? (
+                  <button onClick={storeResume}
+                    className="w-8 h-8 rounded-full bg-success/20 text-success flex items-center justify-center active:scale-[0.92] transition-all">
+                    ▶
+                  </button>
+                ) : (
+                  <button onClick={storePause}
+                    className="w-8 h-8 rounded-full bg-warning/20 text-warning flex items-center justify-center active:scale-[0.92] transition-all">
+                    ⏸
+                  </button>
+                )}
+                <button onClick={() => {
+                  if (pomodoro.startedAt) {
+                    fetch('/api/pomodoro/sessions', {
+                      method: 'POST', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        type: pomodoro.sessionType,
+                        plannedMinutes: pomodoro.plannedMinutes,
+                        actualSeconds: Math.max(0, pomodoro.totalSeconds - pomodoro.remainingSeconds),
+                        status: 'interrupted',
+                        startedAt: new Date(pomodoro.startedAt).toISOString(),
+                        endedAt: new Date().toISOString(),
+                      }),
+                    }).catch(() => {})
+                  }
+                  storeReset()
+                }}
+                  className="w-8 h-8 rounded-full bg-muted-foreground/10 text-muted-foreground flex items-center justify-center active:scale-[0.92] transition-all">
+                  ⏹
+                </button>
+              </div>
+            </div>
           )}
 
           {practice.activeSessionId && (

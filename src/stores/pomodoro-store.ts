@@ -3,12 +3,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-export interface PomodoroSession {
-  type: 'focus' | 'short_break' | 'long_break'
-  plannedMinutes: number
-  startedAt: string // ISO
-}
-
 export interface PomodoroState {
   isRunning: boolean
   isPaused: boolean
@@ -18,6 +12,11 @@ export interface PomodoroState {
   completedSessions: number
   currentSubject?: string
 
+  // Session metadata for DB recording
+  startedAt: string | null     // ISO timestamp when this timer started
+  plannedMinutes: number
+  pendingComplete: boolean     // true = timer finished but DB save pending
+
   // Actions
   start: (type: PomodoroState['sessionType'], minutes: number, subject?: string) => void
   pause: () => void
@@ -25,6 +24,7 @@ export interface PomodoroState {
   tick: () => void
   syncTime: (remainingSeconds: number, subject?: string) => void
   complete: () => void
+  markSaved: () => void        // called after DB save succeeds
   reset: () => void
 }
 
@@ -38,19 +38,31 @@ export const usePomodoroStore = create<PomodoroState>()(
       sessionType: 'focus',
       completedSessions: 0,
       currentSubject: undefined,
+      startedAt: null,
+      plannedMinutes: 25,
+      pendingComplete: false,
 
-      start: (type, minutes, subject) =>
+      start: (type, minutes, subject) => {
+        const { isRunning } = get()
+        if (isRunning) {
+          // Guard: don't silently overwrite. Caller should check or reset first.
+          console.warn('PomodoroStore: already running, use reset() first')
+          return
+        }
         set({
           isRunning: true,
           isPaused: false,
           sessionType: type,
           totalSeconds: minutes * 60,
           remainingSeconds: minutes * 60,
+          plannedMinutes: minutes,
           currentSubject: subject,
-        }),
+          startedAt: new Date().toISOString(),
+          pendingComplete: false,
+        })
+      },
 
       pause: () => set({ isPaused: true }),
-
       resume: () => set({ isPaused: false }),
 
       tick: () => {
@@ -68,6 +80,7 @@ export const usePomodoroStore = create<PomodoroState>()(
           remainingSeconds,
           ...(subject !== undefined ? { currentSubject: subject } : {}),
           isRunning: s.isRunning || true,
+          startedAt: s.startedAt || new Date().toISOString(),
         })),
 
       complete: () =>
@@ -77,7 +90,10 @@ export const usePomodoroStore = create<PomodoroState>()(
           remainingSeconds: 0,
           completedSessions:
             s.sessionType === 'focus' ? s.completedSessions + 1 : s.completedSessions,
+          pendingComplete: true,
         })),
+
+      markSaved: () => set({ pendingComplete: false }),
 
       reset: () =>
         set({
@@ -87,6 +103,8 @@ export const usePomodoroStore = create<PomodoroState>()(
           totalSeconds: 0,
           sessionType: 'focus',
           currentSubject: undefined,
+          startedAt: null,
+          pendingComplete: false,
         }),
     }),
     {
@@ -99,6 +117,9 @@ export const usePomodoroStore = create<PomodoroState>()(
         sessionType: state.sessionType,
         completedSessions: state.completedSessions,
         currentSubject: state.currentSubject,
+        startedAt: state.startedAt,
+        plannedMinutes: state.plannedMinutes,
+        pendingComplete: state.pendingComplete,
       }),
     }
   )

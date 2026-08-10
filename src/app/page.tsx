@@ -48,6 +48,10 @@ export default async function Home() {
             { icon: "📚", title: "资料管理", desc: "上传考研资料（笔记、教材），AI 基于资料内容进行智能问答", points: ["文本自动提取", "关键词检索", "AI 上下文问答"] },
             { icon: "✅", title: "每日打卡", desc: "记录每天的学习时长和状态，培养坚持学习的好习惯", points: ["学习时长追踪", "状态记录", "连续打卡统计"] },
             { icon: "📊", title: "AI 反馈", desc: "AI 每周分析学习数据，给出个性化建议帮助你优化学习策略", points: ["每周学习周报", "数据趋势图表", "AI 个性化建议"] },
+            { icon: "🍅", title: "番茄钟", desc: "专注 + 休息的番茄工作法，保持高效专注的学习节奏", points: ["25+5 科学节奏", "实时专注统计", "自动同步打卡"] },
+            { icon: "📕", title: "错题本", desc: "错题自动收录、间隔重复复习，AI 生成同类题巩固薄弱点", points: ["SM-2 间隔复习", "错因分类", "AI 相似题生成"] },
+            { icon: "🗺️", title: "学习路径", desc: "AI 分析薄弱环节，生成分阶段学习路径，里程碑式推进", points: ["薄弱点诊断", "阶段里程碑", "进度可视化"] },
+            { icon: "🧠", title: "知识图谱", desc: "知识点关联可视化，看清知识脉络，快速定位薄弱环节", points: ["力导向图谱", "知识点关联", "错题联动"] },
           ].map((item) => (
             <div key={item.title} className="p-6 rounded-xl bg-white dark:bg-gray-800 border shadow-sm hover:shadow-md transition-shadow">
               <div className="text-3xl mb-3">{item.icon}</div>
@@ -121,6 +125,11 @@ export default async function Home() {
 
       {/* Footer */}
       <footer className="py-8 text-center text-sm text-gray-400 border-t dark:border-gray-800">
+        <div className="flex justify-center gap-6 mb-3">
+          <Link href="/about" className="hover:text-blue-500 transition-colors">关于我们</Link>
+          <Link href="/suggestions" className="hover:text-blue-500 transition-colors">意见反馈</Link>
+          <Link href="/support" className="hover:text-orange-500 transition-colors">☕ 支持作者</Link>
+        </div>
         <p>© 2026 AI 考研助手 · 助你高效备考 · 上岸加油 🎓</p>
       </footer>
     </div>

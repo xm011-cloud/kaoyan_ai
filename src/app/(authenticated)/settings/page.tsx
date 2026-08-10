@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import {
   useUIStore, DEFAULT_NAV_GROUPS, DEFAULT_WORKSPACE_CARDS, DEFAULT_PRACTICE_DEFAULTS
@@ -338,6 +339,20 @@ export default function SettingsPage() {
           </Button>
         </div>
       )}
+
+      {/* 关于 / 支持 */}
+      <div className="rounded-2xl bg-card border border-border/50 shadow-sm p-6">
+        <h2 className="font-semibold mb-3">❤️ 关于与支持</h2>
+        <p className="text-sm text-muted-foreground mb-4">这个应用由作者一人业余开发、完全免费。你的反馈和一杯咖啡都是最好的支持。</p>
+        <div className="flex gap-2">
+          <Link href="/suggestions">
+            <Button variant="outline" className="rounded-full h-10 px-5 active:scale-[0.98] transition-all">💬 意见反馈</Button>
+          </Link>
+          <Link href="/support">
+            <Button variant="outline" className="rounded-full h-10 px-5 active:scale-[0.98] transition-all">☕ 支持作者</Button>
+          </Link>
+        </div>
+      </div>
     </div>
   )
 }

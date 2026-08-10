@@ -6,6 +6,26 @@ export interface AiConfig {
   model: string;
 }
 
+// ── OpenAI Function Calling 类型 ──
+
+export interface AiTool {
+  type: "function";
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
+}
+
+export interface AiToolCall {
+  id: string;
+  type: "function";
+  function: {
+    name: string;
+    arguments: string; // JSON string
+  };
+}
+
 const GLOBAL_DEFAULTS = {
   baseURL: "https://api.xiaomimimo.com/v1",
   model: "mimo-v2.5-pro",
@@ -42,14 +62,17 @@ export async function getUserAiConfig(userId: string): Promise<AiConfig | null> 
 // ── 统一的 AI 调用工具 ──
 
 export interface AiCallOptions {
-  messages: Array<{ role: string; content: string }>;
+  messages: Array<{ role: string; content: string; tool_call_id?: string; name?: string; tool_calls?: AiToolCall[] }>;
   temperature?: number;
   maxTokens?: number;
+  tools?: AiTool[];
+  tool_choice?: "auto" | "none" | { type: "function"; function: { name: string } };
 }
 
 export interface AiCallResult {
   text: string;
   reasoningText?: string;
+  toolCalls?: AiToolCall[];
 }
 
 /**
@@ -62,24 +85,31 @@ export async function callAI(
   config: AiConfig,
   options: AiCallOptions
 ): Promise<AiCallResult> {
+  const body: Record<string, unknown> = {
+    model: config.model,
+    messages: options.messages,
+    temperature: options.temperature ?? 0.7,
+    max_tokens: options.maxTokens ?? 4096,
+  };
+
+  if (options.tools && options.tools.length > 0) {
+    body.tools = options.tools;
+    body.tool_choice = options.tool_choice ?? "auto";
+  }
+
   const response = await fetch(`${config.baseURL}/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${config.apiKey}`,
     },
-    body: JSON.stringify({
-      model: config.model,
-      messages: options.messages,
-      temperature: options.temperature ?? 0.7,
-      max_tokens: options.maxTokens ?? 4096,
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {
-    let body = "";
+    let errBody = "";
     try {
-      body = await response.text();
+      errBody = await response.text();
     } catch {
       // ignore
     }
@@ -88,14 +118,29 @@ export async function callAI(
       body: string;
     };
     err.status = response.status;
-    err.body = body;
+    err.body = errBody;
     throw err;
   }
 
   const data = await response.json();
-  const text = data.choices?.[0]?.message?.content || "";
-  const reasoningText = data.choices?.[0]?.message?.reasoning_content || "";
-  return { text, reasoningText: reasoningText || undefined };
+  const message = data.choices?.[0]?.message;
+  const text = message?.content || "";
+  const reasoningText = message?.reasoning_content || "";
+
+  // 解析 tool_calls
+  let toolCalls: AiCallResult["toolCalls"];
+  if (message?.tool_calls && Array.isArray(message.tool_calls)) {
+    toolCalls = message.tool_calls.map((tc: Record<string, unknown>) => ({
+      id: tc.id as string,
+      type: (tc.type as "function") || "function",
+      function: {
+        name: (tc.function as Record<string, unknown>).name as string,
+        arguments: (tc.function as Record<string, unknown>).arguments as string,
+      },
+    }));
+  }
+
+  return { text, reasoningText: reasoningText || undefined, toolCalls };
 }
 
 /** 从 AI 返回文本中提取 JSON 对象 */

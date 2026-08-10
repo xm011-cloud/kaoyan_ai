@@ -14,11 +14,18 @@ interface Source {
   segments: string[];
 }
 
+interface ActionCard {
+  type: "task_created" | "task_completed" | "checkin_created" | "reminder_updated";
+  title: string;
+  detail: string;
+}
+
 interface Message {
   id: string
   role: 'user' | 'assistant'
   content: string
   sources?: Source[]
+  actions?: ActionCard[]
 }
 
 interface ChatHistory {
@@ -224,6 +231,7 @@ export default function ChatPage() {
         role: 'assistant',
         content: data.reply || '抱歉，我暂时无法回答这个问题。',
         sources: data.sources,
+        actions: data.actions,
       }
 
       const finalMessages = [...newMessages, assistantMessage]
@@ -266,8 +274,8 @@ export default function ChatPage() {
       {/* Header */}
       <div className="shrink-0 border-b px-4 lg:px-6 py-3 flex items-center justify-between">
         <div>
-          <h1 className="text-lg lg:text-xl font-bold">AI 问答</h1>
-          <p className="text-xs lg:text-sm text-gray-500">基于你的学习资料，AI 为你解答问题</p>
+          <h1 className="text-lg lg:text-xl font-bold">AI 对话</h1>
+          <p className="text-xs lg:text-sm text-gray-500">AI 助手，可以查数据、管任务、答疑解惑</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={newChat}>新对话</Button>
@@ -347,6 +355,7 @@ export default function ChatPage() {
                 <ChatMarkdown
                   content={message.content}
                   sources={message.sources}
+                  actions={message.actions}
                   onSaveToWrongBook={openSaveWrongModal}
                 />
               )}

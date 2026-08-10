@@ -109,6 +109,40 @@ interface Source {
   segments: string[];
 }
 
+interface ActionCard {
+  type: "task_created" | "task_completed" | "checkin_created" | "reminder_updated";
+  title: string;
+  detail: string;
+}
+
+function ActionCardView({ action }: { action: ActionCard }) {
+  const iconMap: Record<string, string> = {
+    task_created: "✅",
+    task_completed: "☑️",
+    checkin_created: "📝",
+    reminder_updated: "🔔",
+  };
+
+  return (
+    <div className="flex items-start gap-2.5 px-3 py-2 rounded-lg border border-emerald-200 dark:border-emerald-800/50 bg-emerald-50 dark:bg-emerald-900/20 text-sm">
+      <span className="shrink-0 text-base">{iconMap[action.type] || "⚡"}</span>
+      <div className="min-w-0">
+        <span className="font-medium text-emerald-700 dark:text-emerald-300">
+          {action.title}
+        </span>
+        {action.detail && (
+          <>
+            {" "}
+            <span className="text-gray-500 dark:text-gray-400">
+              {action.detail}
+            </span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SourceCard({ source, index }: { source: Source; index: number }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -183,14 +217,25 @@ function SourceCard({ source, index }: { source: Source; index: number }) {
 export function ChatMarkdown({
   content,
   sources,
+  actions,
   onSaveToWrongBook,
 }: {
   content: string;
   sources?: Source[];
+  actions?: ActionCard[];
   onSaveToWrongBook?: (content: string) => void;
 }) {
   return (
     <div className="space-y-1 text-sm text-gray-700 dark:text-gray-300">
+      {/* 操作卡片 */}
+      {actions && actions.length > 0 && (
+        <div className="space-y-1.5 mb-2">
+          {actions.map((action, i) => (
+            <ActionCardView key={i} action={action} />
+          ))}
+        </div>
+      )}
+
       {/* AI 回答 */}
       <ReactMarkdown components={components}>{content}</ReactMarkdown>
 

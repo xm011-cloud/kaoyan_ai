@@ -73,7 +73,7 @@ export default function FeedbackPage() {
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">学习反馈</h1>
+            <h1 className="text-2xl font-bold">学习周报</h1>
             <p className="text-gray-500 mt-1">AI 基于你的学习数据生成周报和建议</p>
           </div>
           <Button onClick={handleGenerate} disabled={generating}>

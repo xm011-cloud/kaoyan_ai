@@ -98,7 +98,7 @@ export default function CheckInPage() {
     <div className="flex flex-1 flex-col p-6">
       <div className="max-w-md mx-auto w-full space-y-6">
         <div>
-          <h1 className="text-2xl font-bold">每日打卡</h1>
+          <h1 className="text-2xl font-bold">打卡</h1>
           <p className="text-gray-500 mt-1">记录今天的学习情况</p>
         </div>
 

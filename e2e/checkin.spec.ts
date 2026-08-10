@@ -6,7 +6,7 @@ test.describe("Check-in", () => {
   });
 
   test("form is visible", async ({ page }) => {
-    await expect(page.locator("h1").filter({ hasText: "每日打卡" })).toBeVisible({ timeout: 10000 });
+    await expect(page.locator("h1").filter({ hasText: "打卡" })).toBeVisible({ timeout: 10000 });
     await expect(page.locator("#checkin-duration")).toBeVisible();
   });
 
@@ -17,7 +17,7 @@ test.describe("Check-in", () => {
     if (await noteField.isVisible({ timeout: 3000 }).catch(() => false)) {
       await noteField.fill("E2E 测试打卡");
     }
-    const submitBtn = page.getByRole("button", { name: /打卡/ });
+    const submitBtn = page.locator("main").getByRole("button", { name: /打卡/ });
     await submitBtn.click();
     await page.waitForTimeout(2000);
   });

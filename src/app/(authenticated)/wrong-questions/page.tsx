@@ -168,7 +168,7 @@ export default function WrongQuestionsPage() {
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
-            <h1 className="text-2xl font-bold">错题本</h1>
+            <h1 className="text-2xl font-bold">错题</h1>
             <p className="text-gray-500 mt-1">
               {questions.length > 0
                 ? `共 ${questions.length} 道错题，${unreviewedCount} 道待复习${dueTodayCount > 0 ? `，${dueTodayCount} 道今日到期` : ""}`
@@ -292,7 +292,7 @@ export default function WrongQuestionsPage() {
         <div className="flex flex-wrap gap-2">
           <Link href="/practice" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">✏️ 去练习</Link>
           <Link href="/knowledge-graph" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">🧠 知识图谱</Link>
-          <Link href="/chat" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">💬 AI 问答</Link>
+          <Link href="/chat" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">💬 AI 对话</Link>
         </div>
       </div>
 

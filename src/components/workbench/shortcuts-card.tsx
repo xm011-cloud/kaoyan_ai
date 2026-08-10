@@ -3,12 +3,12 @@
 import Link from 'next/link'
 
 const shortcuts = [
+  { href: '/chat', icon: '🤖', label: 'AI 助手' },
   { href: '/checkin', icon: '✅', label: '打卡' },
   { href: '/goal', icon: '🎯', label: '目标' },
-  { href: '/chat', icon: '💬', label: 'AI问答' },
+  { href: '/practice', icon: '✏️', label: '练习' },
+  { href: '/wrong-questions', icon: '📕', label: '错题' },
   { href: '/knowledge-graph', icon: '🧠', label: '图谱' },
-  { href: '/study-path', icon: '🗺️', label: '路径' },
-  { href: '/admission', icon: '🏫', label: '院校' },
 ]
 
 export function ShortcutsCard() {

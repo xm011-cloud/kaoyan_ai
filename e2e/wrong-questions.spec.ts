@@ -6,7 +6,7 @@ test.describe("Wrong Questions", () => {
   });
 
   test("page loads with filters", async ({ page }) => {
-    await expect(page.locator("h1").filter({ hasText: "错题本" })).toBeVisible({ timeout: 10000 });
+    await expect(page.locator("h1").filter({ hasText: "错题" })).toBeVisible({ timeout: 10000 });
     await expect(page.locator("button").filter({ hasText: "全部" }).first()).toBeVisible();
   });
 
@@ -24,7 +24,7 @@ test.describe("Wrong Questions", () => {
   test("URL params restore filter state", async ({ page }) => {
     await page.goto("/wrong-questions?tab=unreviewed&subject=数学一");
     await page.waitForTimeout(2000);
-    await expect(page.locator("h1").filter({ hasText: "错题本" })).toBeVisible({ timeout: 10000 });
+    await expect(page.locator("h1").filter({ hasText: "错题" })).toBeVisible({ timeout: 10000 });
   });
 
   test("batch import modal opens", async ({ page }) => {

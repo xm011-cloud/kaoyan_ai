@@ -271,7 +271,7 @@ export default function AdmissionPage() {
         和各校研究生院官网公布的信息为准。所有数据标注了来源和年份。
       </div>
 
-      <h1 className="text-2xl font-bold">🏫 院校情报</h1>
+      <h1 className="text-2xl font-bold">🏫 院校</h1>
 
       {/* Tabs */}
       <div className="flex border-b dark:border-gray-700">

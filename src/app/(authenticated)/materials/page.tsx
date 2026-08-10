@@ -126,7 +126,7 @@ export default function MaterialsPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">学习资料</h1>
+            <h1 className="text-2xl font-bold">资料</h1>
             <p className="text-gray-500 mt-1">上传资料后可以在线查看，也可以让 AI 基于资料回答</p>
           </div>
           <div>

@@ -311,7 +311,7 @@ export default function TasksPage() {
     <div className="p-4 lg:p-6 space-y-6">
       <div className="max-w-5xl mx-auto space-y-6">
         <div>
-          <h1 className="text-2xl font-bold">学习计划</h1>
+          <h1 className="text-2xl font-bold">备考计划</h1>
           <p className="text-gray-500 mt-1">
             距考试 {daysRemaining} 天 · {subjects.length} 个科目
           </p>
@@ -408,7 +408,7 @@ export default function TasksPage() {
           <h3 className="text-sm font-medium text-gray-500 mb-3">相关模块</h3>
           <div className="flex flex-wrap gap-2">
             <Link href="/knowledge-graph" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">🧠 知识图谱</Link>
-            <Link href="/wrong-questions" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">🔴 错题本</Link>
+            <Link href="/wrong-questions" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">📕 错题</Link>
             <Link href="/study-path" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">🗺️ 学习路径</Link>
           </div>
         </div>

@@ -5,6 +5,10 @@ test.describe("Navigation & Module Linking", () => {
     await page.goto("/dashboard");
     await page.waitForTimeout(2000);
 
+    // 打开侧边菜单（点击 🎓 logo 按钮），让所有链接可见
+    const menuBtn = page.locator("header").locator("button").first();
+    try { await menuBtn.click({ timeout: 3000 }); await page.waitForTimeout(500); } catch { /* skip */ }
+
     const navLinks = [
       "/dashboard", "/goal", "/tasks", "/checkin", "/pomodoro",
       "/admission", "/materials", "/chat", "/wrong-questions",

@@ -57,47 +57,48 @@ export interface UIState {
 
 export const DEFAULT_NAV_GROUPS: NavGroup[] = [
   {
-    id: 'overview',
-    label: '学习概览',
-    icon: '📊',
+    id: 'today',
+    label: '今日',
+    icon: '📅',
     visible: true,
     items: [
       { href: '/dashboard', visible: true },
-      { href: '/feedback', visible: true },
-      { href: '/knowledge-graph', visible: true },
+      { href: '/checkin', visible: true },
+      { href: '/pomodoro', visible: true },
     ],
   },
   {
-    id: 'daily',
-    label: '今日学习',
+    id: 'exam',
+    label: '备考',
     icon: '📝',
     visible: true,
     items: [
-      { href: '/checkin', visible: true },
-      { href: '/pomodoro', visible: true },
+      { href: '/goal', visible: true },
       { href: '/tasks', visible: true },
+      { href: '/practice', visible: true },
+      { href: '/wrong-questions', visible: true },
     ],
   },
   {
-    id: 'practice',
-    label: '练习备考',
-    icon: '✏️',
+    id: 'ai',
+    label: 'AI',
+    icon: '🤖',
     visible: true,
     items: [
-      { href: '/practice', visible: true },
-      { href: '/wrong-questions', visible: true },
-      { href: '/admission', visible: false },
+      { href: '/chat', visible: true },
+      { href: '/feedback', visible: true },
+      { href: '/study-path', visible: true },
     ],
   },
   {
     id: 'knowledge',
-    label: '知识库',
+    label: '知识',
     icon: '📚',
     visible: true,
     items: [
       { href: '/materials', visible: true },
-      { href: '/chat', visible: true },
-      { href: '/study-path', visible: true },
+      { href: '/knowledge-graph', visible: true },
+      { href: '/admission', visible: false },
     ],
   },
   {
@@ -106,7 +107,6 @@ export const DEFAULT_NAV_GROUPS: NavGroup[] = [
     icon: '⚙️',
     visible: true,
     items: [
-      { href: '/goal', visible: true },
       { href: '/settings', visible: true },
     ],
   },
@@ -180,6 +180,13 @@ export const useUIStore = create<UIState>()(
     }),
     {
       name: 'ui-store',
+      version: 1,
+      migrate: () => ({
+        navGroups: DEFAULT_NAV_GROUPS,
+        sidebarCollapsed: false,
+        workspaceCards: DEFAULT_WORKSPACE_CARDS,
+        practiceDefaults: DEFAULT_PRACTICE_DEFAULTS,
+      }),
     }
   )
 )

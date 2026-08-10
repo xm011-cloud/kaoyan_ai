@@ -1,10 +1,10 @@
 # AI 考研助手 — 项目状态
 
-> 最后更新: 2026-07-28 | 分支: `dev` | 维护者: Xm
+> 最后更新: 2026-08-10 | 分支: `dev` | 维护者: Xm
 
 ## 项目概述
 
-面向考研学生的 AI 全栈备考平台。覆盖从目标设定、计划生成、每日学习、刷题练习、错题管理、知识图谱到院校情报的完整考研备考链路。
+面向考研学生的 AI 全栈备考平台。覆盖从目标设定、计划生成、每日学习、刷题练习、错题管理、知识图谱、院校情报，到学习圈社交（排行榜 + 个人资料）、数据导出与作者激励的完整考研备考链路。封闭邀请制（固定邀请码），单作者业余开发，所有功能免费。
 
 ## 技术栈
 
@@ -14,227 +14,223 @@
 | 语言 | TypeScript (strict) | 5.x |
 | 样式 | Tailwind CSS + shadcn/ui | 4.x |
 | 数据库 | PostgreSQL (Neon) + pgvector | — |
-| ORM | Prisma (driver adapter: pg Pool) | 6.19.3 |
-| 认证/存储 | Supabase / MemFire Cloud (兼容切换) | — |
+| ORM | Prisma (driver adapter: pg Pool) | ^6.15.0 |
+| 认证/存储 | Supabase Auth (PKCE) / MemFire Cloud (兼容切换) | js ^2.110.2 / ssr ^0.12.0 |
 | AI | MiMo v2.5-pro (OpenAI-compatible API) | — |
-| 图表 | Recharts (图表) + D3 子模块 (知识图谱) | 3.x / 7.x |
-| 状态管理 | @tanstack/react-query | 5.x |
-| 测试 | Playwright | 1.61.x |
-| 部署 | EdgeOne Pages + Vercel | — |
+| 图表 | Recharts + D3 子模块 (知识图谱) | ^3.9.2 / 7.x |
+| 状态 | zustand (persist) + @tanstack/react-query | ^5.0.14 / ^5.101.4 |
+| 测试 | Playwright (87 用例 → 91 用例) | ^1.61.1 |
+| 部署 | Vercel (c6-orcin.vercel.app) | — |
 
-## 模块清单 (15 个)
+## 模块清单 (19 个)
 
-### 🏠 仪表盘 (`/dashboard`)
-- 统计卡片、本周柱状图、连续打卡、热力图、趋势图
-- ✅ 6 查询 → 2 查询 (Set/Map 派生)；图表限 90 天
-- **文件**: `dashboard/page.tsx`, `components/dashboard-charts.tsx`, `components/stats-charts.tsx`, `components/heatmap.tsx`
+### 📅 今日组
 
-### 🎯 目标 (`/goal`)
-- 院校/专业/日期/科目/目标分数 + **科目标准化选择器**
-- ✅ textarea → 预设 checkbox (12 统考科目) + 自主命题输入 (院校+科目名)
-- ✅ 保存后「管理学习计划」按钮 → `/tasks`
-- **组件**: `goal/_components/subject-selector.tsx`
-- **API**: `api/goal/route.ts`
+#### 🏠 概览 (`/dashboard`)
+- 统计卡片、热力图、趋势图、今日任务；查询 Set/Map 单遍历派生（6→2 查询），图表限 90 天
 
-### 📋 计划 (`/tasks`) — 🆕 重构为备考规划中心
-- **阶段概览**: 3 阶段卡片 (基础/强化/冲刺) 自动计算日期 + 当前标识
-- **各科进度**: 手动输入 % + 备注，旁边展示系统数据 (掌握度/错题/练习分) 参考
-- **周计划核心**: 生成 → 评审 → 采纳建议重新生成 → 循环
-  - 7 天日视图，支持单天重新生成、手动添加/编辑/删除
-  - 周选择器切换历史周
-- **组件**: `tasks/_components/weekly-planner.tsx`
-- **API**: `api/ai/generate-plan/route.ts` (支持 progress/judgeFeedback/regenerateDay), `api/ai/judge-plan/route.ts`
+#### ✅ 打卡 (`/checkin`)
+- 每日学习时长 + 心情 + 备注（排行榜/资料页数据源）
 
-### ✅ 打卡 (`/checkin`)
-- 每日学习时长 + 心情 + 备注
+#### 🍅 番茄钟 (`/pomodoro`)
+- 25+5 番茄工作法，SVG 环形计时器，反漂移引擎，通知+音频，后台自动保存，ActivityBar 交互控制
 
-### 🍅 番茄钟 (`/pomodoro`)
-- 25+5 番茄工作法，SVG 环形计时器，通知+音频
-- ✅ formatTime 改用共享 `lib/time-utils.ts`
+#### 🏆 学习圈 (`/leaderboard`) — 🆕 2026-08-10
+- 打卡累计时长排名（并列按时长天数），本周/本月/全部周期切换
+- 领奖台前三 + 列表 + 我的排名；成员点击进公开资料页
+- **API**: `api/leaderboard/route.ts`（groupBy 两步聚合 + User join，邮箱脱敏）
 
-### 📚 资料 (`/materials`)
-- PDF/TXT 上传 → Supabase Storage → 文本提取 → pgvector 向量化
+### 📝 备考组
 
-### 💬 AI 问答 (`/chat`)
-- RAG 多轮对话，引用来源，一键加入错题本，Markdown 渲染
+#### 🎯 目标 (`/goal`)
+- 院校/专业/日期/科目/目标分数 + 科目标准化选择器（12 统考 preset + 自主命题）
 
-### ✏️ 练习 (`/practice`)
-- 每日一练 + 模拟考试，AI 判分
-- ✅ 854 行 → 365 行 + 3 组件 (SessionCreator / ActiveSession / ResultView)
-- ✅ 手动 fetch → React Query hooks (usePracticeSessions/useCreatePracticeSession/useSubmitPracticeSession)
-- ✅ 定时器提取为 `hooks/use-practice-timer.ts`
-- **组件**: `practice/_components/` (3 个)
+#### 📋 计划 (`/tasks`) — 备考规划中心
+- 3 阶段卡片 + 各科进度；周计划生成 → AI 评审 → 采纳循环；冲刺模式（<30 天 🔥 横幅）；周计划到期提醒
 
-### 🔴 错题本 (`/wrong-questions`)
-- SM-2 间隔重复，批量导入，AI 类似题，PDF 导出
-- ✅ 页面拆分 (306行) + 4 弹窗 (add/batch/review/detail)
-- ✅ 手动 fetch → React Query hooks (全部 5 个 hook 已接入)
-- ✅ 筛选下推 Prisma where
+#### ✏️ 练习 (`/practice`)
+- 每日一练 + 模拟考试，5 种出题模式，AI 判分；React Query hooks + 定时器 hook
 
-### 📊 反馈 (`/feedback`)
+#### 📕 错题本 (`/wrong-questions`)
+- SM-2 间隔重复，批量导入，AI 类似题，PDF 导出，URL 参数筛选恢复
+
+### 🤖 AI 组
+
+#### 💬 AI 对话 (`/chat`)
+- RAG 多轮对话，引用来源，加入错题本，Markdown 渲染
+
+#### 📊 周报 (`/feedback`)
 - AI 周报分析 + 练习分数 vs 目标差距
 
-### 🧠 知识图谱 (`/knowledge-graph`)
-- D3 力导向图，知识点 + 关联边，AI 构建
-- ✅ `import * as d3` → 5 独立模块 (tree-shaking ~3.8MB)
-
-### 🗺️ 学习路径 (`/study-path`)
+#### 🗺️ 学习路径 (`/study-path`)
 - AI 生成 4 阶段里程碑，薄弱点分析，进度追踪
 
-### 🏫 院校情报 (`/admission`)
-- 四 Tab: 搜索 / 对比 / 收藏 / 导入 (文件/文本/JSON)
+### 📚 知识组
 
-### ⚙️ 设置 (`/settings`)
-- AI Key/URL/Model，学习提醒，通知权限
+#### 📖 资料 (`/materials`)
+- PDF/TXT 上传 → Supabase Storage → 文本提取 → pgvector 向量化
 
----
+#### 🧠 知识图谱 (`/knowledge-graph`)
+- D3 力导向图（5 模块 tree-shaking ~3.8MB），知识点 + 关联边，AI 构建
 
-## 导航结构
+#### 🏫 院校情报 (`/admission`)
+- 后端完成（search/analyze/saved/import），前端默认隐藏，待启用
+
+### ⚙️ 设置组
+
+#### 👤 个人资料 (`/profile`) — 🆕 2026-08-10
+- 昵称编辑 + 头像上传（public `avatars` 桶，≤2MB，JPG/PNG/WebP/GIF）
+- **公开资料页** `/user/[id]`：查看他人昵称/头像/打卡统计（累计/本周/连续），**不暴露 email**
+- **API**: `api/user/profile/route.ts`（GET 自己/公开视图 + PUT 昵称）、`api/user/avatar/route.ts`（上传 + best-effort 清理旧图）
+
+#### ⚙️ 设置 (`/settings`)
+- AI Key/URL/Model，学习提醒，界面定制（导航分组/工作台卡片/出题偏好），数据导出
+
+### 🆕 公开 / 运营模块 (2026-08-10)
+
+#### ☕ 支持作者 (`/support`，公开)
+- 请作者喝咖啡 ¥9.9，微信/支付宝收款码图，留言 + 感谢墙（**审核后展示**）
+- **API**: `api/support/route.ts`（蜜罐 + 限流 3/min/IP + 强制金额）
+
+#### 💬 意见反馈 (`/suggestions`)
+- 1-5 星 + 意见 + 匿名开关（需登录）；`api/suggestions/route.ts`
+
+#### 🔒 作者后台 (`/admin`)
+- 意见反馈 / 支持留言审核 / 重置密码三 Tab；`ADMIN_EMAIL` env 校验（fail closed）
+- **API**: `api/admin/*`（feedback 状态流转、support 审核/删除、users/reset-link）
+- **重置链接**：`generateLink`→`hashed_token` 自建链接，跨浏览器免邮件（PKCE 下 action_link 不可用的替代通道）
+
+#### 📄 认证页
+- `/login`（邀请码注册/登录）、`/forgot-password`、`/update-password`、`/auth/callback`（双模式：PKCE code 交换 + token_hash verifyOtp）、`/`（落地页 8 功能卡）、`/about`
+
+## 导航结构（Header 5 分组）
 
 ```
-🏠 仪表盘 → 🎯 目标 → 📋 计划 → ✅ 打卡 → 🍅 番茄钟
-→ 🏫 院校 → 📚 资料 → 💬 AI问答 → 🔴 错题本 → ✏️ 练习
-→ 📊 反馈 → 🧠 图谱 → 🗺️ 路径 → ⚙️ 设置
+📅 今日 → 🏠概览 / ✅打卡 / 🍅番茄钟 / 🏆学习圈
+📝 备考 → 🎯目标 / 📋计划 / ✏️练习 / 📕错题
+🤖 AI   → 💬对话 / 📊周报 / 🗺️路径
+📚 知识 → 📖资料 / 🧠图谱 / 🏫院校(默认隐藏)
+⚙️ 设置 → ⚙️偏好 / 👤个人资料
 ```
 
----
-
-## 文件结构
+## 关键文件结构
 
 ```
 src/
-├── hooks/
-│   ├── use-goal.ts                       # useGoal / useSubjects (含 progress 类型)
-│   ├── use-wrong-questions.ts            # CRUD hooks (5 个，已全部接入页面对接)
-│   ├── use-practice.ts                   # 🆕 usePracticeSessions / useCreate / useSubmit
-│   └── use-practice-timer.ts             # 🆕 练习定时器 (倒计时 + 正计时)
 ├── lib/
-│   ├── ai-config.ts                      # callAI / extractJson / extractJsonArray
-│   ├── api-auth.ts                       # 统一认证
-│   ├── api-utils.ts                      # handleApiError
-│   ├── date-utils.ts                     # startOfDay / endOfDay / getWeekStart ...
-│   ├── time-utils.ts                     # 🆕 formatTime (mm:ss)
-│   ├── practice-types.ts                 # 🆕 PracticeQuestion / PracticeSession (前后端共享)
-│   ├── subject-standards.ts              # 🆕 科目标准化 (预设 + alias + 自主前缀)
-│   ├── practice-generator.ts             # 练习题目生成
-│   ├── query-provider.tsx                # React Query provider (gcTime 30min)
-│   ├── prisma.ts                         # Prisma 单例
-│   ├── env-config.ts                     # 环境配置
-│   ├── rag.ts / vector.ts / search.ts    # RAG + 向量 + 搜索
-│   ├── nav.ts / utils.ts                 # 导航 / cn()
-│   └── supabase/*                        # Supabase 客户端
+│   ├── admin.ts                       # requireAdmin（ADMIN_EMAIL env，fail closed）
+│   ├── api-auth.ts                    # getAuthUser / ensureLocalUser
+│   ├── api-utils.ts                   # jsonNoStore / handleApiError
+│   ├── rate-limit.ts                  # 🆕 限流 + 蜜罐 + IP 提取（register/support 复用）
+│   ├── ai-config.ts / ai-tools.ts     # callAI / AI 工具调用（9 个）
+│   ├── nav.ts                         # defaultNavGroups 分组导航 + navItems
+│   ├── supabase/*                     # server / client / service / middleware(updateSession)
+│   ├── date-utils.ts / time-utils.ts  # getWeekStart / startOfDay ...
+│   └── rag.ts / vector.ts / search.ts # RAG + 向量 + 搜索
 ├── components/
-│   └── app-providers.tsx                 # QueryProvider
-├── app/
-│   ├── (authenticated)/
-│   │   ├── goal/
-│   │   │   ├── page.tsx                  # 简化：只设目标 + 跳转按钮
-│   │   │   └── _components/
-│   │   │       └── subject-selector.tsx  # 🆕 科目选择器 (checkbox + 自主输入)
-│   │   ├── tasks/
-│   │   │   ├── page.tsx                  # 🆕 重写：四区备考中心
-│   │   │   └── _components/
-│   │   │       └── weekly-planner.tsx    # 🆕 周计划组件 (日视图 + 评审 + 生成)
-│   │   ├── practice/
-│   │   │   ├── page.tsx                  # ✅ 854→365 行
-│   │   │   └── _components/             # 🆕 3 组件
-│   │   │       ├── session-creator.tsx
-│   │   │       ├── active-session.tsx
-│   │   │       └── result-view.tsx
-│   │   └── wrong-questions/
-│   │       ├── page.tsx                  # ✅ React Query 迁移
-│   │       └── _components/             # ✅ 4 弹窗 (add/batch/review/detail)
-│   └── api/
-│       ├── ai/
-│       │   ├── generate-plan/route.ts    # 🔧 周计划 + progress + judge feedback + 单天重生成
-│       │   └── judge-plan/route.ts       # 🆕 AI 评审 + 本地规则 fallback
-│       ├── progress/summary/route.ts     # 🆕 各科进度汇总 (知识图谱/错题/练习/任务)
-│       ├── goal/route.ts                 # 🔧 POST/PUT 支持 progress 字段
-│       ├── tasks/route.ts                # 🔧 GET 支持 weekStart/subject 查询
-│       └── ...
+│   ├── avatar.tsx                     # 🆕 可复用头像（首字符 fallback）
+│   ├── shell.tsx / header.tsx / mobile-nav.tsx   # OS 外壳（TopBar/TabBar/ActivityBar/MobileNav）
+│   ├── pomodoro-engine.tsx / pomodoro-timer.tsx  # 番茄钟引擎
+│   ├── ai-floating.tsx                # 🆕 AI 浮动面板（Function Calling）
+│   └── weekly-plan-reminder.tsx       # 周计划到期提醒
+├── stores/
+│   └── ui-store.ts                    # navGroups/workspaceCards/practiceDefaults (persist v1)
+└── app/
+    ├── (authenticated)/               # 18 页 + layout（服务端鉴权兜底）
+    │   ├── leaderboard/  profile/  user/[id]/  suggestions/
+    │   └── ...
+    ├── admin/  support/  suggestions/   # 公开或 admin
+    ├── login/  forgot-password/  update-password/
+    ├── auth/callback/route.ts           # 🆕 双模式回调
+    └── api/                             # 47 个路由
 ```
 
----
+## API 路由清单 (47 个)
 
-## API 路由清单 (50 个)
+| 分类 | 路由 |
+|------|------|
+| ai (6) | chat, generate-feedback, generate-plan, generate-questions, generate-similar, judge-plan |
+| admission (4) | search, analyze, saved, import |
+| auth (1) | register（蜜罐+限流+邀请码，另有 `/auth/callback`、`/auth/signout` 为 app 路由） |
+| admin (5) | feedback, feedback/[id], support, support/[id], users/reset-link |
+| leaderboard (1) | route |
+| user (5) | profile, avatar, export, reminders, settings |
+| support/suggestions (2) | support, suggestions |
+| 核心业务 | chat, checkin, feedback, goal, tasks(+[id]), materials(+[id]), upload, practice(+[id]), wrong-questions(+[id],batch), questions/import, pomodoro/sessions+settings, knowledge-graph(+build,node/[id]), study-path(+progress), progress/summary |
 
-| 分类 | 路由 | 变更 |
+## 数据库模型变更
+
+| 模型 | 新增字段 / 说明 | 时间 |
 |------|------|------|
-| ai | chat, generate-feedback, **generate-plan**, generate-questions, generate-similar, **judge-plan** | +1 (judge-plan), 🔧 generate-plan |
-| admission | search, saved, analyze, import | — |
-| task | **route (🔧)**, [id] | +weekStart/subject 查询参数 |
-| goal | **route (🔧)** | +progress 字段 |
-| progress | **summary** | 🆕 进度汇总 |
-| practice | route, [id] | — |
-| wrong-questions | route, [id], batch | — |
-| knowledge-graph | route, build, node/[id] | — |
-| 其他 | chat, checkin, feedback, materials×2, pomodoro×2, questions, study-path×2, upload, user×2 | — |
+| Task | `weekStartDate` + `source` + `@@index([userId, weekStartDate])` | 2026-07-28 |
+| Goal | `progress` (Json) | 2026-07-28 |
+| **Supporter** | 🆕 感谢墙留言：`userId?/name/amount/message/approved/createdAt`（审核制） | 2026-08-10 |
+| **AuthorFeedback** | 🆕 意见反馈：`userId/rating/content/anonymous/status`（new→read→resolved） | 2026-08-10 |
 
----
+## 近期迭代记录 (2026-08)
 
-## 数据库模型变更 (2026-07-28)
+### 第 1 轮 — OS 外壳 + 体验修复（8 月上旬，已提交）
+- Apple HIG UI 全面优化 + OS 外壳布局（TopBar/TabBar/ActivityBar/MobileNav）
+- 番茄钟引擎反漂移 + 后台自动保存 + ActivityBar 交互控制
+- AI 助手 Function Calling：全局浮动面板 + 9 个工具调用（`src/components/ai-floating.tsx` + `src/lib/ai-tools.ts`）
+- 导航分组重构（今日/备考/AI/知识/设置）+ 页面标题统一
 
-| 模型 | 新字段 | 说明 |
-|------|--------|------|
-| Task | `weekStartDate` (DateTime?) | 所属周开始日期 |
-| Task | `source` (String?) | "ai" / "manual" |
-| Task | `@@index([userId, weekStartDate])` | 按周查询索引 |
-| Goal | `progress` (Json?) | `{"数学一":{"percent":80,"note":"高数第三章"}}` |
+### 第 2 轮 — 注册/留存/合规（8 月上旬，已提交）
+- 固定邀请码注册：蜜罐 + 生产限流 5/min/IP + `crypto.timingSafeEqual` 校验 + `admin.createUser({email_confirm:true})`
+- 周计划到期提醒 + 冲刺模式（<30 天 🔥）+ PWA 完善（manifest/icon/offline）
+- **Supabase 手动步骤**：控制台关闭 "Allow new users to sign up"（已由用户完成）
 
----
+### 第 3 轮 — 落地页 + 作者激励 + 反馈后台（2026-08-10，已部署）
+- 落地页 8 功能卡 + footer 链接；`/support` 公开（收款码 + 留言 + 审核上墙）；`/suggestions` 需登录（1-5 星 + 匿名）；`/admin` 作者后台（`ADMIN_EMAIL` fail closed）
+- 限流/蜜罐提取为 `src/lib/rate-limit.ts`；新模型 Supporter + AuthorFeedback
+- **Vercel env**：`ADMIN_EMAIL=2033755532@qq.com`；收款码图 `public/payment/wechat.png` + `alipay.jpg`
 
-## 本次优化记录 (2026-07-28)
+### 第 4 轮 — 账号安全 + 学习圈 + 数据主权（2026-08-10，已部署）
+- **忘记密码**：双模式回调（PKCE code / token_hash verifyOtp）+ `/forgot-password` 公开页 + `/update-password` 会话保护 + 管理员重置链接兜底
+  - **手动步骤**：Supabase Redirect URLs 加 `/auth/callback`（localhost + 生产）；可选邮件模板改 token_hash 直链
+- **学习圈排行榜**：打卡时长排名 + 领奖台 + 周期切换 + 导航同步
+- **数据导出**：设置页一键导出全部学习数据 JSON（排除 Chat 与 Material 内容）
 
-### 性能优化
-- ✅ D3 tree-shaking：全量包 → 5 独立模块 (减 ~3.8MB)
-- ✅ Dashboard 查询合并：6→2 (Set/Map 单遍历派生)
-- ✅ Practice 定时器 ref 优化 (每 5s setState 替代每秒)
-- ✅ KnowledgeGraph: Promise.all → prisma.$transaction 批量 upsert
-- ✅ WrongQuestions: 删除冗余 useEffect 双重加载
-- ✅ Shadcn CSS 抽取到 `src/styles/shadcn-tailwind.css`
-
-### 学习计划系统重构
-- ✅ **科目标准化**: 12 统考 preset + 自主命题前缀 + normalize + alias + legacy 可见
-- ✅ **周计划生成**: 增量模式 (保留已完成/手动任务) + 每天 3-5 会话
-- ✅ **计划评判家**: AI 独立审查 (score/issues/verdict) + 本地规则 fallback
-- ✅ **进度系统**: 手动输入 (每科 % + 备注) + 系统数据参考 (掌握度/错题/练习分)
-- ✅ Goal 页面: textarea → SubjectSelector + 简化流程 → [管理计划] 按钮
-- ✅ **Tasks 页面**: 全面重写为四区备考规划中心
-
-### 代码治理
-- ✅ Practice 拆分：854→365 行 + 3 组件 + 2 hooks + 2 共享 lib
-- ✅ WrongQuestions React Query 迁移：全部 5 个 hook 接入 + 手动 fetch 清除
-- ✅ Practice React Query 接入：手动 fetch → usePracticeSessions/Create/Submit
-- ✅ Pomodoro formatTime → 共享 `lib/time-utils.ts`
-- ✅ `/api/subjects` 死代码删除
-- ✅ SubjectSelector legacy 科目 ghost entries 可见 + 黄色标记
-- ✅ Prisma 7 月更新至 v6.19.3
-
-### 工程
-- ✅ PROJECT_STATUS.md 更新
-
----
+### 第 5 轮 — 个人资料（2026-08-10，已部署）
+- `/profile` 昵称 + 头像（public `avatars` 桶，首个 public 桶）+ 排行榜头像联动 + `/user/[id]` 公开资料页（不暴露 email）
+- 无需数据库迁移（name/avatar 字段早已存在）；无控制台手动步骤
 
 ## 待优化
 
 | 优先级 | 任务 |
 |--------|------|
-| P1 | 状态持久化 (Practice/Chat/Pomodoro 导航丢失恢复) |
-| P1 | 模块联动 (页面间上下文链接，消除死胡同模块) |
-| P2 | URL 参数持久化筛选状态 (WrongQuestions/Tasks) |
-| P2 | 无障碍: htmlFor + aria-label |
-| P2 | API 响应 Cache-Control 头 |
-| P2 | 补充 E2E 已认证场景测试 |
-
----
+| P1 | 院校情报 (`/admission`) 前端启用（ui-store `visible:false`→true；**待用户决定是否接付费 SerpAPI**，Vercel+百度反爬风险） |
+| P1 | 数据库迁移到生产环境（当前 Neon 免费档） |
+| P2 | 模块联动（页面间上下文链接，消除死胡同模块） |
+| P2 | 无障碍: htmlFor + aria-label 完善 |
+| P2 | PWA 离线策略优化（导航网络优先，仅 offline.html 兜底，未缓存 API 数据） |
+| P3 | 学习圈：点赞/互关/动态等更深社交（当前仅排行榜） |
 
 ## 最近提交 (最新→最旧)
 
 ```
-09d7813 fix: Prisma 重新生成 + 修复 weekStartDate 时区 bug
-a14093f feat: 任务页面重构为备考规划中心 + Goal简化 + 进度系统
-d8846dc feat: 学习计划重构 + Practice拆分 + React Query迁移
-bac3f56 perf: D3 tree-shaking + Dashboard 查询合并 + 定时器 ref 优化
-07339c4 docs: 更新 PROJECT_STATUS — 同步所有优化记录和项目现状
-72b8718 refactor: 拆分 wrong-questions 页面 (880行→306行+4组件)
+d8c8548 feat: 学习圈联动 — 排行榜头像 + 点击进公开资料页 + 导航新增个人资料
+5c05897 feat: 个人资料 — 昵称编辑 + 头像上传(public avatars 桶) + 公开资料页
+2889758 feat: 数据导出 — 一键导出全部学习数据 JSON + 设置页下载按钮
+027f8eb feat: 学习圈排行榜 — 打卡时长排名 + 领奖台 + 导航同步
+d5a1bd9 feat: 忘记密码 — 双模式回调 + 公开页 + 管理员重置链接兜底
+4196c50 test: 新增支持/反馈/后台 E2E 用例
+f69c061 feat: 前置落地页 + 支持页 + 反馈页 + 作者后台
+a857105 feat: 支持作者 + 意见反馈 — 数据模型与 API
+935a3f7 feat: 登录注册 — 固定邀请码 + 注册即用
+2bd7022 feat: 周计划到期提醒 + 冲刺模式 + PWA 完善
+1db54a9 fix: 番茄钟引擎反漂移 + Practice 恢复进行中会话 + Dashboard 今日概览
+955d993 refactor: 导航分组重构 — 今日/备考/AI/知识 + 页面标题统一
+7a67c08 feat: AI 助手 Function Calling — 全局浮动面板 + 9 个工具调用
+1c05ccc fix: 番茄钟后台自动保存 + ActivityBar 交互控制
+43eaa58 fix: 全面修复 — 计时引擎 + 状态同步 + 设计还原
+f6c9329 fix: ActivityBar 始终可见 + 移动端统一底部栏
+c87ba50 refactor: Apple HIG UI 全面优化
+9b9ca58 feat: OS 外壳布局 — TopBar + TabBar + ActivityBar + MobileNav
 ```
+
+## 测试
+
+- Playwright 91 用例全绿（authenticated + unauthenticated 双项目，per-project testMatch）
+- 覆盖：全部模块页面 + 认证重定向 + PWA 资源 + 权限（admin/suggestions/profile 403/重定向）+ 导出下载 + 头像上传 + 排行榜点击进公开页
+- 注意：`e2e/.auth/user.json` 为测试账号存储态；E2E 会写少量测试数据（打卡/昵称/头像）到 dev 库

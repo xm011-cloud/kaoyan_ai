@@ -39,6 +39,8 @@ export default defineConfig({
         "admission.spec.ts",
         "settings.spec.ts",
         "navigation.spec.ts",
+        "suggestions.spec.ts",
+        "admin.spec.ts",
       ],
     },
     // Unauthenticated tests (no storage state)
@@ -48,7 +50,7 @@ export default defineConfig({
         ...devices["Desktop Chrome"],
         storageState: { cookies: [], origins: [] },
       },
-      testMatch: ["unauthenticated.spec.ts"],
+      testMatch: ["unauthenticated.spec.ts", "support.spec.ts"],
     },
   ],
   webServer: {

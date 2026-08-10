@@ -24,6 +24,14 @@ test("about page loads", async ({ page }) => {
   expect(response?.status()).toBe(200);
 });
 
+test("support page loads", async ({ page }) => {
+  const response = await page.goto("/support");
+  expect(response?.status()).toBe(200);
+  await expect(page.locator("text=请作者喝一杯咖啡")).toBeVisible({ timeout: 10000 });
+  // 留言表单可见（昵称输入框）
+  await expect(page.locator('input[id="s-name"]')).toBeVisible();
+});
+
 // ── Auth redirect behavior ──
 
 test("dashboard redirects to login when unauthenticated", async ({ page }) => {
@@ -49,6 +57,16 @@ test("knowledge-graph redirects to login when unauthenticated", async ({ page })
 
 test("study-path redirects to login when unauthenticated", async ({ page }) => {
   await page.goto("/study-path");
+  await page.waitForURL(/\/login/, { timeout: 10000 });
+});
+
+test("suggestions redirects to login when unauthenticated", async ({ page }) => {
+  await page.goto("/suggestions");
+  await page.waitForURL(/\/login/, { timeout: 10000 });
+});
+
+test("admin redirects to login when unauthenticated", async ({ page }) => {
+  await page.goto("/admin");
   await page.waitForURL(/\/login/, { timeout: 10000 });
 });
 

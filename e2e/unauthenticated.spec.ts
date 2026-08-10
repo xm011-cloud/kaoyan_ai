@@ -88,6 +88,16 @@ test("admin redirects to login when unauthenticated", async ({ page }) => {
   await page.waitForURL(/\/login/, { timeout: 10000 });
 });
 
+test("profile redirects to login when unauthenticated", async ({ page }) => {
+  await page.goto("/profile");
+  await page.waitForURL(/\/login/, { timeout: 10000 });
+});
+
+test("public user page redirects to login when unauthenticated", async ({ page }) => {
+  await page.goto("/user/00000000-0000-4000-8000-000000000000");
+  await page.waitForURL(/\/login/, { timeout: 10000 });
+});
+
 // ── PWA manifest ──
 
 test("manifest.json is served correctly", async ({ request }) => {

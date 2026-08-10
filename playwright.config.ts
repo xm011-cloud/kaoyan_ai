@@ -43,6 +43,7 @@ export default defineConfig({
         "admin.spec.ts",
         "leaderboard.spec.ts",
         "export.spec.ts",
+        "profile.spec.ts",
       ],
     },
     // Unauthenticated tests (no storage state)

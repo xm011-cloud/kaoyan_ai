@@ -109,6 +109,7 @@ export const DEFAULT_NAV_GROUPS: NavGroup[] = [
     visible: true,
     items: [
       { href: '/settings', visible: true },
+      { href: '/profile', visible: true },
     ],
   },
 ]

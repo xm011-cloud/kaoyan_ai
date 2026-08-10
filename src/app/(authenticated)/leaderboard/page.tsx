@@ -1,6 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
+import { Avatar } from '@/components/avatar'
 
 type Period = 'week' | 'month' | 'all'
 type Row = {
@@ -9,6 +11,7 @@ type Row = {
   duration: number
   days: number
   displayName: string
+  avatar: string | null
   isCurrentUser: boolean
 }
 
@@ -77,9 +80,19 @@ export default function LeaderboardPage() {
       {/* 我的排名 */}
       <div className="rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200/50 dark:border-amber-500/20 p-4 text-center">
         {callerRank ? (
-          <p className="text-sm">
-            你当前排在第 <span className="text-lg font-bold text-amber-600 dark:text-amber-400">{callerRank}</span> 名
-          </p>
+          (() => {
+            const me = rows.find((r) => r.isCurrentUser)
+            return (
+              <Link href="/profile" className="inline-flex items-center justify-center gap-2 text-sm">
+                {me && <Avatar src={me.avatar} name={me.displayName} size={24} />}
+                <span>
+                  你当前排在第{' '}
+                  <span className="text-lg font-bold text-amber-600 dark:text-amber-400">{callerRank}</span>{' '}
+                  名
+                </span>
+              </Link>
+            )
+          })()
         ) : loading ? (
           <p className="text-sm text-muted-foreground">加载中...</p>
         ) : (
@@ -91,19 +104,21 @@ export default function LeaderboardPage() {
       {podium.length > 0 && (
         <div className="grid grid-cols-3 gap-2 items-end">
           {podium.map((r) => (
-            <div
+            <Link
               key={r.userId}
-              className={`rounded-2xl border p-4 text-center ${r.isCurrentUser ? 'border-brand/50 bg-brand-muted' : 'border-border/50 bg-card shadow-sm'}`}
+              href={`/user/${r.userId}`}
+              className={`block rounded-2xl border p-4 text-center active:scale-[0.98] transition-all ${r.isCurrentUser ? 'border-brand/50 bg-brand-muted' : 'border-border/50 bg-card shadow-sm'}`}
               style={{ minHeight: `${r.rank === 1 ? 150 : r.rank === 2 ? 120 : 100}px` }}
             >
               <div className="text-2xl mb-1">{RANK_ICON[r.rank]}</div>
+              <Avatar src={r.avatar} name={r.displayName} size={40} className="mx-auto mb-1.5" />
               <div className="font-semibold text-sm truncate px-1">
                 {r.displayName}
                 {r.isCurrentUser && <span className="ml-1 text-xs text-brand">(我)</span>}
               </div>
               <div className="text-xs text-muted-foreground mt-1">{formatDuration(r.duration)}</div>
               <div className="text-[11px] text-muted-foreground">{r.days} 天</div>
-            </div>
+            </Link>
           ))}
         </div>
       )}
@@ -128,10 +143,13 @@ export default function LeaderboardPage() {
                 >
                   {r.rank}
                 </span>
-                <span className="flex-1 font-medium text-sm truncate">
-                  {r.displayName}
-                  {r.isCurrentUser && <span className="ml-1 text-xs text-brand font-semibold">(我)</span>}
-                </span>
+                <Link href={`/user/${r.userId}`} className="flex items-center gap-3 flex-1 min-w-0">
+                  <Avatar src={r.avatar} name={r.displayName} size={32} />
+                  <span className="flex-1 font-medium text-sm truncate">
+                    {r.displayName}
+                    {r.isCurrentUser && <span className="ml-1 text-xs text-brand font-semibold">(我)</span>}
+                  </span>
+                </Link>
                 <span className="text-xs text-muted-foreground">{r.days} 天</span>
                 <span className="text-sm font-semibold tabular-nums">{formatDuration(r.duration)}</span>
               </li>

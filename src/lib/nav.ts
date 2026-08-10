@@ -36,6 +36,7 @@ export const navItems: NavItem[] = [
   { href: '/knowledge-graph', label: '知识图谱', icon: '🧠', shortLabel: '图谱' },
   { href: '/admission',  label: '院校',     icon: '🏫', shortLabel: '院校' },
   { href: '/settings',   label: '偏好',     icon: '⚙️',  shortLabel: '设置' },
+  { href: '/profile',    label: '个人资料', icon: '👤', shortLabel: '资料' },
 ]
 
 // ── 分组导航（Header tabs + MobileNav + Sidebar 共用）──
@@ -88,6 +89,7 @@ export const defaultNavGroups: NavGroup[] = [
     icon: '⚙️',
     items: [
       { href: '/settings', label: '偏好', icon: '⚙️', shortLabel: '设置' },
+      { href: '/profile', label: '个人资料', icon: '👤', shortLabel: '资料' },
     ],
   },
 ]

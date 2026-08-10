@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
     // 第二步：补用户信息（name 优先，否则脱敏邮箱前缀）
     const users = await prisma.user.findMany({
       where: { id: { in: stats.map((s) => s.userId) } },
-      select: { id: true, name: true, email: true },
+      select: { id: true, name: true, email: true, avatar: true },
     });
     const userMap = new Map(users.map((u) => [u.id, u]));
 
@@ -64,6 +64,7 @@ export async function GET(request: NextRequest) {
         duration: s.duration,
         days: s.days,
         displayName,
+        avatar: u?.avatar ?? null,
         isCurrentUser: s.userId === user!.id,
       };
     });

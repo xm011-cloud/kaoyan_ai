@@ -69,15 +69,20 @@ export default function PracticePage() {
 
   // ── Sync to practice-store so ActivityBar/MobileNav can see ──
   const practiceStore = usePracticeStore;
+  const wasActiveRef = useRef(false);
   useEffect(() => {
     if (session && view === "active") {
+      wasActiveRef.current = true;
       practiceStore.getState().setActiveSession(session.id, session.subject, session.type as "daily" | "mock");
       practiceStore.getState().setIndex(currentIndex);
     } else if (view === "main" && creating) {
       practiceStore.getState().setGenerating(true, createMode);
-    } else if (!session && !creating) {
+    } else if (!session && !creating && wasActiveRef.current) {
+      // 只有从 active 视图显式返回时才清除（不是首次加载）
       practiceStore.getState().clearSession();
+      wasActiveRef.current = false;
     }
+    // 首次加载时 view==="main" && !session && !creating → 不执行任何操作，保持持久化状态
   }, [session, view, currentIndex, creating, createMode]);
 
   // Timer
@@ -248,6 +253,25 @@ export default function PracticePage() {
   };
 
   const handleViewResult = async (s: PracticeSession) => {
+    // 进行中的会话 → 恢复做题
+    if (s.status === "in_progress") {
+      try {
+        const res = await fetch(`/api/practice/${s.id}`);
+        const data = await res.json();
+        const fullSession = data.session as PracticeSession;
+        if (fullSession && fullSession.status === "in_progress") {
+          setSession(fullSession);
+          const savedAnswers = loadAnswers(fullSession.id);
+          setAnswers(savedAnswers);
+          setCurrentIndex(0);
+          setView("active");
+          wrongSubject.current = fullSession.subject;
+          navigateToSession(fullSession.id);
+          return;
+        }
+      } catch { /* ignore */ }
+    }
+    // 已完成的会话 → 查看结果
     if (s.status !== "completed") return;
     try {
       const res = await fetch(`/api/practice/${s.id}`);
@@ -371,7 +395,9 @@ export default function PracticePage() {
                   <button
                     key={s.id}
                     onClick={() => handleViewResult(s)}
-                    className="w-full text-left p-4 bg-white dark:bg-gray-800 rounded-lg border hover:shadow-sm transition-shadow"
+                    className={`w-full text-left p-4 bg-white dark:bg-gray-800 rounded-lg border hover:shadow-sm transition-shadow ${
+                      s.status === "in_progress" ? "border-brand/30 bg-brand-muted/50" : ""
+                    }`}
                   >
                     <div className="flex items-center justify-between">
                       <div>
@@ -386,12 +412,14 @@ export default function PracticePage() {
                             {s.totalScore}/{s.maxScore}
                           </span>
                         )}
-                        <span className="text-xs text-gray-400">
+                        <span className={`text-xs ${
+                          s.status === "in_progress" ? "text-brand font-medium" : "text-gray-400"
+                        }`}>
                           {s.status === "completed"
                             ? "✅ 已完成"
                             : s.status === "abandoned"
                             ? "⏹️ 已放弃"
-                            : "🕐 进行中"}
+                            : "🕐 继续做题 →"}
                         </span>
                         <span className="text-xs text-gray-400">
                           {new Date(s.createdAt).toLocaleDateString("zh-CN")}

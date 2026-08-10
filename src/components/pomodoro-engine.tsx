@@ -41,6 +41,23 @@ export function PomodoroEngine() {
   useEffect(() => {
     tickRef.current = () => {
       const state = usePomodoroStore.getState()
+
+      // 如果番茄钟页面正在驱动计时（最近 2s 内有过 syncTime），引擎退让
+      if (state.lastPageSync > 0 && Date.now() - state.lastPageSync < 2000) {
+        // Page is driving — still check for pendingComplete from page's completion
+        if (state.pendingComplete && !lastPendingRef.current) {
+          lastPendingRef.current = true
+          saveSessionToDb(state).then(() => {
+            usePomodoroStore.getState().markSaved()
+            lastPendingRef.current = false
+          })
+        }
+        if (!state.pendingComplete) {
+          lastPendingRef.current = false
+        }
+        return
+      }
+
       if (state.isRunning && !state.isPaused) {
         usePomodoroStore.getState().tick()
       }

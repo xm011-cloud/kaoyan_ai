@@ -17,6 +17,9 @@ export interface PomodoroState {
   plannedMinutes: number
   pendingComplete: boolean     // true = timer finished but DB save pending
 
+  // Anti-drift: page sets this when it's driving the timer via syncTime
+  lastPageSync: number         // Date.now() of last syncTime call, 0 = page not driving
+
   // Actions
   start: (type: PomodoroState['sessionType'], minutes: number, subject?: string) => void
   pause: () => void
@@ -41,6 +44,7 @@ export const usePomodoroStore = create<PomodoroState>()(
       startedAt: null,
       plannedMinutes: 25,
       pendingComplete: false,
+      lastPageSync: 0,
 
       start: (type, minutes, subject) => {
         const { isRunning } = get()
@@ -78,6 +82,7 @@ export const usePomodoroStore = create<PomodoroState>()(
       syncTime: (remainingSeconds, subject?) =>
         set((s) => ({
           remainingSeconds,
+          lastPageSync: Date.now(),
           ...(subject !== undefined ? { currentSubject: subject } : {}),
           isRunning: s.isRunning || true,
           startedAt: s.startedAt || new Date().toISOString(),

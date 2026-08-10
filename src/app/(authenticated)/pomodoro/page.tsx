@@ -186,9 +186,20 @@ export default function PomodoroPage() {
               setStatus("running");
             }
           } else {
-            // Paused — restore exact timeLeft
-            setTimeLeft(saved.timeLeft);
-            setStatus("paused");
+            // Paused — check if store was modified via ActivityBar while away
+            const storeState = usePomodoroStore.getState();
+            if (storeState.isRunning && !storeState.isPaused && storeState.remainingSeconds > 0) {
+              // User resumed via ActivityBar — use store's live value
+              setTimeLeft(storeState.remainingSeconds);
+              totalSecondsRef.current = storeState.totalSeconds;
+              accumulatedRef.current = storeState.totalSeconds - storeState.remainingSeconds;
+              startedAtRef.current = Date.now();
+              setStatus("running");
+            } else {
+              // Normal paused restore
+              setTimeLeft(saved.timeLeft);
+              setStatus("paused");
+            }
           }
         } else {
           // No saved state — normal init

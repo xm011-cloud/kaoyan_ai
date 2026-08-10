@@ -37,6 +37,28 @@ export default function SettingsPage() {
   const { navGroups, workspaceCards, practiceDefaults, setNavGroups, setWorkspaceCards, setPracticeDefaults, resetNavToDefaults, resetWorkspaceToDefaults, resetPracticeToDefaults } = useUIStore()
   const [uiSaving, setUiSaving] = useState(false)
 
+  // ── Export ──
+  const [exporting, setExporting] = useState(false)
+  const handleExport = async () => {
+    setExporting(true)
+    try {
+      const res = await fetch('/api/user/export')
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || '导出失败') }
+      const data = await res.json()
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `kaoyan-export-${new Date().toISOString().split('T')[0]}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e: unknown) {
+      alert(`❌ ${e instanceof Error ? e.message : '导出失败'}`)
+    } finally {
+      setExporting(false)
+    }
+  }
+
   useEffect(() => {
     fetch('/api/user/settings').then(r => r.json()).then(d => {
       setHasKey(d.hasKey)
@@ -344,13 +366,16 @@ export default function SettingsPage() {
       <div className="rounded-2xl bg-card border border-border/50 shadow-sm p-6">
         <h2 className="font-semibold mb-3">❤️ 关于与支持</h2>
         <p className="text-sm text-muted-foreground mb-4">这个应用由作者一人业余开发、完全免费。你的反馈和一杯咖啡都是最好的支持。</p>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Link href="/suggestions">
             <Button variant="outline" className="rounded-full h-10 px-5 active:scale-[0.98] transition-all">💬 意见反馈</Button>
           </Link>
           <Link href="/support">
             <Button variant="outline" className="rounded-full h-10 px-5 active:scale-[0.98] transition-all">☕ 支持作者</Button>
           </Link>
+          <Button variant="outline" onClick={handleExport} disabled={exporting} className="rounded-full h-10 px-5 active:scale-[0.98] transition-all">
+            {exporting ? '导出中...' : '💾 导出数据'}
+          </Button>
         </div>
       </div>
     </div>

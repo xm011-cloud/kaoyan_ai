@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button'
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [inviteCode, setInviteCode] = useState('')
+  const [honeypot, setHoneypot] = useState('')
   const [isSignUp, setIsSignUp] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -23,12 +25,18 @@ export default function LoginPage() {
     try {
       const supabase = getSupabase()
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
+        // 注册：服务端校验邀请码 + admin.createUser 建号（email_confirm=true）
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password, inviteCode, honeypot }),
         })
+        const data = await res.json()
+        if (!res.ok || !data.ok) throw new Error(data.error || '注册失败')
+        // 账号已确认，直接登录进 dashboard
+        const { error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
-        setError('注册成功！请查看邮箱验证链接。')
+        router.push('/dashboard')
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email,
@@ -55,6 +63,17 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={handleAuth} className="space-y-4 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border">
+          {/* 蜜罐字段：真人看不见，机器人填了就静默拒绝 */}
+          <input
+            type="text"
+            name="company"
+            value={honeypot}
+            onChange={(e) => setHoneypot(e.target.value)}
+            className="hidden"
+            tabIndex={-1}
+            autoComplete="off"
+            aria-hidden="true"
+          />
           <div>
             <label htmlFor="email" className="block text-sm font-medium mb-1">
               邮箱
@@ -85,6 +104,24 @@ export default function LoginPage() {
               className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
             />
           </div>
+
+          {isSignUp && (
+            <div>
+              <label htmlFor="inviteCode" className="block text-sm font-medium mb-1">
+                邀请码
+              </label>
+              <input
+                id="inviteCode"
+                type="text"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value)}
+                placeholder="向管理员获取邀请码"
+                required
+                autoComplete="off"
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+              />
+            </div>
+          )}
 
           {error && (
             <p className={`text-sm ${error.includes('成功') ? 'text-green-600' : 'text-red-500'}`}>

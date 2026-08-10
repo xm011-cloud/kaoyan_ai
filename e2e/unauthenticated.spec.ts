@@ -32,6 +32,19 @@ test("support page loads", async ({ page }) => {
   await expect(page.locator('input[id="s-name"]')).toBeVisible();
 });
 
+test("forgot-password page loads publicly", async ({ page }) => {
+  const response = await page.goto("/forgot-password");
+  expect(response?.status()).toBe(200);
+  await expect(page.locator("text=重置密码").first()).toBeVisible({ timeout: 10000 });
+  await expect(page.locator('input[type="email"]')).toBeVisible();
+  await expect(page.getByRole("button", { name: /发送重置链接/ })).toBeVisible();
+});
+
+test("login page has forgot-password link", async ({ page }) => {
+  await page.goto("/login");
+  await expect(page.locator('a[href="/forgot-password"]')).toBeVisible({ timeout: 10000 });
+});
+
 // ── Auth redirect behavior ──
 
 test("dashboard redirects to login when unauthenticated", async ({ page }) => {
@@ -62,6 +75,11 @@ test("study-path redirects to login when unauthenticated", async ({ page }) => {
 
 test("suggestions redirects to login when unauthenticated", async ({ page }) => {
   await page.goto("/suggestions");
+  await page.waitForURL(/\/login/, { timeout: 10000 });
+});
+
+test("update-password redirects to login when unauthenticated", async ({ page }) => {
+  await page.goto("/update-password");
   await page.waitForURL(/\/login/, { timeout: 10000 });
 });
 

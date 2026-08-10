@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import FeedbackList, { type FeedbackItem } from './feedback-list'
 import SupportList, { type SupporterItem } from './support-list'
+import UserReset from './user-reset'
 
-type Tab = 'feedback' | 'support'
+type Tab = 'feedback' | 'support' | 'reset'
 
 export default function AdminTabs({
   initialFeedbacks,
@@ -17,6 +18,7 @@ export default function AdminTabs({
   const tabs = [
     { id: 'feedback' as const, icon: '💬', label: '意见反馈' },
     { id: 'support' as const, icon: '☕', label: '支持留言' },
+    { id: 'reset' as const, icon: '🔑', label: '重置密码' },
   ]
 
   return (
@@ -37,6 +39,7 @@ export default function AdminTabs({
 
       {tab === 'feedback' && <FeedbackList initial={initialFeedbacks} />}
       {tab === 'support' && <SupportList initial={initialSupporters} />}
+      {tab === 'reset' && <UserReset />}
     </>
   )
 }

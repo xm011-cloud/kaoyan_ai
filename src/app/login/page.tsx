@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 
@@ -13,7 +14,14 @@ export default function LoginPage() {
   const [isSignUp, setIsSignUp] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [recoveryError, setRecoveryError] = useState(false)
   const router = useRouter()
+
+  // 重置链接无效/过期时（/auth/callback 兜底跳转）显示提示。
+  // 不用 useSearchParams：静态 client 页需 Suspense 边界，这里直接读 location。
+  useEffect(() => {
+    setRecoveryError(new URLSearchParams(window.location.search).get('error') === 'recovery')
+  }, [])
 
   const getSupabase = useCallback(() => createClient(), [])
 
@@ -105,6 +113,14 @@ export default function LoginPage() {
             />
           </div>
 
+          {!isSignUp && (
+            <p className="text-right -mt-2">
+              <Link href="/forgot-password" className="text-sm text-blue-600 hover:underline">
+                忘记密码?
+              </Link>
+            </p>
+          )}
+
           {isSignUp && (
             <div>
               <label htmlFor="inviteCode" className="block text-sm font-medium mb-1">
@@ -121,6 +137,12 @@ export default function LoginPage() {
                 className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
               />
             </div>
+          )}
+
+          {recoveryError && (
+            <p className="text-sm text-red-500">
+              重置链接无效或已过期，请重新申请。
+            </p>
           )}
 
           {error && (

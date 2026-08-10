@@ -12,3 +12,10 @@ test("admin API returns 403 for non-admin user", async ({ page }) => {
   const response = await page.request.get("/api/admin/support");
   expect(response.status()).toBe(403);
 });
+
+test("admin reset-link API returns 403 for non-admin user", async ({ page }) => {
+  const response = await page.request.post("/api/admin/users/reset-link", {
+    data: { email: "test@example.com" },
+  });
+  expect(response.status()).toBe(403);
+});

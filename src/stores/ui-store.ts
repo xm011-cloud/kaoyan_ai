@@ -65,6 +65,7 @@ export const DEFAULT_NAV_GROUPS: NavGroup[] = [
       { href: '/dashboard', visible: true },
       { href: '/checkin', visible: true },
       { href: '/pomodoro', visible: true },
+      { href: '/leaderboard', visible: true },
     ],
   },
   {

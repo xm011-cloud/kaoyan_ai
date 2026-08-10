@@ -24,6 +24,7 @@ export const navItems: NavItem[] = [
   { href: '/dashboard',  label: '学习概览', icon: '🏠', shortLabel: '概览' },
   { href: '/checkin',    label: '打卡',     icon: '✅', shortLabel: '打卡' },
   { href: '/pomodoro',   label: '番茄钟',   icon: '🍅', shortLabel: '番茄' },
+  { href: '/leaderboard', label: '学习圈',  icon: '🏆', shortLabel: '学习圈' },
   { href: '/goal',       label: '目标',     icon: '🎯', shortLabel: '目标' },
   { href: '/tasks',      label: '计划',     icon: '📋', shortLabel: '计划' },
   { href: '/practice',   label: '练习',     icon: '✏️', shortLabel: '练习' },
@@ -47,6 +48,7 @@ export const defaultNavGroups: NavGroup[] = [
       { href: '/dashboard', label: '学习概览', icon: '🏠', shortLabel: '概览' },
       { href: '/checkin', label: '打卡', icon: '✅', shortLabel: '打卡' },
       { href: '/pomodoro', label: '番茄钟', icon: '🍅', shortLabel: '番茄' },
+      { href: '/leaderboard', label: '学习圈', icon: '🏆', shortLabel: '学习圈' },
     ],
   },
   {

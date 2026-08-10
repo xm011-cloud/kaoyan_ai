@@ -41,6 +41,8 @@ export default defineConfig({
         "navigation.spec.ts",
         "suggestions.spec.ts",
         "admin.spec.ts",
+        "leaderboard.spec.ts",
+        "export.spec.ts",
       ],
     },
     // Unauthenticated tests (no storage state)

@@ -18,23 +18,31 @@ interface PlanTask {
 function generateLocalWeeklyPlan(
   subjects: string[],
   examDate: Date,
-  weekStart: Date
+  weekStart: Date,
+  sprintMode = false
 ): PlanTask[] {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const totalDays = Math.max(1, Math.ceil((examDate.getTime() - today.getTime()) / 86400000));
 
-  // 计算当前周属于哪个阶段
+  // 计算当前周属于哪个阶段（冲刺模式强制冲刺）
   const daysPassed = Math.max(0, Math.ceil((weekStart.getTime() - today.getTime()) / 86400000));
   const progress = totalDays > 0 ? daysPassed / totalDays : 0;
   let phase: string;
-  if (progress < 0.4) phase = "基础阶段";
+  if (sprintMode) phase = "冲刺阶段";
+  else if (progress < 0.4) phase = "基础阶段";
   else if (progress < 0.75) phase = "强化阶段";
   else phase = "冲刺阶段";
 
   const tasks: PlanTask[] = [];
 
-  // 每天生成 3-5 个学习会话，科目轮转
+  // 冲刺模式：真题/错题/背诵优先；常规模式：精读/习题/网课轮转
+  const sprintTemplates: { title: string; desc: string; duration: number }[] = [
+    { title: "{subject} - 真题计时", desc: "完成{subject}一套历年真题或模拟卷，严格计时作答并对照答案订正", duration: 120 },
+    { title: "{subject} - 错题复盘", desc: "复习{subject}错题本中的题目，重做并归纳错误原因", duration: 60 },
+    { title: "{subject} - 高频考点", desc: "专项突破{subject}历年高频考点，做针对性练习", duration: 90 },
+    { title: "{subject} - 背诵记忆", desc: "背诵{subject}核心公式/概念/答题模板，用记忆卡片强化", duration: 60 },
+  ];
   const sessionTemplates: { title: string; desc: string; duration: number }[] = [
     { title: "{subject} - 教材精读", desc: "精读{subject}教材相关章节，做好笔记标注重点", duration: 90 },
     { title: "{subject} - 课后习题", desc: "完成{subject}课后练习题，标记不确定的题目", duration: 60 },
@@ -57,7 +65,8 @@ function generateLocalWeeklyPlan(
 
     for (let i = 0; i < tasksToday; i++) {
       const subject = subjects[(d + i) % subjects.length];
-      const tpl = sessionTemplates[templateIdx % sessionTemplates.length];
+      const pool = sprintMode ? sprintTemplates : sessionTemplates;
+      const tpl = pool[templateIdx % pool.length];
       templateIdx++;
 
       tasks.push({
@@ -128,6 +137,9 @@ export async function POST(request: NextRequest) {
     today.setHours(0, 0, 0, 0);
     const daysRemaining = Math.max(1, Math.ceil((examDate.getTime() - today.getTime()) / 86400000));
 
+    // 冲刺模式：距考试 < 30 天强制冲刺阶段
+    const sprintMode = daysRemaining < 30;
+
     // 周范围
     const weekEnd = new Date(weekStartDate.getTime() + 7 * 86400000);
     const weekStartStr = weekStartDate.toISOString().split("T")[0];
@@ -158,7 +170,8 @@ export async function POST(request: NextRequest) {
       return jsonNoStore({ error: "请先设置考试科目" }, { status: 400 });
     }
 
-    const phase = getPhase(examDate, weekStartDate);
+    let phase = getPhase(examDate, weekStartDate);
+    if (sprintMode) phase = "冲刺阶段";
     const aiConfig = await getUserAiConfig(user!.id);
     let planTasks: PlanTask[];
 
@@ -188,6 +201,11 @@ export async function POST(request: NextRequest) {
         ? `\n## 注意\n只需要生成 ${regenerateDay} 这一天的任务（3-5个），不要生成其他日期。\n`
         : "";
 
+      // 冲刺模式指令
+      const sprintContext = sprintMode
+        ? `\n## 冲刺模式（距考试仅 ${daysRemaining} 天）\n1. 每天安排 1 套真题或模拟卷计时作答（至少 90 分钟整卷）\n2. 所有错题当天复盘并整理进错题本\n3. 记忆/背诵类任务占比提高到 40% 以上\n4. 减少新知识学习，聚焦高频考点、查漏补缺与应试技巧\n`
+        : "";
+
       const prompt = `你是一名资深的考研辅导专家。请为用户的接下来一周（${weekStartStr} 至 ${weekEndStr}）生成详细的学习计划。
 
 ## 用户目标
@@ -204,7 +222,7 @@ ${progressContext}${feedbackContext}
 4. 周末安排复盘 + 错题回顾
 5. 任务要具体，例如"完成多元函数微分学课后习题并订正"而非"做数学题"
 6. 每个任务包含：title(标题)、description(详细描述)、date(YYYY-MM-DD)、duration(分钟数, 30-180之间)、phase(阶段名)、subject(科目名)
-${regenerateContext}
+${sprintContext}${regenerateContext}
 ## 输出格式
 只返回 JSON 数组，不含其他内容：
 [{
@@ -238,10 +256,10 @@ ${regenerateContext}
         }
       } catch (e) {
         console.error("Plan generation AI fallback:", e instanceof Error ? e.message : String(e));
-        planTasks = generateLocalWeeklyPlan(subjects, examDate, weekStartDate);
+        planTasks = generateLocalWeeklyPlan(subjects, examDate, weekStartDate, sprintMode);
       }
     } else {
-      planTasks = generateLocalWeeklyPlan(subjects, examDate, weekStartDate);
+      planTasks = generateLocalWeeklyPlan(subjects, examDate, weekStartDate, sprintMode);
     }
 
     // 规范化 + 添加周标识

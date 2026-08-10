@@ -1,6 +1,7 @@
 import { Shell } from "@/components/shell"
 import { StudyReminder } from "@/components/study-reminder"
 import { PwaInstallPrompt } from "@/components/pwa-install"
+import { WeeklyPlanReminder } from "@/components/weekly-plan-reminder"
 import { AppProviders } from "@/components/app-providers"
 import { createClient } from "@/lib/supabase/server"
 import { prisma } from "@/lib/prisma"
@@ -34,6 +35,7 @@ export default async function AuthenticatedLayout({
       </Shell>
       <StudyReminder />
       <PwaInstallPrompt />
+      <WeeklyPlanReminder />
     </AppProviders>
   )
 }

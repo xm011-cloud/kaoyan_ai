@@ -46,12 +46,14 @@ export default function SettingsPage() {
     })
   }, [])
 
-  useEffect(() => { fetch('/api/user/settings').then(r => r.json()).then(d => {
+  useEffect(() => { fetch('/api/user/reminders').then(r => r.json()).then(d => {
     setReminderEnabled(d.reminderEnabled ?? false)
     setReminderTime(d.reminderTime || '09:00')
     if (d.reminderDays?.length) setReminderDays(d.reminderDays)
-    setNotifyPerm(d.notifyPerm ?? 'default')
   }).catch(() => {})}, [])
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) setNotifyPerm(Notification.permission)
+  }, [])
 
   // ── AI save ──
   const handleSaveAI = async () => {

@@ -31,7 +31,8 @@ test.describe("Pomodoro", () => {
     const pauseBtn = page.getByRole("button", { name: /暂停/ });
     if (await pauseBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await pauseBtn.click();
-      await expect(page.locator("text=已暂停")).toBeVisible({ timeout: 5000 });
+      // 页面状态 <p>已暂停</p> 与 ActivityBar 状态徽标 ⏸ 已暂停 区分（exact 只匹配前者）
+      await expect(page.getByText("已暂停", { exact: true })).toBeVisible({ timeout: 5000 });
     }
   });
 

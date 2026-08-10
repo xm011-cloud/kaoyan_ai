@@ -1,5 +1,5 @@
 // Basic Service Worker for offline support + notification click handling
-const CACHE_NAME = 'c6-study-v1';
+const CACHE_NAME = 'c6-study-v2';
 
 // Assets to cache on install
 const PRECACHE_ASSETS = [
@@ -7,6 +7,13 @@ const PRECACHE_ASSETS = [
   '/dashboard',
   '/login',
   '/favicon.ico',
+  '/offline.html',
+  '/manifest.json',
+  '/icons/icon.svg',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  '/icons/icon-maskable-512.png',
+  '/icons/apple-touch-icon.png',
 ];
 
 self.addEventListener('install', (event) => {
@@ -42,7 +49,7 @@ self.addEventListener('fetch', (event) => {
   // API requests - network only
   if (url.pathname.startsWith('/api/')) return;
 
-  // Navigation requests - network first, fallback to cache
+  // Navigation requests - network first, fallback to cache, then offline.html
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request)
@@ -51,7 +58,11 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cloned));
           return response;
         })
-        .catch(() => caches.match(event.request) as Promise<Response>)
+        .catch(() =>
+          caches.match(event.request).then(
+            (cached) => cached || caches.match('/offline.html')
+          )
+        )
     );
     return;
   }

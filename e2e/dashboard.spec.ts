@@ -6,7 +6,8 @@ test.describe("Dashboard", () => {
   });
 
   test("stats cards are visible", async ({ page }) => {
-    await expect(page.locator("text=欢迎回来").first()).toBeVisible({ timeout: 10000 });
+    // 欢迎语随是否有目标而变化（欢迎回来 ✨ / 欢迎来到考研助手 🎓），用稳定 h1 断言页面已加载
+    await expect(page.locator("h1").filter({ hasText: /学习概览/ })).toBeVisible({ timeout: 10000 });
     // At least one stat card should be visible
     await expect(page.locator("text=今日任务").first()).toBeVisible();
   });

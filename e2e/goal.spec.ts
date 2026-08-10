@@ -6,7 +6,7 @@ test.describe("Goal", () => {
   });
 
   test("form fields are visible", async ({ page }) => {
-    await expect(page.locator("text=设置考研目标")).toBeVisible({ timeout: 10000 });
+    await expect(page.locator("h1").filter({ hasText: /考研目标/ })).toBeVisible({ timeout: 10000 });
     await expect(page.locator("#goal-university")).toBeVisible();
     await expect(page.locator("#goal-major")).toBeVisible();
     await expect(page.locator("#goal-exam-date")).toBeVisible();

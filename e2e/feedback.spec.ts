@@ -6,7 +6,7 @@ test.describe("Feedback", () => {
   });
 
   test("page loads correctly", async ({ page }) => {
-    await expect(page.locator("h1").filter({ hasText: /反馈/ })).toBeVisible({ timeout: 10000 });
+    await expect(page.locator("h1").filter({ hasText: /周报/ })).toBeVisible({ timeout: 10000 });
   });
 
   test("generate button is visible", async ({ page }) => {

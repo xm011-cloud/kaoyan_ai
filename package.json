@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test:e2e": "playwright test",
+    "icons": "node scripts/generate-icons.mjs",
     "postinstall": "prisma generate"
   },
   "dependencies": {
@@ -47,6 +48,7 @@
     "eslint-config-next": "16.2.10",
     "prisma": "^6.15.0",
     "shadcn": "^4.14.1",
+    "sharp": "^0.35.3",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

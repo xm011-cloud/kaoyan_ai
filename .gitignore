@@ -45,3 +45,6 @@ next-env.d.ts
 .vercel
 test-results/
 e2e/.auth/
+
+# 本地截图
+screenshots/

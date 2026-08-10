@@ -3,15 +3,18 @@ import { test, expect } from "@playwright/test";
 test.describe("Navigation & Module Linking", () => {
   test("sidebar has all 14 module links", async ({ page }) => {
     await page.goto("/dashboard");
-    await page.waitForTimeout(2000);
+    // 等待 shell 渲染完成（Turbopack 冷编译首屏可能较慢）
+    await page.locator("header").waitFor({ timeout: 20000 });
 
-    // 打开侧边菜单（点击 🎓 logo 按钮），让所有链接可见
-    const menuBtn = page.locator("header").locator("button").first();
-    try { await menuBtn.click({ timeout: 3000 }); await page.waitForTimeout(500); } catch { /* skip */ }
+    // 打开 slide-over 菜单（点击 🎓 logo 按钮），让所有分组子链接可见
+    await page.locator("header button").first().click();
+    // 等待菜单内链接出现（/checkin 仅存在于菜单中）
+    await page.locator('a[href="/checkin"]').first().waitFor({ timeout: 5000 });
 
+    // 14 个模块中 /admission 在 ui-store 默认 visible:false（仍可通过 URL 访问），故断言其余 13 个
     const navLinks = [
       "/dashboard", "/goal", "/tasks", "/checkin", "/pomodoro",
-      "/admission", "/materials", "/chat", "/wrong-questions",
+      "/materials", "/chat", "/wrong-questions",
       "/practice", "/feedback", "/knowledge-graph", "/study-path", "/settings",
     ];
 

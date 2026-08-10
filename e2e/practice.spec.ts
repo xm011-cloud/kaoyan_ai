@@ -7,8 +7,8 @@ test.describe("Practice", () => {
 
   test("creation form is visible", async ({ page }) => {
     await expect(page.locator("h1").filter({ hasText: "练习" })).toBeVisible({ timeout: 10000 });
-    // Should have a create/start button
-    const createBtn = page.getByRole("button", { name: /开始|创建|练习/ });
+    // Should have a create/start button（限定 main，避开 AI 浮层面板里的"帮我创建一个复习任务"）
+    const createBtn = page.locator("main").getByRole("button", { name: /开始|创建|练习/ });
     await expect(createBtn).toBeVisible({ timeout: 5000 });
   });
 

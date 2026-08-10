@@ -31,6 +31,7 @@ interface WeeklyPlannerProps {
   subjects: string[];
   examDate: string;
   daysRemaining: number;
+  sprintMode?: boolean;
   onWeekChange: (dir: -1 | 1) => void;
   onGenerate: () => void;
   onRegenerateDay: (dateStr: string) => void;
@@ -51,7 +52,7 @@ function formatDate(d: Date): string {
 }
 
 export function WeeklyPlanner({
-  weekStart, weekTasks, loading, generating, subjects, examDate, daysRemaining,
+  weekStart, weekTasks, loading, generating, subjects, examDate, daysRemaining, sprintMode,
   onWeekChange, onGenerate, onRegenerateDay, onToggleComplete,
   onEditTask, onDeleteTask, onAddTask, onJudge, onRegenerateWithFeedback,
   judgeResult, judging,
@@ -80,7 +81,12 @@ export function WeeklyPlanner({
       <div className="flex items-center justify-between bg-white dark:bg-gray-800 rounded-xl border p-4">
         <Button variant="outline" size="sm" onClick={() => onWeekChange(-1)}>◀ 上周</Button>
         <div className="text-center">
-          <div className="font-medium">{formatDate(weekStart)} - {formatDate(weekEnd)}</div>
+          <div className="font-medium flex items-center justify-center gap-1.5">
+            {formatDate(weekStart)} - {formatDate(weekEnd)}
+            {sprintMode && (
+              <span className="text-[10px] font-medium bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-300 px-1.5 py-0.5 rounded-full">冲刺</span>
+            )}
+          </div>
           <div className="text-xs text-gray-500 mt-0.5">
             {hasGenerated ? `${totalTasks} 任务 · ${completedTasks}/${totalTasks} 完成 · ${Math.round(totalMinutes / 60)}h` : "未生成计划"}
           </div>

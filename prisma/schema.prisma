@@ -50,6 +50,8 @@ model User {
   schoolComparisons SchoolComparison[]
   knowledgeNodes    KnowledgeNode[]
   studyPath         StudyPath?
+  supporters        Supporter[]
+  authorFeedbacks   AuthorFeedback[]
 }
 
 // 考研目标
@@ -344,4 +346,36 @@ model StudyPathMilestone {
   studyPath StudyPath @relation(fields: [studyPathId], references: [id], onDelete: Cascade)
 
   @@index([studyPathId, order])
+}
+
+// 支持作者 — 感谢墙留言（审核通过后才展示）
+model Supporter {
+  id        String   @id @default(uuid())
+  userId    String? // null = 游客留言
+  name      String
+  amount    Float    @default(9.9)
+  message   String?
+  approved  Boolean  @default(false) // 作者审核后才上墙
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([approved, createdAt])
+  @@index([userId])
+}
+
+// 意见反馈 — 用户给作者的评价/建议（需登录）
+model AuthorFeedback {
+  id        String   @id @default(uuid())
+  userId    String
+  rating    Int // 1-5
+  content   String
+  anonymous Boolean  @default(false)
+  status    String   @default("new") // "new" | "read" | "resolved"
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([userId])
 }

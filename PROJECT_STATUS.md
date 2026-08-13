@@ -19,7 +19,7 @@
 | AI | MiMo v2.5-pro (OpenAI-compatible API) | — |
 | 图表 | Recharts + D3 子模块 (知识图谱) | ^3.9.2 / 7.x |
 | 状态 | zustand (persist) + @tanstack/react-query | ^5.0.14 / ^5.101.4 |
-| 测试 | Playwright 91 用例 · 独立测试库 `neondb_test` | ^1.61.1 |
+| 测试 | Playwright 98 用例 · 独立测试库 `neondb_test` | ^1.61.1 |
 | 部署 | Vercel (c6-orcin.vercel.app) | — |
 
 ## 模块清单 (19 个)
@@ -57,7 +57,14 @@
 ### 🤖 AI 组
 
 #### 💬 AI 对话 (`/chat`)
-- RAG 多轮对话，引用来源，加入错题本，Markdown 渲染
+- RAG 多轮对话，引用来源，加入错题本，Markdown 渲染；技能运行宿主（?skill= 启动 / 斜杠菜单 / 运行徽标 + 结束技能）
+
+#### ⚡ 技能 (`/skills`) — 🆕 2026-08-13
+- **用户自定义工作流层**：页面覆盖通用需求，技能让用户自组"数据快照 + 提问 + AI 指令 + 档案 + 收尾"的完整流程
+- 3 内置模板惰性播种（每日复盘🌅 / 错题变式训练🎯 / 费曼抽查💬），可编辑/删除；技能架卡片网格（icon/描述/触发关键词/运行次数/档案条数）
+- **技能运行 = 带 skillId 的对话**：复用 /api/ai/chat tool-calling 循环，注入数据快照 + 流程 prompt + 档案 note；`skill_control` 工具（note_append/finish）仅技能运行注入
+- **技能档案（note）**：跨会话累积，技能越用越有价值；收尾 usageCount+1
+- **API**: `api/skills/route.ts`（GET 播种+列表 / POST 创建）、`api/skills/[id]/route.ts`（PATCH/DELETE）
 
 #### 📊 周报 (`/feedback`)
 - AI 周报分析 + 练习分数 vs 目标差距
@@ -108,7 +115,7 @@
 ```
 📅 今日 → 🏠概览 / ✅打卡 / 🍅番茄钟 / 🏆学习圈
 📝 备考 → 🎯目标 / 📋计划 / ✏️练习 / 📕错题
-🤖 AI   → 💬对话 / 📊周报 / 🗺️路径
+🤖 AI   → 💬对话 / 📊周报 / 🗺️路径 / ⚡技能
 📚 知识 → 📖资料 / 🧠图谱 / 🏫院校(默认隐藏)
 ⚙️ 设置 → ⚙️偏好 / 👤个人资料
 ```
@@ -149,7 +156,7 @@ src/
 
 | 分类 | 路由 |
 |------|------|
-| ai (6) | chat, generate-feedback, generate-plan, generate-questions, generate-similar, judge-plan |
+| ai (8) | chat, generate-feedback, generate-plan, generate-questions, generate-similar, judge-plan, skills, skills/[id] |
 | admission (4) | search, analyze, saved, import |
 | auth (1) | register（蜜罐+限流+邀请码，另有 `/auth/callback`、`/auth/signout` 为 app 路由） |
 | admin (5) | feedback, feedback/[id], support, support/[id], users/reset-link |
@@ -171,6 +178,8 @@ src/
 | **User** | 🆕 `drivingMode String @default("assisted")`（驾驶模式三档：auto/assisted/manual） | 2026-08-13 |
 | **Task** | 🆕 `proposalId String?` + `chatId String?` + `@@index([userId, proposalId])`；`source` 新增取值 `ai_confirmed` | 2026-08-13 |
 | **Chat** | 🆕 `pendingProposal Json?`（待确认的任务提案草稿） | 2026-08-13 |
+| **Skill** | 🆕 用户技能：`userId/name/description/icon/triggerKeywords/steps Json/note Json/usageCount/source/lastRunAt` + `@@unique([userId,name])` | 2026-08-13 |
+| **Chat** | 🆕 `skillId String?` + `@@index([skillId])`（技能运行 = 带 skillId 的对话） | 2026-08-13 |
 
 ## 近期迭代记录 (2026-08)
 
@@ -222,6 +231,14 @@ src/
 - weekly-plan-reminder 自动档周日直接生成下周（写入仍保留 manual/ai_confirmed 不删）；辅助/手动保持询问
 - **切档纪律**：settings 切档给"过渡摘要"（当前 AI 任务数 + 生成策略变化说明），永不静默接管
 
+### 第 11 轮 — AI 技能系统（Round A + B：架页 + 运行引擎）（2026-08-13）
+- **方向重定义**：从"官方技能=给工具加按钮"（被否）→ 用户自定义工作流层（用户自己组数据+提问+AI指令+档案+收尾的完整流程，产品覆盖通用、技能覆盖个性化）
+- **schema**：`Skill` 模型（`@@unique([userId,name])`）+ `Chat.skillId` + `@@index([skillId])`
+- **Round A 基建**：`src/lib/skill-templates.ts` 3 模板 + `src/lib/skills.ts` 播种/档案摘要；CRUD API（GET 惰性播种 / POST 重名 409 / PATCH / DELETE）；`/skills` 技能架页（卡片网格 + 编辑/删除弹窗 + 运行链接）；导航 AI 组加「⚡ 技能」+ ui-store migrate 补齐
+- **Round B 运行引擎**：技能运行 = 带 skillId 的对话，复用 `/api/ai/chat` tool-calling 循环；`buildSkillRunPrompt` + `buildSkillDataSnapshot`（9 类数据源直查）+ 档案 note 摘要注入 system prompt；`skill_control` 工具（note_append/finish）仅技能运行注入（`getSkillRunTools` 与 `getToolDefinitions` 分离，普通对话不泄漏）
+- **/chat 技能承载位**：`?skill=` 启动 kickoff（居中系统提示条）+ 斜杠菜单唤起 + 运行徽标「⚡ 技能：name」+ 结束技能按钮（路由直接收尾不走 AI）；历史技能对话恢复徽标
+- 测试：skills.spec 7 用例（播种/CRUD/斜杠菜单/徽标恢复/无效 skill 回落），98 全绿
+
 ### 第 10 轮 — 对话→任务落地（事务边界）（2026-08-13）
 - **schema**：Task `proposalId/chatId` + `@@index([userId, proposalId])`；Chat `pendingProposal Json?`
 - **propose_tasks 工具**（writes:false 草稿不落库）：批量建议挂到对话 pendingProposal；`create_task` description 引导勿批量直写；chat 路由读 body.chatId → 提案时无对话则先建 → 返回 `chatId + proposal`
@@ -238,11 +255,12 @@ src/
 | P2 | PWA 离线策略优化（导航网络优先，仅 offline.html 兜底，未缓存 API 数据） |
 | P3 | SWR 缓存（显式降级 backlog：不引入第三种数据获取模式；统一方向为 React Query + `useApi` hook，见 UI_AUDIT §五-H） |
 | P3 | 学习圈：点赞/互关/动态等更深社交（当前仅排行榜） |
-| P3 | **AI 技能系统**（独立大阶段）：Skill 模型 + 官方技能 + 会话蒸馏 + 用户分享 + 触发/治理设计。基建已就绪（第 7 轮 prompt 层 + 第 10 轮工具/提案通道），单独排期 |
+| P2 | **AI 技能系统 Round C**：对话蒸馏（/chat「存为技能」）+ AI 主动提议（关键词匹配出建议芯片）。架页 + 运行引擎已落地（第 11 轮），Round C 排期 |
 
 ## 最近提交 (最新→最旧)
 
 ```
+41e0d17 feat: AI 技能系统 — 技能架页 + 模板播种 + 技能运行引擎
 d8c8548 feat: 学习圈联动 — 排行榜头像 + 点击进公开资料页 + 导航新增个人资料
 5c05897 feat: 个人资料 — 昵称编辑 + 头像上传(public avatars 桶) + 公开资料页
 2889758 feat: 数据导出 — 一键导出全部学习数据 JSON + 设置页下载按钮
@@ -265,6 +283,6 @@ c87ba50 refactor: Apple HIG UI 全面优化
 
 ## 测试
 
-- Playwright 91 用例全绿（authenticated + unauthenticated 双项目，per-project testMatch）
+- Playwright 98 用例全绿（authenticated + unauthenticated 双项目，per-project testMatch）
 - 覆盖：全部模块页面 + 认证重定向 + PWA 资源 + 权限（admin/suggestions/profile 403/重定向）+ 导出下载 + 头像上传 + 排行榜点击进公开页
 - 注意：`e2e/.auth/user.json` 为测试账号存储态；E2E 运行在独立测试库 `neondb_test`（`playwright.config.ts` 自动建库 + schema push + 独立端口 3100），不再污染 dev 库

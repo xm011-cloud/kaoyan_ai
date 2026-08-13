@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, jsonNoStore } from "@/lib/api-utils";
+import { getMilestone } from "@/lib/milestone";
 
 // GET: 获取反馈列表
 export async function GET(request: NextRequest) {
@@ -15,7 +16,9 @@ export async function GET(request: NextRequest) {
       take: 10,
     });
 
-    return jsonNoStore({ feedbacks });
+    const milestone = await getMilestone(user!.id);
+
+    return jsonNoStore({ feedbacks, milestone });
   } catch (err) {
     return handleApiError(err, "获取反馈列表");
   }

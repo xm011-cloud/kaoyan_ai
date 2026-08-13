@@ -54,6 +54,7 @@ export interface WorkbenchData {
   }>
   goal: { university: string; major: string } | null
   daysLeft: number
+  reentry: { show: boolean; daysSinceLastCheckin: number | null }
 }
 
 export function WorkbenchGrid({ data }: { data: WorkbenchData }) {
@@ -99,6 +100,38 @@ export function WorkbenchGrid({ data }: { data: WorkbenchData }) {
           </a>
         )}
       </div>
+
+      {/* 温柔重入卡：今日未打卡 + 距上次打卡 > 3 天时出现（不指责、从今天开始） */}
+      {data.reentry.show && (
+        <div className="rounded-2xl border border-amber-200/70 dark:border-amber-800/40 bg-amber-50/80 dark:bg-amber-900/10 px-5 py-4 flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
+              不用补卡，从今天开始就好
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {data.reentry.daysSinceLastCheckin
+                ? `上次打卡已是 ${data.reentry.daysSinceLastCheckin} 天前，哪怕只学 10 分钟也是重新上路。`
+                : '哪怕只学 10 分钟也是重新上路。'}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <a
+              href="/pomodoro"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-200 text-sm font-medium transition-colors active:scale-[0.97]"
+            >
+              <span>🍅</span>
+              <span>先来一个 10 分钟</span>
+            </a>
+            <a
+              href="/checkin"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-muted hover:bg-muted/80 text-sm font-medium transition-colors active:scale-[0.97]"
+            >
+              <span>✅</span>
+              <span>去打卡</span>
+            </a>
+          </div>
+        </div>
+      )}
 
       {/* Card grid — full-width cards stack, half-width go 2-col on lg+ */}
       <div className="space-y-5">

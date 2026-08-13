@@ -3,6 +3,7 @@
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { MermaidRenderer } from "@/components/mermaid-renderer";
+import { AiThinking } from "@/components/ai-thinking";
 
 const components = {
   h1: ({ ...props }: React.HTMLAttributes<HTMLElement>) => (
@@ -216,11 +217,13 @@ function SourceCard({ source, index }: { source: Source; index: number }) {
 
 export function ChatMarkdown({
   content,
+  reasoning,
   sources,
   actions,
   onSaveToWrongBook,
 }: {
   content: string;
+  reasoning?: string;
   sources?: Source[];
   actions?: ActionCard[];
   onSaveToWrongBook?: (content: string) => void;
@@ -235,6 +238,9 @@ export function ChatMarkdown({
           ))}
         </div>
       )}
+
+      {/* AI 思考过程折叠层（设置可关） */}
+      <AiThinking reasoning={reasoning} />
 
       {/* AI 回答 */}
       <ReactMarkdown components={components}>{content}</ReactMarkdown>

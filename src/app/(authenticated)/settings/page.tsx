@@ -11,6 +11,29 @@ import {
 import { defaultNavGroups } from '@/lib/nav'
 
 type Tab = 'ai' | 'reminders' | 'ui'
+type DrivingMode = 'auto' | 'assisted' | 'manual'
+
+// 驾驶模式三档元数据（切档纪律：永不静默接管，给过渡摘要）
+const DRIVING_MODES: Record<DrivingMode, { label: string; icon: string; desc: string; note: string }> = {
+  auto: {
+    label: '自动驾驶',
+    icon: '🚀',
+    desc: 'AI 更主动：周日在没有下周计划时自动生成，也可主动提批量建议（写入前仍会给你确认）。',
+    note: '切档后：周日若下周无计划，会自动生成草稿，你随时可在任务页调整。',
+  },
+  assisted: {
+    label: '辅助驾驶',
+    icon: '🤝',
+    desc: 'AI 与你协作：你提问时给建议，写入操作在你明确要求时才执行。',
+    note: '切档后：维持当前行为，AI 不做额外主动操作。',
+  },
+  manual: {
+    label: '手动驾驶',
+    icon: '🕹️',
+    desc: '你掌控一切：AI 只做顾问不动手，任何修改都由你决定。',
+    note: '切档后：AI 不再主动提议批量操作，只回答问题与给建议。',
+  },
+}
 
 export default function SettingsPage() {
   const [tab, setTab] = useState<Tab>('ai')
@@ -19,6 +42,8 @@ export default function SettingsPage() {
   const [aiKey, setAiKey] = useState('')
   const [aiUrl, setAiUrl] = useState('')
   const [aiModel, setAiModel] = useState('')
+  const [drivingMode, setDrivingMode] = useState<DrivingMode>('assisted')
+  const [aiTaskCount, setAiTaskCount] = useState(0)
   const [saved, setSaved] = useState(false)
   const [hasKey, setHasKey] = useState(false)
   const [keyHint, setKeyHint] = useState('')
@@ -36,7 +61,7 @@ export default function SettingsPage() {
   const [notifyPerm, setNotifyPerm] = useState<string>('default')
 
   // ── UI settings ──
-  const { navGroups, workspaceCards, practiceDefaults, setNavGroups, setWorkspaceCards, setPracticeDefaults, resetNavToDefaults, resetWorkspaceToDefaults, resetPracticeToDefaults } = useUIStore()
+  const { navGroups, workspaceCards, practiceDefaults, showAiThinking, setNavGroups, setWorkspaceCards, setPracticeDefaults, setShowAiThinking, resetNavToDefaults, resetWorkspaceToDefaults, resetPracticeToDefaults } = useUIStore()
   const [uiSaving, setUiSaving] = useState(false)
 
   // ── Export ──
@@ -66,6 +91,8 @@ export default function SettingsPage() {
       setHasKey(d.hasKey)
       setAiUrl(d.aiUrl || '')
       setAiModel(d.aiModel || '')
+      setDrivingMode(d.drivingMode === 'auto' || d.drivingMode === 'manual' ? d.drivingMode : 'assisted')
+      setAiTaskCount(d.aiTaskCount ?? 0)
       setKeyHint(d.keyHint || '')
       setLoading(false)
     })
@@ -122,9 +149,10 @@ export default function SettingsPage() {
   const handleSaveUI = async () => {
     setUiSaving(true)
     try {
-      await fetch('/api/user/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ navPreferences: navGroups, practicePreferences: practiceDefaults }) })
-      toast.success('界面偏好已保存')
-    } catch { toast.error('保存失败') }
+      const res = await fetch('/api/user/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ navPreferences: navGroups, practicePreferences: practiceDefaults, drivingMode }) })
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || '保存失败') }
+      toast.success(`已切换为「${DRIVING_MODES[drivingMode].label}」。${DRIVING_MODES[drivingMode].note} 当前 ${aiTaskCount} 个 AI 生成的任务不会被改动。`)
+    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : '保存失败') }
     finally { setUiSaving(false) }
   }
 
@@ -249,6 +277,38 @@ export default function SettingsPage() {
         <div className="rounded-2xl bg-card border border-border/50 shadow-sm p-6 space-y-6">
           <h2 className="font-semibold">🎨 界面定制</h2>
 
+          {/* 驾驶模式三档 */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold">🚗 驾驶模式</h3>
+              <span className="text-xs text-muted-foreground">决定 AI 的主动程度</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {(Object.keys(DRIVING_MODES) as DrivingMode[]).map((m) => {
+                const meta = DRIVING_MODES[m]
+                return (
+                  <button
+                    key={m}
+                    onClick={() => setDrivingMode(m)}
+                    className={`p-3 rounded-xl border text-center transition-colors active:scale-[0.98] ${
+                      drivingMode === m ? 'border-brand bg-brand-muted' : 'border-border/50 hover:bg-muted'
+                    }`}
+                  >
+                    <div className="text-xl">{meta.icon}</div>
+                    <div className={`text-sm font-medium mt-1 ${drivingMode === m ? 'text-brand' : ''}`}>{meta.label}</div>
+                  </button>
+                )
+              })}
+            </div>
+            {/* 过渡摘要：永不静默接管 */}
+            <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+              {DRIVING_MODES[drivingMode].desc}
+            </p>
+            <p className="mt-1 text-[11px] text-muted-foreground/80 leading-relaxed">
+              ⚠️ {DRIVING_MODES[drivingMode].note} 当前有 {aiTaskCount} 个 AI 生成的任务，切档不会删除或覆盖它们。
+            </p>
+          </div>
+
           {/* Navigation groups */}
           <div>
             <div className="flex items-center justify-between mb-3">
@@ -355,6 +415,20 @@ export default function SettingsPage() {
                   <option value="advanced">🔧 详细选项</option>
                 </select>
               </div>
+            </div>
+          </div>
+
+          {/* AI 显示偏好 */}
+          <div className="rounded-xl border border-border/50 p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold">显示 AI 思考过程</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">在 AI 回复上方展示可折叠的思考过程</p>
+              </div>
+              <button onClick={() => setShowAiThinking(!showAiThinking)}
+                className={`relative w-12 h-7 rounded-full transition-colors shrink-0 ${showAiThinking ? 'bg-brand' : 'bg-muted-foreground/30'}`}>
+                <span className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow transition-transform ${showAiThinking ? 'translate-x-5' : ''}`} />
+              </button>
             </div>
           </div>
 

@@ -1,6 +1,6 @@
 # AI 考研助手 — 项目状态
 
-> 最后更新: 2026-08-10 | 分支: `dev` | 维护者: Xm
+> 最后更新: 2026-08-13 | 分支: `dev` | 维护者: Xm
 
 ## 项目概述
 
@@ -122,7 +122,7 @@ src/
 │   ├── api-auth.ts                    # getAuthUser / ensureLocalUser
 │   ├── api-utils.ts                   # jsonNoStore / handleApiError
 │   ├── rate-limit.ts                  # 🆕 限流 + 蜜罐 + IP 提取（register/support 复用）
-│   ├── ai-config.ts / ai-tools.ts     # callAI / AI 工具调用（9 个）
+│   ├── ai-config.ts / ai-tools.ts     # callAI / AI 工具调用（10 个：含 propose_tasks 提案）
 │   ├── nav.ts                         # defaultNavGroups 分组导航 + navItems
 │   ├── supabase/*                     # server / client / service / middleware(updateSession)
 │   ├── date-utils.ts / time-utils.ts  # getWeekStart / startOfDay ...
@@ -145,7 +145,7 @@ src/
     └── api/                             # 47 个路由
 ```
 
-## API 路由清单 (47 个)
+## API 路由清单 (49 个)
 
 | 分类 | 路由 |
 |------|------|
@@ -156,6 +156,7 @@ src/
 | leaderboard (1) | route |
 | user (5) | profile, avatar, export, reminders, settings |
 | support/suggestions (2) | support, suggestions |
+| chat/proposals (2) | confirm, reject（对话→任务提案：直连按钮绕过 AI 循环） |
 | 核心业务 | chat, checkin, feedback, goal, tasks(+[id]), materials(+[id]), upload, practice(+[id]), wrong-questions(+[id],batch), questions/import, pomodoro/sessions+settings, knowledge-graph(+build,node/[id]), study-path(+progress), progress/summary |
 
 ## 数据库模型变更
@@ -166,6 +167,10 @@ src/
 | Goal | `progress` (Json) | 2026-07-28 |
 | **Supporter** | 🆕 感谢墙留言：`userId?/name/amount/message/approved/createdAt`（审核制） | 2026-08-10 |
 | **AuthorFeedback** | 🆕 意见反馈：`userId/rating/content/anonymous/status`（new→read→resolved） | 2026-08-10 |
+| **Goal** | 🆕 `subjectsEdited Boolean @default(false)`（专业→科目联动：手动改过则不再自动覆盖） | 2026-08-13 |
+| **User** | 🆕 `drivingMode String @default("assisted")`（驾驶模式三档：auto/assisted/manual） | 2026-08-13 |
+| **Task** | 🆕 `proposalId String?` + `chatId String?` + `@@index([userId, proposalId])`；`source` 新增取值 `ai_confirmed` | 2026-08-13 |
+| **Chat** | 🆕 `pendingProposal Json?`（待确认的任务提案草稿） | 2026-08-13 |
 
 ## 近期迭代记录 (2026-08)
 
@@ -203,6 +208,27 @@ src/
 - **Batch 4 收尾**：容器宽度 2 档统一（checkin/admission 修正）+ 图标体系全 emoji（lucide-react 全库移除）+ 无障碍补齐（leaderboard aria-pressed、tasks 弹窗 label htmlFor）；webServer 超时 120s→240s
 - 文档：`docs/UI_AUDIT.md` 全程留档
 
+### 第 7 轮 — AI 共享 prompt 层 + 专业→科目联动（2026-08-13）
+- **共享 prompt 层** `src/lib/ai-prompts.ts`：角色宪章（SYSTEM_CORE）+ 表达红绿线（EXPRESSION_GUARDRAILS）+ 开小差限制（SLACK_LIMITS）+ `buildChatSystemPrompt` 组合器，8 个 AI 路由收敛引用，杜绝各路由手写 prompt 造成语气割裂
+- **专业→科目联动** `src/lib/major-subject-map.ts`：MAJOR_SUBJECT_MAP（统考预选 + 歧义专业 note）+ `normalizeMajor()`；Goal `subjectsEdited` 标记，已有 subjects 只补公共课不覆盖；subject-selector 加"检测到专业→应用推荐科目"条
+- **承载位先行**：`ui-store` 加 `showAiThinking`（migrate 补齐）；tasks 页本地 getWeekStart 重复实现改用 `lib/date-utils`
+
+### 第 8 轮 — 思考可见层 + 心路成长 UI 侧（2026-08-13）
+- **思考可见（非流式第一层）**：`callAI` 已捕获的 `reasoningText` 在 5 个人类读入口透传（chat/generate-plan/judge-plan/generate-feedback/study-path，截断 ~1500）；新建 `src/components/ai-thinking.tsx` 折叠层，渲染到 /chat 与浮窗 assistant 消息上方；settings 界面定制加"显示 AI 思考过程"开关
+- **心路成长 UI 侧**：checkin 三态 `STATUS_META` 常量 + 成功态安抚句；dashboard 温柔重入卡（今日未打卡 + 距上次>3 天 → "不用补，从今天的任务开始" + 番茄 10 分钟入口）；排行榜"本周 vs 上周"个人对比；新建 `src/lib/milestone.ts`（打卡天数/连续/错题/阶段完成）；周报 `Feedback.stats Json?` 存 prev/this 对比 + prompt 先写"vs 上周自己"
+
+### 第 9 轮 — 驾驶模式三档（2026-08-13）
+- `User.drivingMode`（auto/assisted/manual，默认 assisted=现状）；settings 界面定制三档选择器；`getUserAiConfig` 返回 drivingMode → chat 路由注入档位策略 prompt
+- weekly-plan-reminder 自动档周日直接生成下周（写入仍保留 manual/ai_confirmed 不删）；辅助/手动保持询问
+- **切档纪律**：settings 切档给"过渡摘要"（当前 AI 任务数 + 生成策略变化说明），永不静默接管
+
+### 第 10 轮 — 对话→任务落地（事务边界）（2026-08-13）
+- **schema**：Task `proposalId/chatId` + `@@index([userId, proposalId])`；Chat `pendingProposal Json?`
+- **propose_tasks 工具**（writes:false 草稿不落库）：批量建议挂到对话 pendingProposal；`create_task` description 引导勿批量直写；chat 路由读 body.chatId → 提案时无对话则先建 → 返回 `chatId + proposal`
+- **`src/lib/proposals.ts`**：`confirmProposal`（$transaction 批量 insert，`source:"ai_confirmed"` + 逐条 `getWeekStart` + proposalId/chatId）、`revokeProposal`（清空草稿）
+- **API** `POST /api/chat/proposals/confirm|reject`：直连按钮绕过 AI 循环；**/chat 提案卡**（清单 + 逐项勾选 + 采纳/拒绝，采纳后从消息移除并重存）；浮窗保持事务直写 + `floating` prompt 引导批量需求去 /chat
+- **修复隐患**：generate-plan 增量删除改为 `source notIn [manual, ai_confirmed]`（不再误删已确认提案）；PATCH `/api/tasks/[id]` 支持改 `subject`
+
 ## 待优化
 
 | 优先级 | 任务 |
@@ -212,6 +238,7 @@ src/
 | P2 | PWA 离线策略优化（导航网络优先，仅 offline.html 兜底，未缓存 API 数据） |
 | P3 | SWR 缓存（显式降级 backlog：不引入第三种数据获取模式；统一方向为 React Query + `useApi` hook，见 UI_AUDIT §五-H） |
 | P3 | 学习圈：点赞/互关/动态等更深社交（当前仅排行榜） |
+| P3 | **AI 技能系统**（独立大阶段）：Skill 模型 + 官方技能 + 会话蒸馏 + 用户分享 + 触发/治理设计。基建已就绪（第 7 轮 prompt 层 + 第 10 轮工具/提案通道），单独排期 |
 
 ## 最近提交 (最新→最旧)
 

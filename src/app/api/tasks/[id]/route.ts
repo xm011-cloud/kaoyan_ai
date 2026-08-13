@@ -30,6 +30,7 @@ export async function PATCH(
         ...(body.description !== undefined && { description: body.description }),
         ...(body.duration !== undefined && { duration: body.duration }),
         ...(body.phase !== undefined && { phase: body.phase }),
+        ...(body.subject !== undefined && { subject: body.subject }),
         ...(body.date && { date: new Date(body.date) }),
       },
     });

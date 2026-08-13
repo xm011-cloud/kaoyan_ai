@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { jsonNoStore } from "@/lib/api-utils";
 import { getAuthUser } from "@/lib/api-auth";
-import { getUserAiConfig, callAI, extractJsonArray } from "@/lib/ai-config";
+import { getUserAiConfig, callAI, extractJsonArray, truncateReasoning } from "@/lib/ai-config";
 import { prisma } from "@/lib/prisma";
 import { normalizeSubject } from "@/lib/subject-standards";
 
@@ -157,9 +157,9 @@ export async function POST(request: NextRequest) {
       const dayEnd = new Date(regenerateDay); dayEnd.setHours(23, 59, 59, 999);
       deleteWhere.date = { gte: dayStart, lte: dayEnd };
     }
-    // 保留手动任务
+    // 保留手动任务 + 已确认的提案任务（对话→任务落地后不应被周计划重生成误删）
     await prisma.task.deleteMany({
-      where: { ...deleteWhere, source: { not: "manual" } },
+      where: { ...deleteWhere, source: { notIn: ["manual", "ai_confirmed"] } },
     });
 
     const subjects = (Array.isArray(goal.subjects) ? goal.subjects : [])
@@ -174,6 +174,7 @@ export async function POST(request: NextRequest) {
     if (sprintMode) phase = "冲刺阶段";
     const aiConfig = await getUserAiConfig(user!.id);
     let planTasks: PlanTask[];
+    let planReasoning: string | undefined; // AI 生成时的思考过程（可折叠展示）
 
     if (aiConfig) {
       const targetScores = (goal.targetScores as Record<string, number>) || {};
@@ -250,6 +251,7 @@ ${sprintContext}${regenerateContext}
         const parsed = extractJsonArray<PlanTask>(fullContent);
         if (parsed && parsed.length > 0) {
           planTasks = parsed;
+          planReasoning = result.reasoningText || undefined;
         } else {
           console.error("AI 返回格式不正确，前200字:", fullContent.substring(0, 200));
           throw new Error("AI 返回格式不正确");
@@ -300,6 +302,7 @@ ${sprintContext}${regenerateContext}
       weekRange: { start: weekStartStr, end: weekEndStr },
       phases: phaseStats,
       generatedBy: aiConfig ? "ai" : "local",
+      reasoning: truncateReasoning(planReasoning),
     });
   } catch (err) {
     console.error("Generate plan error:", err);

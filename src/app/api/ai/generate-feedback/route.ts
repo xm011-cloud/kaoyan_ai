@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { jsonNoStore } from "@/lib/api-utils";
 import { getAuthUser } from "@/lib/api-auth";
-import { getUserAiConfig, callAI } from "@/lib/ai-config";
+import { getUserAiConfig, callAI, truncateReasoning } from "@/lib/ai-config";
 import { prisma } from "@/lib/prisma";
 import { startOfDay, getWeekStart, getWeekEnd } from "@/lib/date-utils";
 
@@ -33,11 +33,26 @@ export async function POST(request: NextRequest) {
     });
     const goal = await prisma.goal.findUnique({ where: { userId: user!.id } });
 
+    // 上周数据（做"vs 上周的自己"对比，软化非零和）
+    const prevWeekStart = new Date(weekStart.getTime() - 7 * 86400000);
+    const prevWeekCheckIns = await prisma.checkIn.findMany({
+      where: { userId: user!.id, date: { gte: prevWeekStart, lt: weekStart } },
+    });
+    const prevWeekTasks = await prisma.task.findMany({
+      where: { userId: user!.id, date: { gte: prevWeekStart, lt: weekStart } },
+    });
+
     const totalMinutes = weekCheckIns.reduce((s, c) => s + c.duration, 0);
     const totalHours = (totalMinutes / 60).toFixed(1);
     const checkInDays = weekCheckIns.length;
     const taskTotal = weekTasks.length;
     const taskCompleted = weekTasks.filter(t => t.completed).length;
+
+    // 上周统计
+    const prevTotalMinutes = prevWeekCheckIns.reduce((s, c) => s + c.duration, 0);
+    const prevCheckInDays = prevWeekCheckIns.length;
+    const prevTaskTotal = prevWeekTasks.length;
+    const prevTaskCompleted = prevWeekTasks.filter(t => t.completed).length;
     const moodCounts: Record<string, number> = {};
     weekCheckIns.forEach(c => { moodCounts[c.status] = (moodCounts[c.status] || 0) + 1; });
 
@@ -71,16 +86,20 @@ export async function POST(request: NextRequest) {
       if (gaps.length > 0) scoreGap = `\n- 分数差距：${gaps.join("、")}`;
     }
 
+    const prevWeekStats = `- 上周对比：上周打卡 ${prevCheckInDays}/7 天（${(prevTotalMinutes / 60).toFixed(1)} 小时）、完成任务 ${prevTaskCompleted}/${prevTaskTotal}；本周打卡 ${checkInDays}/7 天（${totalHours} 小时）、完成任务 ${taskCompleted}/${taskTotal}`;
+
     const dataSummary = `本周学习数据：
 - 总学习时长：${totalHours} 小时
 - 打卡天数：${checkInDays}/7 天
 - 任务完成：${taskCompleted}/${taskTotal}
+${prevWeekStats}
 - 状态分布：${Object.entries(moodCounts).map(([k,v]) => `${k === 'good' ? '状态好' : k === 'normal' ? '一般' : '疲惫'} ${v}天`).join('，')}${scoreGap}
 ${goal ? `- 目标院校：${goal.university} ${goal.major}，考试日期：${goal.examDate.toISOString().split("T")[0]}` : ''}`;
 
     const aiConfig = await getUserAiConfig(user!.id);
     let content = "";
     let suggestions: string[] = [];
+    let feedbackReasoning: string | undefined;
 
     if (aiConfig) {
       try {
@@ -92,7 +111,7 @@ ${goal ? `- 目标院校：${goal.university} ${goal.major}，考试日期：${g
             },
             {
               role: "user",
-              content: `请根据以下学习数据分析并给出本周反馈：\n\n${dataSummary}\n\n要求：\n1. 先给出本周总结（包含鼓励和数据分析）\n2. 用 --- 分隔\n3. 然后列出3-5条具体建议，每条以 - 开头\n4. 建议要结合目标和考试日期，有可操作性`,
+              content: `请根据以下学习数据分析并给出本周反馈：\n\n${dataSummary}\n\n要求：\n1. 先写"与上周的自己对比"的进步视图（哪怕只是比上周多打卡 1 天，也要具体肯定；退步时先承认状态波动很正常，再给极小步骤建议）\n2. 然后给出本周总结（包含鼓励和数据分析）\n3. 用 --- 分隔\n4. 然后列出3-5条具体建议，每条以 - 开头\n5. 建议要结合目标和考试日期，有可操作性\n6. 禁止说"你应该/你怎么又/别人都在"，聚焦具体事实`,
             },
           ],
           temperature: 0.7,
@@ -105,6 +124,7 @@ ${goal ? `- 目标院校：${goal.university} ${goal.major}，考试日期：${g
           .split("\n")
           .map((l: string) => l.replace(/^[-*\d.]\s*/, "").trim())
           .filter(Boolean);
+        feedbackReasoning = result.reasoningText || undefined;
       } catch {
         // fallback to local
       }
@@ -138,10 +158,28 @@ ${goal ? `- 目标院校：${goal.university} ${goal.major}，考试日期：${g
         weekEnd,
         content,
         suggestions,
+        stats: {
+          prevWeek: {
+            checkInDays: prevCheckInDays,
+            totalMinutes: prevTotalMinutes,
+            taskCompleted: prevTaskCompleted,
+            taskTotal: prevTaskTotal,
+          },
+          thisWeek: {
+            checkInDays,
+            totalMinutes,
+            taskCompleted,
+            taskTotal,
+          },
+        },
       },
     });
 
-    return jsonNoStore({ feedback, regenerated: true });
+    return jsonNoStore({
+      feedback,
+      regenerated: true,
+      reasoning: truncateReasoning(feedbackReasoning),
+    });
   } catch (err) {
     console.error("Generate feedback error:", err);
     return jsonNoStore({ error: "生成反馈失败" }, { status: 500 });

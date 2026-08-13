@@ -9,6 +9,7 @@ import { Modal } from "@/components/ui/modal";
 import { ModuleLinks } from "@/components/ui/module-links";
 import { useGoal } from "@/hooks/use-goal";
 import { WeeklyPlanner } from "./_components/weekly-planner";
+import { getWeekStart, toDateString } from "@/lib/date-utils";
 
 interface Task {
   id: string;
@@ -34,14 +35,6 @@ interface JudgeResult {
   score: number; strengths: string[];
   issues: { severity: string; description: string; fix: string }[];
   verdict: string; summary: string;
-}
-
-function getWeekStart(d: Date): Date {
-  const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day; // Monday start
-  const ws = new Date(d.getTime() + diff * 86400000);
-  ws.setHours(0, 0, 0, 0);
-  return ws;
 }
 
 const PHASE_COLORS: Record<string, string> = {
@@ -154,8 +147,6 @@ export default function TasksPage() {
   }, [savedProgress]);
 
   // ── Handlers ──
-  const toDateString = (d: Date) => d.toISOString().slice(0, 10);
-
   const handleWeekChange = (dir: -1 | 1) => {
     const d = new Date(weekStart.getTime() + dir * 7 * 86400000);
     setWeekStart(d);

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
 import { SubjectSelector } from './_components/subject-selector'
 import { isCustomSubject, formatCustomSubjectLabel, normalizeSubject } from '@/lib/subject-standards'
+import { MAJOR_SUBJECT_MAP, normalizeMajor, mergeMissingCorePublic } from '@/lib/major-subject-map'
 
 function displaySubject(subj: string): string {
   return isCustomSubject(subj) ? formatCustomSubjectLabel(subj) : subj
@@ -16,6 +17,7 @@ export default function GoalPage() {
   const [major, setMajor] = useState('')
   const [examDate, setExamDate] = useState('')
   const [subjects, setSubjects] = useState<string[]>([])
+  const [subjectsEdited, setSubjectsEdited] = useState(false)
   const [targetScores, setTargetScores] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -31,6 +33,7 @@ export default function GoalPage() {
         setMajor(data.goal.major)
         setExamDate(data.goal.examDate.split('T')[0])
         setSubjects(Array.isArray(data.goal.subjects) ? data.goal.subjects.map(normalizeSubject) : [])
+        setSubjectsEdited(data.goal.subjectsEdited ?? false)
         if (data.goal.targetScores && typeof data.goal.targetScores === 'object') {
           setTargetScores(data.goal.targetScores as Record<string, number>)
         }
@@ -40,6 +43,14 @@ export default function GoalPage() {
   }, [])
 
   useEffect(() => { loadGoal() }, [loadGoal])
+
+  // 专业 → 科目自动填充：首次为空则填满推荐，已有则只补核心公共课；用户改过不再自动覆盖
+  useEffect(() => {
+    const key = normalizeMajor(major)
+    if (!key || subjectsEdited) return
+    const rec = MAJOR_SUBJECT_MAP[key].subjects
+    setSubjects((prev) => (prev.length === 0 ? rec : mergeMissingCorePublic(prev, rec)))
+  }, [major, subjectsEdited])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -55,6 +66,7 @@ export default function GoalPage() {
           university, major, examDate,
           subjects: subjectList,
           targetScores: Object.keys(targetScores).length > 0 ? targetScores : undefined,
+          subjectsEdited,
         }),
       })
 
@@ -95,7 +107,13 @@ export default function GoalPage() {
           </div>
           <div>
             <label className="block text-sm font-medium mb-2">考试科目</label>
-            <SubjectSelector selected={subjects} onChange={setSubjects} />
+            <SubjectSelector
+              selected={subjects}
+              onChange={setSubjects}
+              majorValue={major}
+              edited={subjectsEdited}
+              onManualEdit={() => setSubjectsEdited(true)}
+            />
           </div>
 
           {subjectList.length > 0 && (

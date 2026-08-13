@@ -9,20 +9,30 @@ export async function GET(request: NextRequest) {
   if (error) return error;
 
   try {
-    const dbUser = await prisma.user.findUnique({
-      where: { id: user!.id },
-      select: {
-        aiKey: true,
-        aiUrl: true,
-        aiModel: true,
-        navPreferences: true,
-        practicePreferences: true,
-      },
-    });
+    // AI 生成的任务数（供驾驶模式"过渡摘要"提示，切档时说明不会被静默改动）
+    // 与用户信息并行查询，避免串行增加首屏延迟
+    const [dbUser, aiTaskCount] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: user!.id },
+        select: {
+          aiKey: true,
+          aiUrl: true,
+          aiModel: true,
+          drivingMode: true,
+          navPreferences: true,
+          practicePreferences: true,
+        },
+      }),
+      prisma.task.count({
+        where: { userId: user!.id, source: { not: "manual" } },
+      }),
+    ]);
     return jsonNoStore({
       hasKey: !!dbUser?.aiKey,
       aiUrl: dbUser?.aiUrl || "",
       aiModel: dbUser?.aiModel || "",
+      drivingMode: dbUser?.drivingMode || "assisted",
+      aiTaskCount,
       keyHint: dbUser?.aiKey
         ? `${dbUser.aiKey.slice(0, 6)}...${dbUser.aiKey.slice(-4)}`
         : "",
@@ -41,7 +51,7 @@ export async function PUT(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { aiKey, aiUrl, aiModel, navPreferences, practicePreferences } = body;
+    const { aiKey, aiUrl, aiModel, drivingMode, navPreferences, practicePreferences } = body;
 
     // If AI key is provided, validate it
     if (aiKey && !aiKey.startsWith("sk-")) {
@@ -51,10 +61,16 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // 驾驶模式取值校验
+    if (drivingMode !== undefined && !["auto", "assisted", "manual"].includes(drivingMode)) {
+      return jsonNoStore({ error: "无效的驾驶模式" }, { status: 400 });
+    }
+
     const data: Record<string, unknown> = {};
     if (aiKey !== undefined) data.aiKey = aiKey || null;
     if (aiUrl !== undefined) data.aiUrl = aiUrl || null;
     if (aiModel !== undefined) data.aiModel = aiModel || null;
+    if (drivingMode !== undefined) data.drivingMode = drivingMode;
     if (navPreferences !== undefined) data.navPreferences = navPreferences;
     if (practicePreferences !== undefined) data.practicePreferences = practicePreferences;
 

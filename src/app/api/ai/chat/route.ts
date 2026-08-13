@@ -1,11 +1,12 @@
 import { NextRequest } from "next/server";
 import { jsonNoStore } from "@/lib/api-utils";
 import { getAuthUser } from "@/lib/api-auth";
-import { getUserAiConfig, callAI } from "@/lib/ai-config";
+import { getUserAiConfig, callAI, truncateReasoning } from "@/lib/ai-config";
 import type { AiToolCall } from "@/lib/ai-config";
 import { prisma } from "@/lib/prisma";
 import { searchMaterials, buildRagContext, findRelevantSegments } from "@/lib/rag";
 import { getToolDefinitions, executeTool } from "@/lib/ai-tools";
+import { buildChatSystemPrompt } from "@/lib/ai-prompts";
 
 const MAX_TOOL_ITERATIONS = 5;
 
@@ -30,11 +31,15 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { messages, materialIds } = body;
+    const { messages, materialIds, chatId: bodyChatId, floating } = body;
 
     if (!messages || !Array.isArray(messages)) {
       return jsonNoStore({ error: "消息格式不正确" }, { status: 400 });
     }
+
+    // 对话→任务落地：沿用已有对话（提案挂到它的 pendingProposal）；无对话时先建一条
+    let resolvedChatId: string | null = typeof bodyChatId === "string" && bodyChatId ? bodyChatId : null;
+    let proposalData: Record<string, unknown> | null = null;
 
     const lastMessage = messages[messages.length - 1]?.content || "";
     const materialWhere: Record<string, unknown> = { userId: user!.id };
@@ -58,26 +63,15 @@ export async function POST(request: NextRequest) {
 
     const selectedLabel = materialIds?.length > 0 ? `（用户指定了 ${materialIds.length} 份资料）` : "";
 
-    // 构建系统提示词（含 RAG + 工具使用指引）
-    let systemContent = `你是 AI 考研助手，专门帮助用户备考研究生入学考试。请用中文回复，要专业、清晰、有条理。${selectedLabel}
-
-## 可用功能
-你可以使用工具来帮助用户完成以下操作：
-- **查询数据**：查看今日任务、打卡状态、考研目标、待复习错题、本周学习统计
-- **执行操作**：创建新任务、切换任务完成状态、创建学习打卡、设置学习提醒
-
-使用规则：
-1. 当用户询问学习数据时（如"今天有什么任务"、"打卡了吗"、"本周学了多久"），先调用对应的查询工具获取实时数据，再基于数据回答
-2. 只有在用户明确要求执行操作时才调用写入工具（如"帮我创建一个任务"、"帮我打卡"、"设置提醒"）
-3. 执行写入操作后，用自然语言告知用户操作结果
-4. 如果工具执行失败（返回 error），向用户说明情况并提供替代建议
-5. 不要编造数据——始终基于工具返回的真实数据回答`;
-
-    if (ragContext) {
-      systemContent += `\n\n## 用户上传的相关资料\n${ragContext}\n\n请在回答中引用资料内容，并注明是哪份资料。${materialIds?.length > 0 ? "用户已指定用这些资料回答，请严格基于这些内容。若无相关内容请诚实告知。" : ""}`;
-    } else if (userMaterials.length > 0) {
-      systemContent += `\n\n用户已上传 ${userMaterials.length} 份学习资料，但未找到相关内容。`;
-    }
+    // 构建系统提示词（角色宪章/表达规范/使用边界共享层 + RAG + 工具使用指引）
+    const systemContent = buildChatSystemPrompt({
+      selectedLabel,
+      ragContext: ragContext || undefined,
+      userMaterialsCount: userMaterials.length,
+      materialIdsSpecified: (materialIds?.length ?? 0) > 0,
+      drivingMode: aiConfig.drivingMode,
+      floating: !!floating,
+    });
 
     // ── 构建 API messages ──
     // 只保留用户和助手的对话消息，系统消息单独构建
@@ -94,6 +88,7 @@ export async function POST(request: NextRequest) {
     // ── Tool Calling 循环 ──
     const actions: ActionCard[] = [];
     let reply = "";
+    let replyReasoning = ""; // 产出最终回复那次的思考过程
 
     for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
       let result;
@@ -116,6 +111,7 @@ export async function POST(request: NextRequest) {
       // 没有 tool_calls → AI 返回了最终文本
       if (!result.toolCalls || result.toolCalls.length === 0) {
         reply = result.text || "抱歉，我暂时无法回答。";
+        replyReasoning = result.reasoningText || "";
         break;
       }
 
@@ -137,7 +133,34 @@ export async function POST(request: NextRequest) {
           parsedArgs = {};
         }
 
-        const toolResult = await executeTool(user!.id, tc.function.name, parsedArgs);
+        // 提案工具需要先有对话承载 pendingProposal（无对话则先建一条）
+        if (tc.function.name === "propose_tasks" && !resolvedChatId) {
+          const chat = await prisma.chat.create({
+            data: {
+              userId: user!.id,
+              messages: conversationMessages.map((m, idx) => ({
+                id: `seed_${idx}`,
+                role: m.role,
+                content: m.content,
+              })),
+            },
+          });
+          resolvedChatId = chat.id;
+        }
+
+        const toolResult = await executeTool(user!.id, tc.function.name, parsedArgs, { chatId: resolvedChatId });
+
+        // 捕获提案数据（前端渲染确认卡；pendingProposal 已由工具执行器挂到对话）
+        if (tc.function.name === "propose_tasks") {
+          try {
+            const parsed = JSON.parse(toolResult.result);
+            if (parsed.success && parsed.action === "wait_for_confirmation") {
+              proposalData = parsed;
+            }
+          } catch {
+            // ignore
+          }
+        }
 
         // 添加 tool 结果消息
         apiMessages.push({
@@ -163,6 +186,7 @@ export async function POST(request: NextRequest) {
             maxTokens: 2048,
           });
           reply = finalResult.text || "操作已完成，请查看结果。";
+          replyReasoning = finalResult.reasoningText || "";
         } catch {
           reply = `已完成 ${actions.length} 项操作，请查看上方卡片确认。`;
         }
@@ -176,6 +200,9 @@ export async function POST(request: NextRequest) {
 
     return jsonNoStore({
       reply,
+      reasoning: truncateReasoning(replyReasoning),
+      chatId: resolvedChatId || undefined,
+      proposal: proposalData || undefined,
       actions: actions.length > 0 ? actions : undefined,
       sources: (searchResults.length > 0 ? searchResults
         : materialIds?.length > 0 ? userMaterials.filter(m => m.content && m.content.length > 10).map(m => ({ id: m.id, name: m.name, content: m.content ?? "", score: 1 }))

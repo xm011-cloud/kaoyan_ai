@@ -16,6 +16,13 @@ type Row = {
   isCurrentUser: boolean
 }
 
+type CallerCompare = {
+  currentDuration: number
+  currentDays: number
+  previousDuration: number | null
+  previousDays: number | null
+}
+
 const PERIOD_TABS: { id: Period; label: string }[] = [
   { id: 'week', label: '本周' },
   { id: 'month', label: '本月' },
@@ -36,6 +43,7 @@ export default function LeaderboardPage() {
   const [period, setPeriod] = useState<Period>('week')
   const [rows, setRows] = useState<Row[]>([])
   const [callerRank, setCallerRank] = useState<number | null>(null)
+  const [callerCompare, setCallerCompare] = useState<CallerCompare | null>(null)
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async (p: Period) => {
@@ -45,6 +53,7 @@ export default function LeaderboardPage() {
       const data = await res.json()
       setRows(data.leaderboard ?? [])
       setCallerRank(data.callerRank ?? null)
+      setCallerCompare(data.callerCompare ?? null)
     } catch {
       setRows([])
     } finally {
@@ -86,15 +95,34 @@ export default function LeaderboardPage() {
         {callerRank ? (
           (() => {
             const me = rows.find((r) => r.isCurrentUser)
+            // "本周 vs 上周"个人对比（软化非零和：排名之外，更在意和自己比）
+            let compareLine: string | null = null
+            if (callerCompare && callerCompare.previousDuration !== null) {
+              const cur = formatDuration(callerCompare.currentDuration)
+              const prev = formatDuration(callerCompare.previousDuration)
+              if (callerCompare.currentDuration > callerCompare.previousDuration) {
+                const delta = callerCompare.currentDuration - callerCompare.previousDuration
+                compareLine = `本周 ${cur} · 上周 ${prev} · 比上周多学了 ${formatDuration(delta)} 👏`
+              } else if (callerCompare.currentDuration < callerCompare.previousDuration) {
+                compareLine = `本周 ${cur} · 上周 ${prev} · 状态有起伏很正常，下周从小任务开始`
+              } else {
+                compareLine = `本周 ${cur} · 上周 ${prev} · 节奏保持得不错`
+              }
+            }
             return (
-              <Link href="/profile" className="inline-flex items-center justify-center gap-2 text-sm">
-                {me && <Avatar src={me.avatar} name={me.displayName} size={24} />}
-                <span>
-                  你当前排在第{' '}
-                  <span className="text-lg font-bold text-amber-600 dark:text-amber-400">{callerRank}</span>{' '}
-                  名
-                </span>
-              </Link>
+              <div>
+                <Link href="/profile" className="inline-flex items-center justify-center gap-2 text-sm">
+                  {me && <Avatar src={me.avatar} name={me.displayName} size={24} />}
+                  <span>
+                    你当前排在第{' '}
+                    <span className="text-lg font-bold text-amber-600 dark:text-amber-400">{callerRank}</span>{' '}
+                    名
+                  </span>
+                </Link>
+                {compareLine && (
+                  <p className="mt-1 text-xs text-muted-foreground">{compareLine}</p>
+                )}
+              </div>
             )
           })()
         ) : loading ? (

@@ -30,6 +30,10 @@ export const PRESET_SUBJECTS: PresetSubject[] = [
   { value: "法硕(非法学)", label: "法硕(非法学)", category: "专业课" },
   { value: "法硕(法学)", label: "法硕(法学)", category: "专业课" },
   { value: "西医综合", label: "西医综合 (306)", category: "专业课" },
+  { value: "313历史学", label: "313 历史学专业基础综合", category: "专业课" },
+  { value: "307中医综合", label: "307 临床医学综合能力(中医)", category: "专业课" },
+  { value: "199管综", label: "199 管理类综合能力", category: "专业课" },
+  { value: "396经综", label: "396 经济类联考综合能力", category: "专业课" },
 ];
 
 // ── 自主命题前缀 ──
@@ -87,6 +91,8 @@ export function normalizeSubject(raw: string): string {
     "数一": "数学一", "数二": "数学二", "数三": "数学三",
     "英一": "英语一", "英二": "英语二",
     "408": "408计算机统考", "311": "311教育学", "312": "312心理学",
+    "313": "313历史学", "307": "307中医综合", "199": "199管综", "396": "396经综",
+    "历史学": "313历史学", "管理类综合能力": "199管综", "管理类联考综合能力": "199管综",
   };
   if (ALIASES[trimmed]) return ALIASES[trimmed];
 

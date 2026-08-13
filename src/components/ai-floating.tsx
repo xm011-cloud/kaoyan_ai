@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import { ChatMarkdown } from '@/components/chat-markdown'
+import type { Proposal } from '@/components/proposal-card'
 import { cn } from '@/lib/utils'
 
 interface ActionCard {
@@ -15,6 +17,8 @@ interface Message {
   role: 'user' | 'assistant'
   content: string
   actions?: ActionCard[]
+  reasoning?: string
+  proposal?: Proposal
 }
 
 const FLOATING_CHAT_ID = 'ai-floating' // 固定的对话 key（与 /chat 页面隔离）
@@ -113,7 +117,7 @@ export function AiFloating() {
       const res = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newMessages }),
+        body: JSON.stringify({ messages: newMessages, chatId: savedChatIdRef.current, floating: true }),
       })
 
       if (!res.ok) throw new Error('AI 服务暂不可用')
@@ -124,18 +128,21 @@ export function AiFloating() {
         role: 'assistant',
         content: data.reply || '抱歉，我暂时无法回答。',
         actions: data.actions,
+        reasoning: data.reasoning,
+        proposal: data.proposal,
       }
 
       const finalMessages = [...newMessages, assistantMessage]
       setMessages(finalMessages)
 
-      // 保存到 DB + localStorage
+      // 保存到 DB + localStorage（提案由服务端可能新建对话承载，用返回的 chatId 避免重复建对话）
       try {
+        const targetChatId = data.chatId || savedChatIdRef.current
         const saveRes = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            chatId: savedChatIdRef.current,
+            chatId: targetChatId,
             messages: finalMessages,
           }),
         })
@@ -284,10 +291,27 @@ export function AiFloating() {
                 {msg.role === 'user' ? (
                   <p className="whitespace-pre-wrap">{msg.content}</p>
                 ) : (
-                  <ChatMarkdown
-                    content={msg.content}
-                    actions={msg.actions}
-                  />
+                  <>
+                    <ChatMarkdown
+                      content={msg.content}
+                      reasoning={msg.reasoning}
+                      actions={msg.actions}
+                    />
+                    {msg.proposal && (
+                      <div className="mt-2 p-2 rounded-lg bg-brand-muted/40 border border-brand/20 text-[11px] text-brand">
+                        <p className="font-medium">📋 已生成任务提案（{msg.proposal.items.length} 项）</p>
+                        <p className="mt-0.5 text-foreground/70">
+                          快捷助手不直接落地批量任务，请到 AI 对话页逐项确认
+                        </p>
+                        <Link
+                          href={`/chat?chat=${savedChatIdRef.current || ''}`}
+                          className="mt-1.5 inline-block font-medium underline underline-offset-2 hover:opacity-80"
+                        >
+                          去确认 →
+                        </Link>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>

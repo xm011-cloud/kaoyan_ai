@@ -6,13 +6,43 @@ import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
 import { ModuleLinks } from '@/components/ui/module-links'
 
+// 打卡状态元数据：三态表情/文案 + 成功态的安抚/肯定句（心路成长表达规范）
+const STATUS_META = {
+  good: {
+    label: '状态很好',
+    emoji: '😊',
+    affirm: '状态满分的一天，趁热打铁，保持这个节奏。',
+  },
+  normal: {
+    label: '状态一般',
+    emoji: '😐',
+    affirm: '状态一般也能坚持完成打卡，这就是稳定推进。明天从一件小事开始。',
+  },
+  tired: {
+    label: '有点疲惫',
+    emoji: '😫',
+    affirm: '累了还愿意记录这一刻，这本身就是韧性。今天剩下的时间，先照顾好自己。',
+  },
+} as const
+
+type CheckinStatus = keyof typeof STATUS_META
+
+interface Milestone {
+  totalCheckIns: number
+  currentStreak: number
+  weekCheckIns: number
+  unreviewedWrongCount: number
+  completedMilestones: number
+}
+
 export default function CheckInPage() {
   const [duration, setDuration] = useState('')
-  const [status, setStatus] = useState<'good' | 'normal' | 'tired'>('good')
+  const [status, setStatus] = useState<CheckinStatus>('good')
   const [note, setNote] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [milestone, setMilestone] = useState<Milestone | null>(null)
   const [todayCheckIn, setTodayCheckIn] = useState<{
     duration: number
     status: string
@@ -60,6 +90,7 @@ export default function CheckInPage() {
 
       setSubmitted(true)
       setTodayCheckIn(data.checkIn)
+      setMilestone(data.milestone ?? null)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : '打卡失败')
     } finally {
@@ -78,12 +109,31 @@ export default function CheckInPage() {
             <div className="text-muted-foreground space-y-1">
               <p>学习时长：{todayCheckIn.duration} 分钟</p>
               <p>
-                状态：
-                {todayCheckIn.status === 'good' && '😊 状态很好'}
-                {todayCheckIn.status === 'normal' && '😐 状态一般'}
-                {todayCheckIn.status === 'tired' && '😫 有点疲惫'}
+                状态：{STATUS_META[todayCheckIn.status as CheckinStatus]?.emoji}{' '}
+                {STATUS_META[todayCheckIn.status as CheckinStatus]?.label}
               </p>
               {todayCheckIn.note && <p>备注：{todayCheckIn.note}</p>}
+            </div>
+
+            {/* 安抚/肯定句 + 具体数字里程碑 */}
+            <div className="rounded-xl bg-muted/50 p-3 text-sm">
+              <p className="text-foreground/90">
+                {STATUS_META[todayCheckIn.status as CheckinStatus]?.affirm}
+              </p>
+              {milestone && (
+                <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  {milestone.currentStreak > 1 && (
+                    <span>🔥 已连续打卡 {milestone.currentStreak} 天</span>
+                  )}
+                  <span>📅 累计打卡 {milestone.totalCheckIns} 天</span>
+                  {milestone.completedMilestones > 0 && (
+                    <span>🏁 已完成 {milestone.completedMilestones} 个里程碑</span>
+                  )}
+                  {milestone.unreviewedWrongCount > 0 && (
+                    <span>📚 还有 {milestone.unreviewedWrongCount} 道错题待复习</span>
+                  )}
+                </div>
+              )}
             </div>
             <div className="flex flex-col gap-2">
               <Button onClick={() => {
@@ -129,25 +179,24 @@ export default function CheckInPage() {
           <div>
             <label className="block text-sm font-medium mb-2">今日状态</label>
             <div className="grid grid-cols-3 gap-3">
-              {[
-                { value: 'good', label: '状态很好', emoji: '😊' },
-                { value: 'normal', label: '状态一般', emoji: '😐' },
-                { value: 'tired', label: '有点疲惫', emoji: '😫' },
-              ].map((item) => (
-                <button
-                  key={item.value}
-                  type="button"
-                  onClick={() => setStatus(item.value as typeof status)}
-                  className={`p-3 rounded-xl border border-border/50 text-center transition-colors ${
-                    status === item.value
-                      ? 'border-brand bg-brand-muted'
-                      : 'hover:bg-muted'
-                  }`}
-                >
-                  <div className="text-2xl">{item.emoji}</div>
-                  <div className="text-xs mt-1">{item.label}</div>
-                </button>
-              ))}
+              {(Object.keys(STATUS_META) as CheckinStatus[]).map((key) => {
+                const item = STATUS_META[key]
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setStatus(key)}
+                    className={`p-3 rounded-xl border border-border/50 text-center transition-colors ${
+                      status === key
+                        ? 'border-brand bg-brand-muted'
+                        : 'hover:bg-muted'
+                    }`}
+                  >
+                    <div className="text-2xl">{item.emoji}</div>
+                    <div className="text-xs mt-1">{item.label}</div>
+                  </button>
+                )
+              })}
             </div>
           </div>
 

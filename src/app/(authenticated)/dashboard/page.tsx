@@ -164,6 +164,14 @@ export default async function DashboardPage() {
   // 所有可用科目
   const subjects = goal?.subjects || []
 
+  // ── 重入判断：今日未打卡 + 距上次打卡 > 3 天 → 显示温柔重入卡 ──
+  const checkedInToday = Boolean(todayCheckin)
+  const lastCheckinDate = recentChecks.find((c) => toDateString(c.date) !== todayStr)?.date ?? null
+  const daysSinceLastCheckin = lastCheckinDate
+    ? Math.round((today.getTime() - startOfDay(lastCheckinDate).getTime()) / 86400000)
+    : null
+  const showReentry = !checkedInToday && daysSinceLastCheckin !== null && daysSinceLastCheckin > 3
+
   // ── 组装 Props ──
   const workbenchData = {
     stats: {
@@ -201,6 +209,7 @@ export default async function DashboardPage() {
     ),
     goal: goal ? { university: goal.university, major: goal.major } : null,
     daysLeft,
+    reentry: { show: showReentry, daysSinceLastCheckin },
   }
 
   return (

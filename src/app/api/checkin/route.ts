@@ -3,6 +3,7 @@ import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, jsonNoStore } from "@/lib/api-utils";
 import { startOfDay } from "@/lib/date-utils";
+import { getMilestone } from "@/lib/milestone";
 
 // GET: 获取打卡记录（支持 ?date=YYYY-MM-DD）
 export async function GET(request: NextRequest) {
@@ -59,7 +60,9 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return jsonNoStore({ checkIn });
+    const milestone = await getMilestone(user!.id);
+
+    return jsonNoStore({ checkIn, milestone });
   } catch (err) {
     return handleApiError(err, "创建打卡");
   }

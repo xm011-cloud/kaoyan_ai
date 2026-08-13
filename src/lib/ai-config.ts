@@ -4,6 +4,8 @@ export interface AiConfig {
   apiKey: string;
   baseURL: string;
   model: string;
+  /** 驾驶模式三档：auto / assisted / manual（服务端直读，无需客户端传参） */
+  drivingMode?: "auto" | "assisted" | "manual";
 }
 
 // ── OpenAI Function Calling 类型 ──
@@ -34,8 +36,10 @@ const GLOBAL_DEFAULTS = {
 export async function getUserAiConfig(userId: string): Promise<AiConfig | null> {
   const dbUser = await prisma.user.findUnique({
     where: { id: userId },
-    select: { aiKey: true, aiUrl: true, aiModel: true },
+    select: { aiKey: true, aiUrl: true, aiModel: true, drivingMode: true },
   });
+
+  const drivingMode = (dbUser?.drivingMode as AiConfig["drivingMode"]) || "assisted";
 
   // 用户配了自己的 key → 优先用
   if (dbUser?.aiKey) {
@@ -43,6 +47,7 @@ export async function getUserAiConfig(userId: string): Promise<AiConfig | null> 
       apiKey: dbUser.aiKey,
       baseURL: dbUser.aiUrl || GLOBAL_DEFAULTS.baseURL,
       model: dbUser.aiModel || GLOBAL_DEFAULTS.model,
+      drivingMode,
     };
   }
 
@@ -53,6 +58,7 @@ export async function getUserAiConfig(userId: string): Promise<AiConfig | null> 
       apiKey: globalKey,
       baseURL: process.env.OPENAI_BASE_URL || GLOBAL_DEFAULTS.baseURL,
       model: process.env.AI_MODEL || GLOBAL_DEFAULTS.model,
+      drivingMode,
     };
   }
 
@@ -141,6 +147,12 @@ export async function callAI(
   }
 
   return { text, reasoningText: reasoningText || undefined, toolCalls };
+}
+
+/** 截断 AI 思考过程（避免回传过长，前端只需摘要 + 展开全程） */
+export function truncateReasoning(reasoning: string | undefined, max = 1500): string | undefined {
+  if (!reasoning) return undefined;
+  return reasoning.length > max ? reasoning.slice(0, max) + "…" : reasoning;
 }
 
 /** 从 AI 返回文本中提取 JSON 对象 */

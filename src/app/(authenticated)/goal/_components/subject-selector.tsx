@@ -9,15 +9,30 @@ import {
   formatCustomSubjectLabel,
   normalizeSubject,
 } from "@/lib/subject-standards";
+import {
+  MAJOR_SUBJECT_MAP,
+  normalizeMajor,
+  mergeRecommendedSubjects,
+} from "@/lib/major-subject-map";
 
 interface SubjectSelectorProps {
   selected: string[];
   onChange: (subjects: string[]) => void;
+  /** 当前填写的目标专业（用于专业→科目推荐） */
+  majorValue?: string;
+  /** 科目是否被用户手动调整过（是则不再自动覆盖） */
+  edited?: boolean;
+  /** 用户手动增删科目时回调（置 subjectsEdited） */
+  onManualEdit?: () => void;
 }
 
-export function SubjectSelector({ selected, onChange }: SubjectSelectorProps) {
+export function SubjectSelector({ selected, onChange, majorValue, edited, onManualEdit }: SubjectSelectorProps) {
   const [customUni, setCustomUni] = useState("");
   const [customSubject, setCustomSubject] = useState("");
+
+  // 专业 → 科目推荐
+  const recKey = majorValue ? normalizeMajor(majorValue) : null;
+  const rec = recKey ? MAJOR_SUBJECT_MAP[recKey] : null;
 
   const presetSelected = selected.filter(isPresetSubject);
   const customSelected = selected.filter(isCustomSubject);
@@ -29,6 +44,7 @@ export function SubjectSelector({ selected, onChange }: SubjectSelectorProps) {
     } else {
       onChange([...selected, value]);
     }
+    onManualEdit?.();
   };
 
   const addCustom = () => {
@@ -41,10 +57,18 @@ export function SubjectSelector({ selected, onChange }: SubjectSelectorProps) {
     onChange([...selected, normalized]);
     setCustomUni("");
     setCustomSubject("");
+    onManualEdit?.();
   };
 
   const removeSubject = (subject: string) => {
     onChange(selected.filter((s) => s !== subject));
+    onManualEdit?.();
+  };
+
+  /** 应用专业推荐（只增不删，不视为手动调整） */
+  const applyRecommended = () => {
+    if (!rec) return;
+    onChange(mergeRecommendedSubjects(selected, rec.subjects));
   };
 
   const byCategory = new Map<string, typeof PRESET_SUBJECTS>();
@@ -56,6 +80,37 @@ export function SubjectSelector({ selected, onChange }: SubjectSelectorProps) {
 
   return (
     <div className="space-y-4">
+      {/* 专业 → 科目推荐条 */}
+      {rec && recKey && (
+        <div className="bg-brand/5 border border-brand/20 rounded-xl p-3 space-y-2">
+          <div className="flex items-start gap-2">
+            <span className="text-lg leading-none mt-0.5">🏷️</span>
+            <div className="text-sm flex-1 min-w-0">
+              <p className="font-medium">检测到专业：{recKey}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                推荐科目：{rec.subjects.join(" · ")}
+              </p>
+              {rec.note && (
+                <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">⚠️ {rec.note}</p>
+              )}
+              {edited && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  你已手动调整过科目，换专业不会自动覆盖。
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={applyRecommended}
+              disabled={!rec}
+              className="px-2.5 py-1 text-xs shrink-0 rounded-lg bg-muted hover:bg-muted/80 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              + 应用推荐
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Preset checkboxes */}
       {Array.from(byCategory.entries()).map(([category, subjects]) => (
         <div key={category}>

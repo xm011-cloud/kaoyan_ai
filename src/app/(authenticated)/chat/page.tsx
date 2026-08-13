@@ -5,6 +5,8 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Modal } from '@/components/ui/modal'
 import { ChatMarkdown } from '@/components/chat-markdown'
+import { ProposalCard } from '@/components/proposal-card'
+import type { Proposal } from '@/components/proposal-card'
 import { useGoal } from '@/hooks/use-goal'
 
 interface Source {
@@ -27,6 +29,8 @@ interface Message {
   content: string
   sources?: Source[]
   actions?: ActionCard[]
+  reasoning?: string
+  proposal?: Proposal
 }
 
 interface ChatHistory {
@@ -149,6 +153,17 @@ export default function ChatPage() {
     } catch { /* ignore */ }
   }, [loadHistories, router, pathname])
 
+  // 提案采纳/拒绝后：从消息里移除提案卡并重存对话（持久化移除）
+  const messagesRef = useRef<Message[]>([])
+  messagesRef.current = messages
+  const handleProposalHandled = useCallback((messageId: string) => {
+    const next = messagesRef.current.map((m) =>
+      m.id === messageId ? { ...m, proposal: undefined } : m
+    )
+    setMessages(next)
+    saveChat(next, chatId)
+  }, [saveChat, chatId])
+
   const toggleMaterial = (id: string) => {
     setSelectedIds(prev => {
       const next = new Set(prev)
@@ -213,7 +228,7 @@ export default function ChatPage() {
     setLoading(true)
 
     try {
-      const body: Record<string, unknown> = { messages: newMessages }
+      const body: Record<string, unknown> = { messages: newMessages, chatId }
       if (selectedIds.size > 0) {
         body.materialIds = Array.from(selectedIds)
       }
@@ -233,11 +248,20 @@ export default function ChatPage() {
         content: data.reply || '抱歉，我暂时无法回答这个问题。',
         sources: data.sources,
         actions: data.actions,
+        reasoning: data.reasoning,
+        proposal: data.proposal,
+      }
+
+      // 提案可能由服务端新建对话承载（此时返回新 chatId），保持客户端一致避免重复建对话
+      const resolvedChatId = data.chatId || chatId
+      if (data.chatId && data.chatId !== chatId) {
+        setChatId(data.chatId)
+        router.replace(`${pathname}?chat=${data.chatId}`, { scroll: false })
       }
 
       const finalMessages = [...newMessages, assistantMessage]
       setMessages(finalMessages)
-      saveChat(finalMessages, chatId)
+      saveChat(finalMessages, resolvedChatId)
     } catch {
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
@@ -353,12 +377,22 @@ export default function ChatPage() {
               {message.role === 'user' ? (
                 <p className="text-sm whitespace-pre-wrap">{message.content}</p>
               ) : (
-                <ChatMarkdown
-                  content={message.content}
-                  sources={message.sources}
-                  actions={message.actions}
-                  onSaveToWrongBook={openSaveWrongModal}
-                />
+                <>
+                  <ChatMarkdown
+                    content={message.content}
+                    reasoning={message.reasoning}
+                    sources={message.sources}
+                    actions={message.actions}
+                    onSaveToWrongBook={openSaveWrongModal}
+                  />
+                  {message.proposal && (
+                    <ProposalCard
+                      proposal={message.proposal}
+                      chatId={chatId}
+                      onHandled={() => handleProposalHandled(message.id)}
+                    />
+                  )}
+                </>
               )}
             </div>
           </div>

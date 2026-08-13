@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { jsonNoStore } from "@/lib/api-utils";
 import { getAuthUser } from "@/lib/api-auth";
-import { getUserAiConfig, callAI, extractJsonArray } from "@/lib/ai-config";
+import { getUserAiConfig, callAI, extractJsonArray, truncateReasoning } from "@/lib/ai-config";
 import { prisma } from "@/lib/prisma";
 
 // GET: 获取用户学习路径
@@ -86,6 +86,8 @@ export async function POST(request: NextRequest) {
       tips?: string;
     }>;
 
+    let pathReasoning: string | undefined;
+
     if (aiConfig) {
       const gapLines = wqStats
         .map((s) => {
@@ -137,6 +139,7 @@ ${gapLines}
         const parsed = extractJsonArray<{ title: string; description: string; phase: string; subject: string; order: number; targetDate?: string; tips?: string }>(fullContent);
         if (parsed && parsed.length > 0) {
           milestones = parsed;
+          pathReasoning = result.reasoningText || undefined;
         } else {
           throw new Error("AI returned invalid format");
         }
@@ -186,6 +189,7 @@ ${gapLines}
         completedMilestones: 0,
         overallProgress: 0,
       },
+      reasoning: truncateReasoning(pathReasoning),
     });
   } catch (err) {
     console.error("Generate study-path error:", err);

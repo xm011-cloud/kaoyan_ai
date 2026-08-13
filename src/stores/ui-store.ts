@@ -41,6 +41,9 @@ export interface UIState {
   // Practice defaults
   practiceDefaults: PracticeDefaults
 
+  // AI 显示偏好
+  showAiThinking: boolean // 是否展示 AI 思考过程折叠层（默认开）
+
   // Actions
   setNavGroups: (groups: NavGroup[]) => void
   toggleGroup: (groupId: string) => void
@@ -48,6 +51,7 @@ export interface UIState {
   setSidebarCollapsed: (collapsed: boolean) => void
   setWorkspaceCards: (cards: string[]) => void
   setPracticeDefaults: (defaults: Partial<PracticeDefaults>) => void
+  setShowAiThinking: (show: boolean) => void
   resetNavToDefaults: () => void
   resetWorkspaceToDefaults: () => void
   resetPracticeToDefaults: () => void
@@ -134,6 +138,8 @@ export const DEFAULT_PRACTICE_DEFAULTS: PracticeDefaults = {
   includeSpacedReview: true,
 }
 
+export const DEFAULT_SHOW_AI_THINKING = true
+
 // ── Store ──
 
 export const useUIStore = create<UIState>()(
@@ -143,6 +149,7 @@ export const useUIStore = create<UIState>()(
       sidebarCollapsed: false,
       workspaceCards: DEFAULT_WORKSPACE_CARDS,
       practiceDefaults: DEFAULT_PRACTICE_DEFAULTS,
+      showAiThinking: DEFAULT_SHOW_AI_THINKING,
 
       setNavGroups: (groups) => set({ navGroups: groups }),
 
@@ -176,19 +183,26 @@ export const useUIStore = create<UIState>()(
           practiceDefaults: { ...s.practiceDefaults, ...defaults },
         })),
 
+      setShowAiThinking: (show) => set({ showAiThinking: show }),
+
       resetNavToDefaults: () => set({ navGroups: DEFAULT_NAV_GROUPS }),
       resetWorkspaceToDefaults: () => set({ workspaceCards: DEFAULT_WORKSPACE_CARDS }),
       resetPracticeToDefaults: () => set({ practiceDefaults: DEFAULT_PRACTICE_DEFAULTS }),
     }),
     {
       name: 'ui-store',
-      version: 1,
-      migrate: () => ({
-        navGroups: DEFAULT_NAV_GROUPS,
-        sidebarCollapsed: false,
-        workspaceCards: DEFAULT_WORKSPACE_CARDS,
-        practiceDefaults: DEFAULT_PRACTICE_DEFAULTS,
-      }),
+      version: 2,
+      // 保留老存储里已有的偏好，只补新字段，避免升级清空用户的自定义
+      migrate: (persistedState) => {
+        const p = (persistedState ?? {}) as Partial<UIState>
+        return {
+          navGroups: p.navGroups || DEFAULT_NAV_GROUPS,
+          sidebarCollapsed: p.sidebarCollapsed ?? false,
+          workspaceCards: p.workspaceCards || DEFAULT_WORKSPACE_CARDS,
+          practiceDefaults: p.practiceDefaults || DEFAULT_PRACTICE_DEFAULTS,
+          showAiThinking: p.showAiThinking ?? DEFAULT_SHOW_AI_THINKING,
+        }
+      },
     }
   )
 )

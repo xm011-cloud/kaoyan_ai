@@ -17,6 +17,10 @@ model User {
   aiKey     String?  // 用户自己的 AI API Key
   aiUrl     String?  // 用户自定义 API Base URL
   aiModel   String?  // 用户选择的模型
+
+  // 驾驶模式三档：auto=自动 / assisted=辅助（默认）/ manual=手动
+  drivingMode String  @default("assisted")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -64,6 +68,7 @@ model Goal {
   subjects    String[] // 考试科目
   targetScores Json?    // 目标分数 {"政治":70, "英语":65, ...}
   progress    Json?    // 各科进度 {"数学一":{"percent":80,"note":"高数第三章"}}
+  subjectsEdited Boolean @default(false) // 科目是否被用户手动调整过（是则专业→科目不再自动覆盖）
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -82,7 +87,9 @@ model Task {
   phase         String?   // 所属阶段
   subject       String?   // 所属科目
   weekStartDate DateTime? // 所属周的开始日期
-  source        String?   // "ai" | "manual"
+  source        String?   // "ai" | "manual" | "ai_confirmed"
+  proposalId    String?   // 关联的提案 ID（对话→任务落地：确认采纳后落库的批次标记）
+  chatId        String?   // 来源对话 ID
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -90,6 +97,7 @@ model Task {
 
   @@index([userId, date])
   @@index([userId, weekStartDate])
+  @@index([userId, proposalId])
 }
 
 // 每日打卡
@@ -128,11 +136,12 @@ model Material {
 
 // AI 对话记录
 model Chat {
-  id          String   @id @default(uuid())
-  userId      String
-  messages    Json     // 消息列表
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              String   @id @default(uuid())
+  userId          String
+  messages        Json     // 消息列表
+  pendingProposal Json?    // 待确认的任务提案（对话→任务落地，草稿不落 Task）
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -147,6 +156,7 @@ model Feedback {
   weekEnd     DateTime // 周结束日期
   content     String   // 反馈内容
   suggestions String[] // 建议列表
+  stats       Json?    // { prevWeek, thisWeek } 打卡/任务对比（前端渲染"上周 vs 本周"进度条）
   createdAt   DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

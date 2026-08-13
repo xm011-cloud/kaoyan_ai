@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { jsonNoStore } from "@/lib/api-utils";
 import { getAuthUser } from "@/lib/api-auth";
-import { getUserAiConfig, callAI, extractJson } from "@/lib/ai-config";
+import { getUserAiConfig, callAI, extractJson, truncateReasoning } from "@/lib/ai-config";
 import { prisma } from "@/lib/prisma";
 
 interface JudgePlanTask {
@@ -125,7 +125,7 @@ ${taskSummary}
       const judged = extractJson<JudgeResult>(fullContent);
 
       if (judged && typeof judged.score === "number") {
-        return jsonNoStore(judged);
+        return jsonNoStore({ ...judged, reasoning: truncateReasoning(result.reasoningText) });
       }
 
       console.error("Judge AI returned invalid format:", fullContent.substring(0, 200));

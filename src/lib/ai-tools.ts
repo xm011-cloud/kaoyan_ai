@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { startOfDay, getWeekStart, getWeekEnd, toDateString } from "@/lib/date-utils";
+import { randomUUID } from "node:crypto";
 import type { AiTool } from "@/lib/ai-config";
 
 // ── 工具执行结果 ──
@@ -19,9 +20,14 @@ export interface ToolActionResult {
 
 // ── 工具定义 + 执行器 ──
 
+/** 工具执行上下文（由调用方注入，如当前对话 ID） */
+export interface ToolContext {
+  chatId?: string | null;
+}
+
 interface ToolEntry {
   definition: AiTool;
-  executor: (userId: string, args: Record<string, unknown>) => Promise<ToolActionResult>;
+  executor: (userId: string, args: Record<string, unknown>, ctx?: ToolContext) => Promise<ToolActionResult>;
 }
 
 const TOOL_ENTRIES: ToolEntry[] = [
@@ -237,7 +243,7 @@ const TOOL_ENTRIES: ToolEntry[] = [
       type: "function",
       function: {
         name: "create_task",
-        description: "创建一个新的学习任务。当用户要求'帮我添加任务'、'安排一个'、'创建一个任务'、'提醒我'等时使用。",
+        description: "创建一个新的学习任务。当用户要求'帮我添加任务'、'安排一个'、'创建一个任务'、'提醒我'等时使用。注意：一次只创建一个任务；如果用户一次要求安排 3 个及以上任务，请改用 propose_tasks 生成提案让用户确认。",
         parameters: {
           type: "object",
           properties: {
@@ -275,6 +281,94 @@ const TOOL_ENTRIES: ToolEntry[] = [
             .join(" · "),
         },
         result: JSON.stringify({ success: true, task: { id: task.id, title: task.title, date: dateStr } }),
+      };
+    },
+  },
+
+  {
+    // 提案工具：批量任务草稿，不落 Task。挂到对话 pendingProposal，用户确认后才落库。
+    definition: {
+      type: "function",
+      function: {
+        name: "propose_tasks",
+        description: "为 3 个及以上任务生成一份提案，供用户逐项确认。当用户一次要求安排多个任务、或想批量调整任务时使用。提案不会直接创建任务，需用户在对话界面确认后才会加入任务清单。单个任务用 create_task。",
+        parameters: {
+          type: "object",
+          properties: {
+            items: {
+              type: "array",
+              description: "要安排的任务清单（最多 20 条）",
+              items: {
+                type: "object",
+                properties: {
+                  title: { type: "string", description: "任务标题，要具体可执行，如'完成高数第三章课后习题'" },
+                  date: { type: "string", description: "任务日期 YYYY-MM-DD，默认今天" },
+                  duration: { type: "number", description: "预计学习时长（分钟），30-180" },
+                  subject: { type: "string", description: "所属科目" },
+                  description: { type: "string", description: "详细描述（可选）" },
+                },
+                required: ["title"],
+              },
+            },
+            note: { type: "string", description: "给用户的简短说明（可选）" },
+          },
+          required: ["items"],
+        },
+      },
+    },
+    executor: async (userId, args, ctx) => {
+      const rawItems = Array.isArray(args.items) ? (args.items as Record<string, unknown>[]) : [];
+      if (rawItems.length === 0) {
+        return { writes: false, result: JSON.stringify({ success: false, error: "提案不能为空" }) };
+      }
+      const items = rawItems
+        .slice(0, 20)
+        .map((it) => ({
+          title: String(it.title || "").trim(),
+          date: (it.date as string) || toDateString(new Date()),
+          duration: Number(it.duration) || 60,
+          subject: (it.subject as string) || null,
+          description: (it.description as string) || null,
+        }))
+        .filter((it) => it.title.length > 0);
+
+      if (items.length === 0) {
+        return { writes: false, result: JSON.stringify({ success: false, error: "提案没有有效任务" }) };
+      }
+
+      const proposalId = `prop_${randomUUID()}`;
+      const note = (args.note as string) || null;
+
+      // 草稿不落 Task；挂到对话的 pendingProposal（供确认/撤销）。无 chatId 时由路由先建对话再回写。
+      if (ctx?.chatId) {
+        try {
+          await prisma.chat.update({
+            where: { id: ctx.chatId },
+            data: {
+              pendingProposal: {
+                proposalId,
+                items,
+                note,
+                createdAt: new Date().toISOString(),
+              },
+            },
+          });
+        } catch {
+          // 对话不存在 → 忽略（路由层会兜底创建）
+        }
+      }
+
+      return {
+        writes: false,
+        result: JSON.stringify({
+          success: true,
+          proposalId,
+          items,
+          note,
+          total: items.length,
+          // 提示 AI：需要用户确认，别直接说"已创建"
+          action: "wait_for_confirmation",
+        }),
       };
     },
   },
@@ -423,7 +517,8 @@ export function getToolDefinitions(): AiTool[] {
 export async function executeTool(
   userId: string,
   name: string,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  ctx?: ToolContext
 ): Promise<ToolActionResult> {
   const tool = TOOL_ENTRIES.find((t) => t.definition.function.name === name);
   if (!tool) {
@@ -433,7 +528,7 @@ export async function executeTool(
     };
   }
   try {
-    return await tool.executor(userId, args);
+    return await tool.executor(userId, args, ctx);
   } catch (err) {
     return {
       writes: tool.definition.function.name.startsWith("create_") || tool.definition.function.name.startsWith("toggle_") || tool.definition.function.name.startsWith("update_"),

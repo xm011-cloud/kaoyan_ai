@@ -134,3 +134,67 @@ test("chat ?skill=nonexistent falls back to normal chat", async ({ page }) => {
   await expect(page.locator("h1").filter({ hasText: "AI 对话" })).toBeVisible({ timeout: 20000 });
   await expect(page.getByText("开始提问吧")).toBeVisible({ timeout: 20000 });
 });
+
+// ── Round C：对话蒸馏 + AI 主动提议（避开真实 AI 调用）──
+
+test("skill distill API validates chatId", async ({ page }) => {
+  await page.goto("/chat");
+  await expect(page.locator("h1").filter({ hasText: "AI 对话" })).toBeVisible({ timeout: 20000 });
+
+  const missing = await page.evaluate(async () => {
+    const res = await fetch("/api/skills/distill", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    return res.status;
+  });
+  expect(missing).toBe(400);
+
+  const notFound = await page.evaluate(async () => {
+    const res = await fetch("/api/skills/distill", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chatId: "nonexistent-chat" }),
+    });
+    return res.status;
+  });
+  expect(notFound).toBe(404);
+});
+
+test("chat shows skill suggestion chip (suggestedSkill field) and can close it", async ({ page }) => {
+  await page.goto("/chat");
+  await expect(page.locator("h1").filter({ hasText: "AI 对话" })).toBeVisible({ timeout: 20000 });
+
+  // 造一条带 suggestedSkill 的消息（模拟 AI 主动提议响应），走 /api/chat 持久化
+  const id = await page.evaluate(async () => {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chatId: null,
+        messages: [
+          { id: "seed_0", role: "user", content: "帮我复盘一下今天" },
+          {
+            id: "seed_1",
+            role: "assistant",
+            content: "好的，这是今天的复盘。",
+            suggestedSkill: { id: "sug-skill", name: "每日复盘", icon: "🌅", description: "看看今天学了什么" },
+          },
+        ],
+      }),
+    });
+    const data = await res.json();
+    return data.chat.id;
+  });
+  expect(id).toBeTruthy();
+
+  await page.goto(`/chat?chat=${id}`);
+  // 有消息 → 「存为技能」按钮可见
+  await expect(page.getByRole("button", { name: "💾 存为技能" })).toBeVisible({ timeout: 20000 });
+  // 建议芯片渲染
+  await expect(page.getByText(/你可能想用「🌅 每日复盘」/)).toBeVisible({ timeout: 20000 });
+  // 可关闭
+  await page.getByRole("button", { name: "关闭技能建议" }).click();
+  await expect(page.getByText(/你可能想用「🌅 每日复盘」/)).toHaveCount(0, { timeout: 10000 });
+});

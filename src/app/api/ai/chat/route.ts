@@ -13,6 +13,7 @@ import {
   buildSkillRunPrompt,
   getNoteDigest,
   skillFinish,
+  matchSkillSuggestion,
 } from "@/lib/skills";
 
 const MAX_TOOL_ITERATIONS = 5;
@@ -300,8 +301,14 @@ export async function POST(request: NextRequest) {
       reply = `已完成 ${actions.length} 项操作，请查看上方卡片确认。`;
     }
 
+    // AI 主动提议：普通对话（非技能运行）且用户消息命中技能关键词 → 返回建议芯片
+    const suggestedSkill = activeSkill
+      ? null
+      : await matchSkillSuggestion(user!.id, lastMessage, null);
+
     return jsonNoStore({
       reply,
+      suggestedSkill: suggestedSkill || undefined,
       reasoning: truncateReasoning(replyReasoning),
       chatId: resolvedChatId || undefined,
       proposal: proposalData || undefined,

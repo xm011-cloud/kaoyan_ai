@@ -19,7 +19,7 @@
 | AI | MiMo v2.5-pro (OpenAI-compatible API) | — |
 | 图表 | Recharts + D3 子模块 (知识图谱) | ^3.9.2 / 7.x |
 | 状态 | zustand (persist) + @tanstack/react-query | ^5.0.14 / ^5.101.4 |
-| 测试 | Playwright 98 用例 · 独立测试库 `neondb_test` | ^1.61.1 |
+| 测试 | Playwright 100 用例 · 独立测试库 `neondb_test` | ^1.61.1 |
 | 部署 | Vercel (c6-orcin.vercel.app) | — |
 
 ## 模块清单 (19 个)
@@ -64,7 +64,9 @@
 - 3 内置模板惰性播种（每日复盘🌅 / 错题变式训练🎯 / 费曼抽查💬），可编辑/删除；技能架卡片网格（icon/描述/触发关键词/运行次数/档案条数）
 - **技能运行 = 带 skillId 的对话**：复用 /api/ai/chat tool-calling 循环，注入数据快照 + 流程 prompt + 档案 note；`skill_control` 工具（note_append/finish）仅技能运行注入
 - **技能档案（note）**：跨会话累积，技能越用越有价值；收尾 usageCount+1
-- **API**: `api/skills/route.ts`（GET 播种+列表 / POST 创建）、`api/skills/[id]/route.ts`（PATCH/DELETE）
+- **对话蒸馏**：/chat「💾 存为技能」→ POST `api/skills/distill`（读近 12 轮 → 一次 callAI + extractJson → 返回技能预览卡，可编辑名称/描述/关键词，步骤只读 → 确认保存跳技能架）
+- **AI 主动提议**：`matchSkillSuggestion`（普通对话关键词命中触发关键词/技能名 → 回复下方「💡 你可能想用『…』→ 运行」芯片，一键运行、可关闭）
+- **API**: `api/skills/route.ts`（GET 播种+列表 / POST 创建）、`api/skills/[id]/route.ts`（PATCH/DELETE）、`api/skills/distill/route.ts`（POST 蒸馏）
 
 #### 📊 周报 (`/feedback`)
 - AI 周报分析 + 练习分数 vs 目标差距
@@ -156,7 +158,7 @@ src/
 
 | 分类 | 路由 |
 |------|------|
-| ai (8) | chat, generate-feedback, generate-plan, generate-questions, generate-similar, judge-plan, skills, skills/[id] |
+| ai (9) | chat, generate-feedback, generate-plan, generate-questions, generate-similar, judge-plan, skills, skills/[id], skills/distill |
 | admission (4) | search, analyze, saved, import |
 | auth (1) | register（蜜罐+限流+邀请码，另有 `/auth/callback`、`/auth/signout` 为 app 路由） |
 | admin (5) | feedback, feedback/[id], support, support/[id], users/reset-link |
@@ -239,6 +241,12 @@ src/
 - **/chat 技能承载位**：`?skill=` 启动 kickoff（居中系统提示条）+ 斜杠菜单唤起 + 运行徽标「⚡ 技能：name」+ 结束技能按钮（路由直接收尾不走 AI）；历史技能对话恢复徽标
 - 测试：skills.spec 7 用例（播种/CRUD/斜杠菜单/徽标恢复/无效 skill 回落），98 全绿
 
+### 第 12 轮 — AI 技能系统 Round C（对话蒸馏 + AI 主动提议）（2026-08-13）
+- **对话蒸馏**：`POST /api/skills/distill`（读 Chat 近 12 轮 → 蒸馏 prompt 带步骤 schema + 3 模板示例 → 一次 callAI + extractJson → 技能预览 `{name,description,triggerKeywords,steps}` 或 `invalid:true+reason`，不落库）
+- **/chat「💾 存为技能」**：无 chatId 先 /api/chat 保存拿 id → 蒸馏 → 预览卡（名称/描述/关键词可编辑，步骤只读）→ 确认 POST /api/skills → 跳 /skills
+- **AI 主动提议**：`matchSkillSuggestion`（拉用户技能，triggerKeywords + 技能名命中，技能运行/启动语不提议）→ chat 路由响应注入 `suggestedSkill` → 回复下方建议芯片（`skill-suggestion.tsx`，一键运行 + 可关闭）
+- 测试：distill 400/404 + 建议芯片渲染/关闭，100 全绿
+
 ### 第 10 轮 — 对话→任务落地（事务边界）（2026-08-13）
 - **schema**：Task `proposalId/chatId` + `@@index([userId, proposalId])`；Chat `pendingProposal Json?`
 - **propose_tasks 工具**（writes:false 草稿不落库）：批量建议挂到对话 pendingProposal；`create_task` description 引导勿批量直写；chat 路由读 body.chatId → 提案时无对话则先建 → 返回 `chatId + proposal`
@@ -255,7 +263,7 @@ src/
 | P2 | PWA 离线策略优化（导航网络优先，仅 offline.html 兜底，未缓存 API 数据） |
 | P3 | SWR 缓存（显式降级 backlog：不引入第三种数据获取模式；统一方向为 React Query + `useApi` hook，见 UI_AUDIT §五-H） |
 | P3 | 学习圈：点赞/互关/动态等更深社交（当前仅排行榜） |
-| P2 | **AI 技能系统 Round C**：对话蒸馏（/chat「存为技能」）+ AI 主动提议（关键词匹配出建议芯片）。架页 + 运行引擎已落地（第 11 轮），Round C 排期 |
+| P3 | **AI 技能系统 V1 已完整落地**（架页 + 运行引擎 + 蒸馏 + 提议）。后续：可视化工坊（拖拽编排 steps）、定时触发、技能分享/社区 |
 
 ## 最近提交 (最新→最旧)
 
@@ -283,6 +291,6 @@ c87ba50 refactor: Apple HIG UI 全面优化
 
 ## 测试
 
-- Playwright 98 用例全绿（authenticated + unauthenticated 双项目，per-project testMatch）
+- Playwright 100 用例全绿（authenticated + unauthenticated 双项目，per-project testMatch）
 - 覆盖：全部模块页面 + 认证重定向 + PWA 资源 + 权限（admin/suggestions/profile 403/重定向）+ 导出下载 + 头像上传 + 排行榜点击进公开页
 - 注意：`e2e/.auth/user.json` 为测试账号存储态；E2E 运行在独立测试库 `neondb_test`（`playwright.config.ts` 自动建库 + schema push + 独立端口 3100），不再污染 dev 库

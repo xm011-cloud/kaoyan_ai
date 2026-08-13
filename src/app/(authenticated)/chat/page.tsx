@@ -7,6 +7,9 @@ import { Modal } from '@/components/ui/modal'
 import { ChatMarkdown } from '@/components/chat-markdown'
 import { ProposalCard } from '@/components/proposal-card'
 import type { Proposal } from '@/components/proposal-card'
+import { SkillSuggestionChip } from '@/components/skill-suggestion'
+import type { SkillSuggestionData } from '@/components/skill-suggestion'
+import type { SkillStep } from '@/lib/skill-templates'
 import { useGoal } from '@/hooks/use-goal'
 
 interface Source {
@@ -31,6 +34,7 @@ interface Message {
   actions?: ActionCard[]
   reasoning?: string
   proposal?: Proposal
+  suggestedSkill?: SkillSuggestionData
 }
 
 interface ChatHistory {
@@ -84,6 +88,26 @@ function looksLikeProblemQuestion(q: string): boolean {
   return /[∫√∑±≥≤×÷→∞^]/.test(text)
 }
 
+// 技能步骤 → 人类可读标签（蒸馏预览卡只读展示）
+function skillStepLabel(s: SkillStep, i: number): string {
+  switch (s.type) {
+    case 'data': {
+      const srcs = (s as { sources?: string[] }).sources || []
+      return `📊 读取数据：${srcs.join('、') || '默认'}`
+    }
+    case 'ask':
+      return `❓ 提问：${(s as { question?: string }).question || ''}`
+    case 'ai':
+      return `🤖 ${(s as { instruction?: string }).instruction || ''}`
+    case 'note':
+      return `📒 记入档案${(s as { label?: string }).label ? `（${(s as { label?: string }).label}）` : ''}`
+    case 'finish':
+      return `✅ 结束技能`
+    default:
+      return `步骤 ${i + 1}`
+  }
+}
+
 export default function ChatPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -105,6 +129,17 @@ export default function ChatPage() {
   const [userSkills, setUserSkills] = useState<SkillBrief[]>([])
   const [runningSkill, setRunningSkill] = useState<RunningSkill | null>(null)
   const [showSkillMenu, setShowSkillMenu] = useState(false)
+
+  // 建议芯片已关闭的消息 id + 对话蒸馏（存为技能）预览
+  const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set())
+  const [distillPreview, setDistillPreview] = useState<{
+    name: string
+    description: string
+    triggerKeywords: string[]
+    steps: SkillStep[]
+  } | null>(null)
+  const [distillStatus, setDistillStatus] = useState<'idle' | 'loading' | 'saving'>('idle')
+  const [distillError, setDistillError] = useState<string | null>(null)
 
   // 从消息流识别技能对话：首条 kickoff → 恢复运行徽标（id 未知不影响——结束按钮走 chat.skillId 解析）
   const syncSkillBadge = (msgs: Message[]) => {
@@ -335,6 +370,7 @@ export default function ChatPage() {
         actions: data.actions,
         reasoning: data.reasoning,
         proposal: data.proposal,
+        suggestedSkill: data.suggestedSkill,
       }
 
       // 技能运行收尾（结束技能 / AI 调 finish）→ 徽标转「已结束」
@@ -400,6 +436,7 @@ export default function ChatPage() {
         actions: data.actions,
         reasoning: data.reasoning,
         proposal: data.proposal,
+        suggestedSkill: data.suggestedSkill,
       }
 
       if (data.skillRun?.completed) {
@@ -452,6 +489,76 @@ export default function ChatPage() {
   const endSkill = () => {
     if (!runningSkill || runningSkill.completed || loading) return
     sendText('结束技能')
+  }
+
+  // ── 对话蒸馏：把当前对话存成技能（无 chatId 先保存一次拿到 id）──
+  const handleDistill = async () => {
+    if (distillStatus !== 'idle') return
+    setDistillStatus('loading')
+    setDistillError(null)
+    try {
+      let targetChatId = chatId
+      if (!targetChatId) {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chatId: null, messages }),
+        })
+        const data = await res.json()
+        if (!res.ok || !data.chat?.id) throw new Error('无法创建对话')
+        targetChatId = data.chat.id
+        setChatId(targetChatId)
+        router.replace(`${pathname}?chat=${targetChatId}`, { scroll: false })
+        loadHistories()
+      }
+
+      const distillRes = await fetch('/api/skills/distill', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatId: targetChatId }),
+      })
+      const distillData = await distillRes.json()
+      if (!distillRes.ok) {
+        if (distillData.invalid) {
+          setDistillError(distillData.reason || '这段对话不适合转成技能')
+        } else {
+          setDistillError(distillData.error || '蒸馏失败，请重试')
+        }
+        return
+      }
+      setDistillPreview(distillData.skill)
+    } catch {
+      setDistillError('AI 服务暂时不可用，请稍后再试')
+    } finally {
+      setDistillStatus('idle')
+    }
+  }
+
+  // 预览确认 → 保存技能 → 跳技能架
+  const confirmDistill = async () => {
+    if (!distillPreview || distillStatus !== 'idle') return
+    setDistillStatus('saving')
+    try {
+      const res = await fetch('/api/skills', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: distillPreview.name,
+          description: distillPreview.description,
+          triggerKeywords: distillPreview.triggerKeywords,
+          steps: distillPreview.steps,
+          source: 'user',
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || '保存失败')
+      setDistillPreview(null)
+      loadUserSkills()
+      router.push('/skills')
+    } catch (err) {
+      setDistillError(err instanceof Error ? err.message : '保存失败，请重试')
+      setDistillStatus('idle')
+    }
   }
 
   const loadChat = (history: ChatHistory) => {
@@ -609,6 +716,15 @@ export default function ChatPage() {
                       onHandled={() => handleProposalHandled(message.id)}
                     />
                   )}
+                  {message.suggestedSkill && !dismissedSuggestions.has(message.id) && (
+                    <SkillSuggestionChip
+                      suggestion={message.suggestedSkill}
+                      onRun={(s) => startSkillRun(s)}
+                      onClose={() =>
+                        setDismissedSuggestions((prev) => new Set(prev).add(message.id))
+                      }
+                    />
+                  )}
                 </>
               )}
             </div>
@@ -687,6 +803,24 @@ export default function ChatPage() {
                   🤖 AI 将仅从你选中的资料中查找答案
                 </p>
               )}
+            </div>
+          )}
+
+          {/* 对话蒸馏：存为技能 */}
+          {messages.length > 0 && (
+            <div className="flex items-center justify-end">
+              {distillError && (
+                <span className="mr-2 text-[10px] text-destructive max-w-[60%] truncate">
+                  {distillError}
+                </span>
+              )}
+              <button
+                onClick={handleDistill}
+                disabled={distillStatus !== 'idle' || loading}
+                className="text-[11px] px-2.5 py-1 rounded-full border border-border/50 text-muted-foreground hover:text-brand hover:border-brand/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {distillStatus === 'loading' ? '⏳ 蒸馏中...' : '💾 存为技能'}
+              </button>
             </div>
           )}
 
@@ -808,6 +942,89 @@ export default function ChatPage() {
                   {saveWrongModal.answer.slice(0, 500)}
                 </div>
               </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── 对话蒸馏预览：存为技能 ── */}
+      {distillPreview && (
+        <Modal
+          open
+          onClose={() => {
+            setDistillPreview(null)
+            setDistillError(null)
+            setDistillStatus('idle')
+          }}
+          title="💾 存为技能"
+          description="AI 从这段对话里提炼出的可复用流程，可微调后保存"
+          footer={
+            <>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setDistillPreview(null)
+                  setDistillError(null)
+                  setDistillStatus('idle')
+                }}
+              >
+                取消
+              </Button>
+              <Button
+                onClick={confirmDistill}
+                disabled={distillStatus === 'saving' || !distillPreview.name.trim()}
+              >
+                {distillStatus === 'saving' ? '保存中...' : '保存技能'}
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-3">
+            {distillError && <p className="text-xs text-destructive">{distillError}</p>}
+            <div>
+              <label className="block text-sm font-medium mb-1">技能名称</label>
+              <input
+                value={distillPreview.name}
+                onChange={(e) => setDistillPreview({ ...distillPreview, name: e.target.value })}
+                className="w-full h-10 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">描述</label>
+              <input
+                value={distillPreview.description}
+                onChange={(e) =>
+                  setDistillPreview({ ...distillPreview, description: e.target.value })
+                }
+                className="w-full h-10 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">触发关键词（逗号分隔）</label>
+              <input
+                value={distillPreview.triggerKeywords.join('，')}
+                onChange={(e) =>
+                  setDistillPreview({
+                    ...distillPreview,
+                    triggerKeywords: e.target.value
+                      .split(/[,，]/)
+                      .map((t: string) => t.trim())
+                      .filter(Boolean),
+                  })
+                }
+                placeholder="如：复盘, 今日总结"
+                className="w-full h-10 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">流程（只读预览）</label>
+              <ol className="space-y-1.5">
+                {distillPreview.steps.map((s, i) => (
+                  <li key={i} className="text-xs bg-muted/50 rounded-lg px-3 py-2">
+                    {skillStepLabel(s, i)}
+                  </li>
+                ))}
+              </ol>
+            </div>
           </div>
         </Modal>
       )}

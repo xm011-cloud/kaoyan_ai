@@ -268,3 +268,48 @@ export async function skillFinish(
   });
   return { success: true, usageCount: updated.usageCount };
 }
+
+// ── AI 主动提议：关键词命中 → 返回技能摘要 ──
+
+export interface SkillSuggestion {
+  id: string;
+  name: string;
+  icon: string;
+  description?: string;
+}
+
+/**
+ * 根据用户最后一条消息，匹配最合适的技能建议。
+ * 只在普通对话（非技能运行、非技能启动语）时调用，返回 null 表示不提议。
+ */
+export async function matchSkillSuggestion(
+  userId: string,
+  lastMessage: string,
+  activeSkillId?: string | null
+): Promise<SkillSuggestion | null> {
+  const text = (lastMessage || "").trim();
+  if (!text || activeSkillId) return null;
+  // 技能启动语（运行技能「x」）不算待提议场景
+  if (/^运行技能「/.test(text)) return null;
+
+  const skills = await prisma.skill.findMany({
+    where: { userId },
+    select: { id: true, name: true, icon: true, description: true, triggerKeywords: true },
+  });
+
+  for (const s of skills) {
+    let keywords: string[] = [];
+    try {
+      const parsed = JSON.parse(s.triggerKeywords || "[]");
+      if (Array.isArray(parsed)) keywords = parsed.filter((k): k is string => typeof k === "string");
+    } catch {
+      // ignore
+    }
+    const kwHit = keywords.some((k) => k && text.includes(k));
+    const nameHit = s.name.length >= 2 && text.includes(s.name);
+    if (kwHit || nameHit) {
+      return { id: s.id, name: s.name, icon: s.icon, description: s.description ?? undefined };
+    }
+  }
+  return null;
+}

@@ -45,6 +45,36 @@ interface MaterialBrief {
   type: string
 }
 
+// 「加入错题本」只在该回答是对某道具体题的解法时才展示。
+// 依据触发它的用户问题判断：计划/建议/操作类问题一律不展示，避免计划等回答下出现无关按钮。
+function looksLikeProblemQuestion(q: string): boolean {
+  const text = (q || '').trim()
+  if (!text || text.length < 4) return false
+
+  // 计划 / 建议 / 数据 / 操作类 → 非单道题
+  const nonProblem = [
+    '复习计划', '学习计划', '计划', '安排', '制定', '规划', '总结', '进度', '目标',
+    '怎么学', '怎么复习', '怎么背', '怎么记', '怎么准备', '学习方法', '学习方案', '时间表',
+    '打卡', '提醒', '创建', '设置', '删除', '导出', '生成', '帮我把', '帮我制定', '帮我安排', '帮我创建',
+    '你好', '谢谢', '你是谁',
+  ]
+  if (nonProblem.some((k) => text.includes(k))) return false
+
+  // 具体题解类
+  const problem = [
+    '怎么做', '怎么解', '怎么求', '怎么算',
+    '如何做', '如何解', '如何求', '如何算',
+    '这道题', '这个题', '这道', '题目', '解题', '解法', '答案',
+    '求导', '求积分', '求极限', '求值', '证明', '计算',
+    '积分', '导数', '极限', '微分', '矩阵', '向量', '方程', '不等式',
+    '函数', '数列', '概率', '三角函数',
+  ]
+  if (problem.some((k) => text.includes(k))) return true
+
+  // 数学符号兜底
+  return /[∫√∑±≥≤×÷→∞^]/.test(text)
+}
+
 export default function ChatPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -203,11 +233,9 @@ export default function ChatPage() {
     finally { setSavingWrong(false) }
   }
 
-  const openSaveWrongModal = (aiContent: string) => {
-    // Find the last user message as the question
-    const lastUserMsg = [...messages].reverse().find(m => m.role === 'user')
+  const openSaveWrongModal = (question: string, aiContent: string) => {
     setSaveWrongModal({
-      question: lastUserMsg?.content || '',
+      question: question || '',
       answer: aiContent,
     })
   }
@@ -362,7 +390,11 @@ export default function ChatPage() {
           </div>
         )}
 
-        {messages.map((message) => (
+        {messages.map((message, idx) => {
+          // 触发该回答的用户问题（紧邻的前一条 user 消息）
+          const prevUser = idx > 0 && messages[idx - 1].role === 'user' ? messages[idx - 1].content : ''
+          const canSaveWrong = message.role === 'assistant' && looksLikeProblemQuestion(prevUser)
+          return (
           <div
             key={message.id}
             className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -383,7 +415,9 @@ export default function ChatPage() {
                     reasoning={message.reasoning}
                     sources={message.sources}
                     actions={message.actions}
-                    onSaveToWrongBook={openSaveWrongModal}
+                    onSaveToWrongBook={canSaveWrong
+                      ? (aiContent: string) => openSaveWrongModal(prevUser, aiContent)
+                      : undefined}
                   />
                   {message.proposal && (
                     <ProposalCard
@@ -396,7 +430,8 @@ export default function ChatPage() {
               )}
             </div>
           </div>
-        ))}
+          )
+        })}
 
         {loading && (
           <div className="flex justify-start">

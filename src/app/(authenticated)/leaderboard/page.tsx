@@ -69,6 +69,7 @@ export default function LeaderboardPage() {
               <button
                 key={t.id}
                 onClick={() => setPeriod(t.id)}
+                aria-pressed={period === t.id}
                 className={`px-3 py-1.5 rounded-xl text-sm font-medium transition-all active:scale-[0.98] ${
                   period === t.id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
                 }`}

@@ -70,7 +70,7 @@ export default function CheckInPage() {
   if (submitted && todayCheckIn) {
     return (
       <div className="flex flex-1 flex-col p-4 lg:p-6">
-        <div className="max-w-2xl mx-auto w-full space-y-6">
+        <div className="max-w-3xl mx-auto w-full space-y-6">
           <PageHeader title="打卡" subtitle="记录今天的学习情况" />
           <div className="bg-card p-6 rounded-2xl border border-border/50 text-center space-y-4">
             <div className="text-5xl">🎉</div>

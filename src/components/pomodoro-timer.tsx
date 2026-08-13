@@ -1,6 +1,5 @@
 "use client";
 
-import { Play, Pause, SkipForward, RotateCcw, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export type TimerMode = "focus" | "short_break" | "long_break";
@@ -153,7 +152,7 @@ export function PomodoroTimer({
           onClick={onOpenSettings}
           aria-label="设置"
         >
-          <Settings className="w-4 h-4" />
+          <span aria-hidden="true">⚙️</span>
         </Button>
 
         {/* Reset */}
@@ -164,7 +163,7 @@ export function PomodoroTimer({
           disabled={status === "idle" && timeLeft === totalSeconds}
           aria-label="重置"
         >
-          <RotateCcw className="w-4 h-4" />
+          <span aria-hidden="true">🔄</span>
         </Button>
 
         {/* Play/Pause */}
@@ -176,12 +175,12 @@ export function PomodoroTimer({
         >
           {isRunning ? (
             <>
-              <Pause className="w-5 h-5 mr-1.5" />
+              <span aria-hidden="true" className="mr-1.5">⏸</span>
               暂停
             </>
           ) : (
             <>
-              <Play className="w-5 h-5 mr-1.5" />
+              <span aria-hidden="true" className="mr-1.5">▶</span>
               {status === "paused" ? "继续" : "开始"}
             </>
           )}
@@ -195,7 +194,7 @@ export function PomodoroTimer({
           disabled={status === "idle" && timeLeft === totalSeconds}
           aria-label="跳过"
         >
-          <SkipForward className="w-4 h-4" />
+          <span aria-hidden="true">⏭</span>
         </Button>
       </div>
     </div>

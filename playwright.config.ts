@@ -99,7 +99,8 @@ export default defineConfig({
     command: `node e2e/create-test-db.mjs && npx prisma db push --skip-generate --accept-data-loss && npm run dev -- -p ${TEST_PORT}`,
     url: BASE_URL,
     reuseExistingServer: false,
-    timeout: 120000,
+    // 链式启动(建库 + schema push 约 30s + Turbopack 首编译)较慢,放宽超时
+    timeout: 240000,
     env: TEST_DB_URL ? { ...process.env, DATABASE_URL: TEST_DB_URL } : undefined,
   },
 });

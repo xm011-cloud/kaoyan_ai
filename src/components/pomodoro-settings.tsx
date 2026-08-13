@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { X } from "lucide-react";
 
 interface PomodoroSettingsData {
   focusMinutes: number;
@@ -65,7 +64,7 @@ export function PomodoroSettings({
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-semibold">⚙️ 番茄钟设置</h3>
         <Button variant="ghost" size="icon-xs" onClick={onClose} aria-label="关闭">
-          <X className="w-4 h-4" />
+          ✕
         </Button>
       </div>
 

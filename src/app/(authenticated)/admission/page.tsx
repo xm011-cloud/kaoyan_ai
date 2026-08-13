@@ -267,7 +267,7 @@ export default function AdmissionPage() {
 
   // ── Render ──
   return (
-    <div className="p-4 lg:p-6 max-w-4xl mx-auto space-y-6">
+    <div className="p-4 lg:p-6 max-w-3xl mx-auto space-y-6">
       <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 text-xs text-yellow-700 dark:text-yellow-400">
         ⚠️ 数据来源于公开网络搜索，仅供参考。请以
         <strong>中国研究生招生信息网（yz.chsi.com.cn）</strong>

@@ -16,6 +16,7 @@
 | 2E | a11y 补全(aria-label / 语义化测试选择器) | ✅ 完成 |
 | 2F | 门禁验证:`tsc` 0 错 + `build` 通过 + Playwright 91/91 | ✅ 完成 (2026-08-13) |
 | 3 | 模块联动 CTA 替换"相关模块"补丁 + 架构决策 | ✅ 完成 (2026-08-13) |
+| 4 | 收尾:容器宽度 2 档 / 图标全 emoji / 无障碍补齐 | ✅ 完成 (2026-08-13) |
 
 ### Batch 3 完成说明
 
@@ -39,6 +40,23 @@
   - 已验证:全套 91 用例在隔离库全绿
 
 **SWR 缓存(3C)**:显式移入 backlog。不引入第三种数据获取模式(当前为 React Query + 原生 fetch),统一方向仍见下方 §五-H。
+
+### Batch 4 完成说明
+
+**4A login/loading/error**:经核查三文件在 1B/2 批已全部换新设计语言,无残留改动。
+**4B header 溢出**:经核查已整改(tab `overflow-x-auto [scrollbar-width:none]`、日期 `hidden xl:block shrink-0`、滑出菜单 `overflow-y-auto`),无残留改动。
+**4C 容器宽度 2 档统一**:认证页已基本收敛为 `max-w-3xl`(内容页)/ `max-w-6xl`(dashboard、tasks 大页)。仅 2 处越档修正:
+- `checkin/page.tsx` `max-w-2xl` → `max-w-3xl`(×2,成功态与表单)
+- `admission/page.tsx` `max-w-4xl` → `max-w-3xl`(隐藏页,与其余内容页对齐)
+**4D 图标体系全 emoji**:lucide-react 全库移除(最后两处:番茄钟)。
+- `pomodoro-timer.tsx`:`⚙️`(设置)/`🔄`(重置)/`▶`(开始/继续)/`⏸`(暂停)/`⏭`(跳过),与 ActivityBar/mobile-nav 既有的 `▶`/`⏸` 字符一致;emoji 加 `aria-hidden`(按钮已有 aria-label/文字)
+- `pomodoro-settings.tsx`:关闭按钮 `X` 图标 → `✕`(与 Modal 等全站关闭按钮一致)
+**4E 无障碍补齐**:
+- leaderboard 周期切换按钮加 `aria-pressed={period === t.id}`
+- tasks 编辑任务弹窗 5 个 `<label>` 补 `htmlFor` + input `id`(标题/描述/时长/日期/科目)
+- weekly-planner 的 ↻ 按钮在重构时已带 `aria-label`,无需再改
+**门禁**:`tsc` 0 错 + `build` 通过 + Playwright 91/91 全绿。
+**顺带修复**:webServer 超时 120s → 240s(建库 + schema push 约 30s + Turbopack 首编译,冷环境超时)。
 
 ---
 

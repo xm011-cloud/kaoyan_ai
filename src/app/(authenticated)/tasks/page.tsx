@@ -455,29 +455,29 @@ export default function TasksPage() {
           >
             <form id="task-edit-form" onSubmit={saveEdit} className="space-y-3">
                 <div>
-                  <label className="block text-xs font-medium mb-1">标题</label>
-                  <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)}
+                  <label htmlFor="task-edit-title" className="block text-xs font-medium mb-1">标题</label>
+                  <input id="task-edit-title" type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)}
                     className="w-full h-10 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20" required />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium mb-1">描述</label>
-                  <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} rows={2}
+                  <label htmlFor="task-edit-desc" className="block text-xs font-medium mb-1">描述</label>
+                  <textarea id="task-edit-desc" value={editDesc} onChange={(e) => setEditDesc(e.target.value)} rows={2}
                     className="w-full h-10 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20" />
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-xs font-medium mb-1">时长(分钟)</label>
-                    <input type="number" value={editDuration} onChange={(e) => setEditDuration(e.target.value)}
+                    <label htmlFor="task-edit-duration" className="block text-xs font-medium mb-1">时长(分钟)</label>
+                    <input id="task-edit-duration" type="number" value={editDuration} onChange={(e) => setEditDuration(e.target.value)}
                       className="w-full h-10 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium mb-1">日期</label>
-                    <input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)}
+                    <label htmlFor="task-edit-date" className="block text-xs font-medium mb-1">日期</label>
+                    <input id="task-edit-date" type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)}
                       className="w-full h-10 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium mb-1">科目</label>
-                    <input type="text" value={editSubject} onChange={(e) => setEditSubject(e.target.value)}
+                    <label htmlFor="task-edit-subject" className="block text-xs font-medium mb-1">科目</label>
+                    <input id="task-edit-subject" type="text" value={editSubject} onChange={(e) => setEditSubject(e.target.value)}
                       className="w-full h-10 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20" />
                   </div>
                 </div>

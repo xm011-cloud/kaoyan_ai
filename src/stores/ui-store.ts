@@ -93,6 +93,7 @@ export const DEFAULT_NAV_GROUPS: NavGroup[] = [
       { href: '/chat', visible: true },
       { href: '/feedback', visible: true },
       { href: '/study-path', visible: true },
+      { href: '/skills', visible: true },
     ],
   },
   {
@@ -191,12 +192,23 @@ export const useUIStore = create<UIState>()(
     }),
     {
       name: 'ui-store',
-      version: 2,
+      version: 3,
       // 保留老存储里已有的偏好，只补新字段，避免升级清空用户的自定义
       migrate: (persistedState) => {
         const p = (persistedState ?? {}) as Partial<UIState>
+        // 合并默认导航项：确保新增模块（如 /skills）在老用户的导航里出现，同时保留其可见性偏好
+        const persistedNav = p.navGroups && p.navGroups.length > 0 ? p.navGroups : DEFAULT_NAV_GROUPS
+        const navGroups = DEFAULT_NAV_GROUPS.map((dg) => {
+          const existing = persistedNav.find((g) => g.id === dg.id)
+          if (!existing) return dg
+          const hrefs = new Set(existing.items.map((i) => i.href))
+          return {
+            ...existing,
+            items: [...existing.items, ...dg.items.filter((di) => !hrefs.has(di.href))],
+          }
+        })
         return {
-          navGroups: p.navGroups || DEFAULT_NAV_GROUPS,
+          navGroups,
           sidebarCollapsed: p.sidebarCollapsed ?? false,
           workspaceCards: p.workspaceCards || DEFAULT_WORKSPACE_CARDS,
           practiceDefaults: p.practiceDefaults || DEFAULT_PRACTICE_DEFAULTS,

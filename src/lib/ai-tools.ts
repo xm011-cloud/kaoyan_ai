@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { startOfDay, getWeekStart, getWeekEnd, toDateString } from "@/lib/date-utils";
 import { randomUUID } from "node:crypto";
 import type { AiTool } from "@/lib/ai-config";
+import { appendSkillNote, skillFinish } from "@/lib/skills";
 
 // ── 工具执行结果 ──
 
@@ -20,9 +21,10 @@ export interface ToolActionResult {
 
 // ── 工具定义 + 执行器 ──
 
-/** 工具执行上下文（由调用方注入，如当前对话 ID） */
+/** 工具执行上下文（由调用方注入，如当前对话 ID / 技能 ID） */
 export interface ToolContext {
   chatId?: string | null;
+  skillId?: string | null;
 }
 
 interface ToolEntry {
@@ -504,13 +506,82 @@ const TOOL_ENTRIES: ToolEntry[] = [
       };
     },
   },
+
+  {
+    // 技能运行内部工具：追加档案 + 收尾。仅技能运行（chat.skillId 非空）注入。
+    definition: {
+      type: "function",
+      function: {
+        name: "skill_control",
+        description:
+          "（技能运行内部工具）控制技能运行。action=note_append：把内容追加到技能档案，供跨会话累积（如复盘日记、抽查记录）；action=finish：完成本次技能运行并记一次使用。",
+        parameters: {
+          type: "object",
+          properties: {
+            action: {
+              type: "string",
+              enum: ["note_append", "finish"],
+              description: "操作类型",
+            },
+            content: { type: "string", description: "note_append 时追加的档案内容（简洁）" },
+            label: { type: "string", description: "note_append 时的记录标签（可选，如『每日复盘』）" },
+            summary: { type: "string", description: "finish 时的收尾总结（可选）" },
+          },
+          required: ["action"],
+        },
+      },
+    },
+    executor: async (userId, args, ctx) => {
+      if (!ctx?.skillId) {
+        return { writes: false, result: JSON.stringify({ error: "此工具仅技能运行时可使用" }) };
+      }
+      const action = args.action as string;
+      if (action === "note_append") {
+        const content = typeof args.content === "string" ? args.content.slice(0, 2000) : "";
+        if (!content) {
+          return { writes: false, result: JSON.stringify({ success: false, error: "档案内容不能为空" }) };
+        }
+        const res = await appendSkillNote(
+          userId,
+          ctx.skillId,
+          content,
+          typeof args.label === "string" && args.label ? args.label : undefined
+        );
+        return { writes: false, result: JSON.stringify(res) };
+      }
+      if (action === "finish") {
+        const res = await skillFinish(userId, ctx.skillId);
+        return {
+          writes: false,
+          result: JSON.stringify({
+            ...res,
+            action: "finished",
+            summary: typeof args.summary === "string" ? args.summary : undefined,
+          }),
+        };
+      }
+      return { writes: false, result: JSON.stringify({ success: false, error: `未知 action: ${action}` }) };
+    },
+  },
 ];
 
 // ── 公开 API ──
 
-/** 获取所有工具定义（传给 AI API 的 tools 参数） */
+/** 获取所有工具定义（传给 AI API 的 tools 参数）；技能内部工具 skill_control 不暴露给普通对话 */
 export function getToolDefinitions(): AiTool[] {
+  return TOOL_ENTRIES.filter((t) => t.definition.function.name !== "skill_control").map(
+    (t) => t.definition
+  );
+}
+
+/** 技能运行的 tools（基础工具 + skill_control） */
+export function getSkillRunTools(): AiTool[] {
   return TOOL_ENTRIES.map((t) => t.definition);
+}
+
+/** 判断是否为技能收尾调用（skill_control / action=finish） */
+export function isSkillFinishCall(name: string, args: Record<string, unknown>): boolean {
+  return name === "skill_control" && args.action === "finish";
 }
 
 /** 根据工具名查找并执行 */

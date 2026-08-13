@@ -56,6 +56,7 @@ model User {
   studyPath         StudyPath?
   supporters        Supporter[]
   authorFeedbacks   AuthorFeedback[]
+  skills            Skill[]
 }
 
 // 考研目标
@@ -140,11 +141,35 @@ model Chat {
   userId          String
   messages        Json     // 消息列表
   pendingProposal Json?    // 待确认的任务提案（对话→任务落地，草稿不落 Task）
+  skillId         String?  // 非空 = 这是一次技能运行会话（AI 技能系统）
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
+  @@index([skillId])
+}
+
+// AI 技能 — 用户自定义工作流（可编辑/删除，带跨会话档案）
+model Skill {
+  id              String    @id @default(uuid())
+  userId          String
+  name            String
+  description     String?
+  icon            String    @default("⚡")
+  triggerKeywords String    @default("[]") // JSON array，供 AI 主动提议匹配
+  steps           Json      // [{type:"data"|"ask"|"ai"|"note"|"finish", ...}]
+  note            Json      // 技能档案 { entries: [{at,label,content}], meta? } 默认 {}
+  usageCount      Int       @default(0)
+  source          String    @default("user") // "template" | "user"
+  lastRunAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
   @@index([userId])
 }
 

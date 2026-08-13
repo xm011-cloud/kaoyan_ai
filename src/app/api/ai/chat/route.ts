@@ -5,10 +5,28 @@ import { getUserAiConfig, callAI, truncateReasoning } from "@/lib/ai-config";
 import type { AiToolCall } from "@/lib/ai-config";
 import { prisma } from "@/lib/prisma";
 import { searchMaterials, buildRagContext, findRelevantSegments } from "@/lib/rag";
-import { getToolDefinitions, executeTool } from "@/lib/ai-tools";
+import { getToolDefinitions, getSkillRunTools, executeTool, isSkillFinishCall } from "@/lib/ai-tools";
 import { buildChatSystemPrompt } from "@/lib/ai-prompts";
+import {
+  parseSkillSteps,
+  buildSkillDataSnapshot,
+  buildSkillRunPrompt,
+  getNoteDigest,
+  skillFinish,
+} from "@/lib/skills";
 
 const MAX_TOOL_ITERATIONS = 5;
+
+/** 新建对话时的种子消息（仅 role/content，去掉 id 等客户端字段） */
+function conversationSeedMessages(messages: Array<{ role?: string; content?: unknown }>) {
+  return messages
+    .filter((m) => m && typeof m.content === "string")
+    .map((m, idx) => ({
+      id: `seed_${idx}`,
+      role: m.role === "assistant" ? "assistant" : "user",
+      content: m.content as string,
+    }));
+}
 
 // ── 前端操作卡片类型 ──
 interface ActionCard {
@@ -31,7 +49,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { messages, materialIds, chatId: bodyChatId, floating } = body;
+    const { messages, materialIds, chatId: bodyChatId, floating, skillId: bodySkillId } = body;
 
     if (!messages || !Array.isArray(messages)) {
       return jsonNoStore({ error: "消息格式不正确" }, { status: 400 });
@@ -42,6 +60,62 @@ export async function POST(request: NextRequest) {
     let proposalData: Record<string, unknown> | null = null;
 
     const lastMessage = messages[messages.length - 1]?.content || "";
+
+    // ── 技能模式：技能运行 = 带 skillId 的对话 ──
+    // 解析技能：优先 body.skillId；否则从已解析 chat 找回（技能已删则回落普通对话）
+    let activeSkill: {
+      id: string;
+      name: string;
+      icon: string;
+      description?: string;
+      steps: ReturnType<typeof parseSkillSteps>;
+      note: unknown;
+    } | null = null;
+
+    let skillId: string | null =
+      typeof bodySkillId === "string" && bodySkillId ? bodySkillId : null;
+    if (!skillId && resolvedChatId) {
+      const chatWithSkill = await prisma.chat.findUnique({
+        where: { id: resolvedChatId },
+        select: { skillId: true },
+      });
+      skillId = chatWithSkill?.skillId ?? null;
+    }
+    if (skillId) {
+      const skill = await prisma.skill.findFirst({ where: { id: skillId, userId: user!.id } });
+      if (skill) {
+        activeSkill = {
+          id: skill.id,
+          name: skill.name,
+          icon: skill.icon,
+          description: skill.description ?? undefined,
+          steps: parseSkillSteps(skill.steps),
+          note: skill.note,
+        };
+      }
+    }
+
+    // 技能启动：无对话先建带 skillId 的 Chat（供 executeTool 的 ctx.skillId / pendingProposal 承载）
+    if (activeSkill && !resolvedChatId) {
+      const chat = await prisma.chat.create({
+        data: {
+          userId: user!.id,
+          skillId: activeSkill.id,
+          messages: conversationSeedMessages(messages),
+        },
+      });
+      resolvedChatId = chat.id;
+    }
+
+    // 用户手动结束技能：直接收尾，不走 AI
+    const trimmedLast = String(lastMessage || "").trim();
+    if (activeSkill && /^(结束技能|完成技能)$/.test(trimmedLast)) {
+      await skillFinish(user!.id, activeSkill.id);
+      return jsonNoStore({
+        reply: `已结束「${activeSkill.name}」技能运行 👋`,
+        skillRun: { id: activeSkill.id, name: activeSkill.name, icon: activeSkill.icon, completed: true },
+      });
+    }
     const materialWhere: Record<string, unknown> = { userId: user!.id };
     if (materialIds && Array.isArray(materialIds) && materialIds.length > 0) {
       materialWhere.id = { in: materialIds };
@@ -64,7 +138,7 @@ export async function POST(request: NextRequest) {
     const selectedLabel = materialIds?.length > 0 ? `（用户指定了 ${materialIds.length} 份资料）` : "";
 
     // 构建系统提示词（角色宪章/表达规范/使用边界共享层 + RAG + 工具使用指引）
-    const systemContent = buildChatSystemPrompt({
+    let systemContent = buildChatSystemPrompt({
       selectedLabel,
       ragContext: ragContext || undefined,
       userMaterialsCount: userMaterials.length,
@@ -72,6 +146,26 @@ export async function POST(request: NextRequest) {
       drivingMode: aiConfig.drivingMode,
       floating: !!floating,
     });
+
+    // 技能模式：注入技能流程 prompt + 数据快照 + 档案
+    let skillComplete = false;
+    if (activeSkill) {
+      const dataSources = activeSkill.steps
+        .filter((s) => s.type === "data")
+        .flatMap((s) => (s.type === "data" ? s.sources : []));
+      const snapshot =
+        dataSources.length > 0 ? await buildSkillDataSnapshot(user!.id, dataSources) : "";
+      const noteDigest = getNoteDigest(activeSkill.note);
+      systemContent +=
+        "\n\n" +
+        buildSkillRunPrompt({
+          name: activeSkill.name,
+          description: activeSkill.description,
+          steps: activeSkill.steps,
+          snapshot,
+          noteDigest,
+        });
+    }
 
     // ── 构建 API messages ──
     // 只保留用户和助手的对话消息，系统消息单独构建
@@ -97,7 +191,7 @@ export async function POST(request: NextRequest) {
           messages: apiMessages,
           temperature: 0.7,
           maxTokens: 4096,
-          tools: getToolDefinitions(),
+          tools: activeSkill ? getSkillRunTools() : getToolDefinitions(),
           tool_choice: "auto",
         });
       } catch (aiErr) {
@@ -148,7 +242,15 @@ export async function POST(request: NextRequest) {
           resolvedChatId = chat.id;
         }
 
-        const toolResult = await executeTool(user!.id, tc.function.name, parsedArgs, { chatId: resolvedChatId });
+        const toolResult = await executeTool(user!.id, tc.function.name, parsedArgs, {
+          chatId: resolvedChatId,
+          skillId: activeSkill?.id ?? null,
+        });
+
+        // 技能收尾：AI 调用 skill_control(finish) → 标记本次运行完成
+        if (isSkillFinishCall(tc.function.name, parsedArgs)) {
+          skillComplete = true;
+        }
 
         // 捕获提案数据（前端渲染确认卡；pendingProposal 已由工具执行器挂到对话）
         if (tc.function.name === "propose_tasks") {
@@ -204,6 +306,9 @@ export async function POST(request: NextRequest) {
       chatId: resolvedChatId || undefined,
       proposal: proposalData || undefined,
       actions: actions.length > 0 ? actions : undefined,
+      skillRun: activeSkill
+        ? { id: activeSkill.id, name: activeSkill.name, icon: activeSkill.icon, completed: skillComplete }
+        : undefined,
       sources: (searchResults.length > 0 ? searchResults
         : materialIds?.length > 0 ? userMaterials.filter(m => m.content && m.content.length > 10).map(m => ({ id: m.id, name: m.name, content: m.content ?? "", score: 1 }))
         : [] as { id: string; name: string; content: string; score: number }[]

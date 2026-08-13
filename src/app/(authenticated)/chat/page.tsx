@@ -45,6 +45,15 @@ interface MaterialBrief {
   type: string
 }
 
+interface SkillBrief {
+  id: string
+  name: string
+  icon: string
+  description?: string
+}
+
+type RunningSkill = SkillBrief & { completed: boolean }
+
 // 「加入错题本」只在该回答是对某道具体题的解法时才展示。
 // 依据触发它的用户问题判断：计划/建议/操作类问题一律不展示，避免计划等回答下出现无关按钮。
 function looksLikeProblemQuestion(q: string): boolean {
@@ -92,6 +101,22 @@ export default function ChatPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [showMaterialPicker, setShowMaterialPicker] = useState(false)
 
+  // 技能运行：用户技能列表（斜杠菜单）/ 运行中徽标 / 斜杠菜单开关
+  const [userSkills, setUserSkills] = useState<SkillBrief[]>([])
+  const [runningSkill, setRunningSkill] = useState<RunningSkill | null>(null)
+  const [showSkillMenu, setShowSkillMenu] = useState(false)
+
+  // 从消息流识别技能对话：首条 kickoff → 恢复运行徽标（id 未知不影响——结束按钮走 chat.skillId 解析）
+  const syncSkillBadge = (msgs: Message[]) => {
+    const first = Array.isArray(msgs) ? msgs[0] : undefined
+    if (first?.role === 'user' && first.content.startsWith('运行技能「')) {
+      const name = first.content.replace(/^运行技能「/, '').replace(/」$/, '')
+      setRunningSkill({ id: '', name, icon: '⚡', completed: false })
+    } else {
+      setRunningSkill(null)
+    }
+  }
+
   // 加入错题本弹窗
   const [saveWrongModal, setSaveWrongModal] = useState<{
     question: string
@@ -105,6 +130,8 @@ export default function ChatPage() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const skillMenuRef = useRef<HTMLDivElement>(null)
+  const skillKickoffRef = useRef(false)
 
   // 加载资料列表（用于选择器）
   const loadMaterials = useCallback(async () => {
@@ -123,10 +150,38 @@ export default function ChatPage() {
     } catch { /* ignore */ }
   }, [])
 
+  // 用户技能列表（斜杠菜单 / ?skill= 启动解析）
+  const loadUserSkills = useCallback(async () => {
+    try {
+      const res = await fetch('/api/skills')
+      const data = await res.json()
+      setUserSkills(data.skills || [])
+    } catch { /* ignore */ }
+  }, [])
+
   useEffect(() => {
     loadHistories()
     loadMaterials()
-  }, [loadHistories, loadMaterials])
+    loadUserSkills()
+  }, [loadHistories, loadMaterials, loadUserSkills])
+
+  // 点击输入区外关闭斜杠菜单
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      if (skillMenuRef.current && !skillMenuRef.current.contains(e.target as Node)) {
+        setShowSkillMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [])
+
+  // 用户技能列表就绪后：若输入框已是「/」开头，自动展开斜杠菜单（避免列表晚于输入返回）
+  useEffect(() => {
+    if (userSkills.length > 0 && inputRef.current?.value.startsWith('/')) {
+      setShowSkillMenu(true)
+    }
+  }, [userSkills])
 
   // Restore chat from URL params
   const restoredRef = useRef(false)
@@ -145,6 +200,7 @@ export default function ChatPage() {
         if (found) {
           setMessages(found.messages)
           setChatId(found.id)
+          syncSkillBadge(found.messages)
         }
       } catch { /* ignore */ }
     }
@@ -240,14 +296,15 @@ export default function ChatPage() {
     })
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!input.trim() || loading) return
+  // 普通消息发送（含「结束技能」手动收尾；skillId 分支由 startSkillRun 处理）
+  const sendText = async (text: string) => {
+    if (!text.trim() || loading) return
+    setShowSkillMenu(false)
 
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: input,
+      content: text.trim(),
     }
 
     const newMessages = [...messages, userMessage]
@@ -280,6 +337,11 @@ export default function ChatPage() {
         proposal: data.proposal,
       }
 
+      // 技能运行收尾（结束技能 / AI 调 finish）→ 徽标转「已结束」
+      if (data.skillRun?.completed) {
+        setRunningSkill((prev) => (prev ? { ...prev, completed: true } : prev))
+      }
+
       // 提案可能由服务端新建对话承载（此时返回新 chatId），保持客户端一致避免重复建对话
       const resolvedChatId = data.chatId || chatId
       if (data.chatId && data.chatId !== chatId) {
@@ -301,16 +363,109 @@ export default function ChatPage() {
     }
   }
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    await sendText(input)
+  }
+
+  // 启动一次技能运行：新对话 + kickoff 消息（运行技能「name」）+ skillId
+  const startSkillRun = useCallback(async (skill: SkillBrief) => {
+    if (loading) return
+    setShowSkillMenu(false)
+    const kickoffMsg: Message = {
+      id: `skill_${Date.now()}`,
+      role: 'user',
+      content: `运行技能「${skill.name}」`,
+    }
+    const newMessages = [kickoffMsg]
+    setMessages(newMessages)
+    setInput('')
+    setLoading(true)
+    setRunningSkill({ id: skill.id, name: skill.name, icon: skill.icon, completed: false })
+
+    try {
+      const res = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: newMessages, skillId: skill.id }),
+      })
+      if (!res.ok) throw new Error('AI 服务暂不可用')
+      const data = await res.json()
+
+      const assistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: data.reply || '抱歉，我暂时无法回答这个问题。',
+        sources: data.sources,
+        actions: data.actions,
+        reasoning: data.reasoning,
+        proposal: data.proposal,
+      }
+
+      if (data.skillRun?.completed) {
+        setRunningSkill((prev) => (prev ? { ...prev, completed: true } : prev))
+      }
+
+      const finalMessages = [...newMessages, assistantMessage]
+      setMessages(finalMessages)
+
+      // 技能对话由服务端创建（带 skillId）→ 返回新 chatId，同步 URL + 持久化
+      if (data.chatId) {
+        setChatId(data.chatId)
+        router.replace(`${pathname}?chat=${data.chatId}`, { scroll: false })
+        saveChat(finalMessages, data.chatId)
+      }
+    } catch {
+      setMessages(prev => [...prev, {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: '抱歉，AI 服务暂时不可用，请稍后再试。',
+      }])
+      setRunningSkill((prev) => (prev ? { ...prev, completed: true } : prev))
+    } finally {
+      setLoading(false)
+    }
+  }, [loading, pathname, router, saveChat])
+
+  // ?skill=<id> 启动：等用户技能列表就绪后自动跑一次
+  useEffect(() => {
+    const skillParam = searchParams.get('skill')
+    if (!skillParam || skillKickoffRef.current) return
+    if (userSkills.length === 0) return // 等列表（含模板播种）加载
+    skillKickoffRef.current = true
+    restoredRef.current = true // 技能对话已加载，禁止 restore 效果再拉一次
+    const skill = userSkills.find((s) => s.id === skillParam)
+    if (!skill) {
+      router.replace(pathname, { scroll: false })
+      return
+    }
+    startSkillRun(skill)
+  }, [searchParams, userSkills, pathname, router, startSkillRun])
+
+  // 斜杠菜单选择技能 → 启动
+  const pickSkill = (skill: SkillBrief) => {
+    setShowSkillMenu(false)
+    startSkillRun(skill)
+  }
+
+  // 手动结束当前技能运行
+  const endSkill = () => {
+    if (!runningSkill || runningSkill.completed || loading) return
+    sendText('结束技能')
+  }
+
   const loadChat = (history: ChatHistory) => {
     setMessages(history.messages)
     setChatId(history.id)
     setShowHistory(false)
     router.replace(`${pathname}?chat=${history.id}`, { scroll: false })
+    syncSkillBadge(history.messages)
   }
 
   const newChat = () => {
     setMessages([])
     setChatId(null)
+    setRunningSkill(null)
     router.replace(pathname, { scroll: false })
   }
 
@@ -330,7 +485,23 @@ export default function ChatPage() {
           <h1 className="text-lg lg:text-xl font-bold">AI 对话</h1>
           <p className="text-xs lg:text-sm text-muted-foreground">AI 助手，可以查数据、管任务、答疑解惑</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          {runningSkill && (
+            runningSkill.completed ? (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-muted text-muted-foreground text-xs">
+                {runningSkill.icon} {runningSkill.name} · 技能已结束 ✓
+              </span>
+            ) : (
+              <>
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-brand-muted text-brand text-xs">
+                  {runningSkill.icon} 技能：{runningSkill.name}
+                </span>
+                <Button variant="outline" size="sm" onClick={endSkill} disabled={loading}>
+                  结束技能
+                </Button>
+              </>
+            )
+          )}
           <Button variant="outline" size="sm" onClick={newChat}>新对话</Button>
           <Button variant="outline" size="sm" onClick={() => setShowHistory(!showHistory)}>历史</Button>
         </div>
@@ -394,6 +565,18 @@ export default function ChatPage() {
           // 触发该回答的用户问题（紧邻的前一条 user 消息）
           const prevUser = idx > 0 && messages[idx - 1].role === 'user' ? messages[idx - 1].content : ''
           const canSaveWrong = message.role === 'assistant' && looksLikeProblemQuestion(prevUser)
+          // 技能启动消息（运行技能「name」）→ 居中系统提示条，不渲染为普通用户气泡
+          const isKickoff = message.role === 'user' && message.content.startsWith('运行技能「')
+          if (isKickoff) {
+            const skillName = message.content.replace(/^运行技能「/, '').replace(/」$/, '')
+            return (
+              <div key={message.id} className="w-full flex justify-center">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted/80 text-xs text-muted-foreground">
+                  ⚡ 正在运行技能：{skillName}
+                </div>
+              </div>
+            )
+          }
           return (
           <div
             key={message.id}
@@ -508,26 +691,56 @@ export default function ChatPage() {
           )}
 
           {/* 输入框 */}
-          <form onSubmit={handleSubmit} className="flex gap-2">
-            <input
-              ref={inputRef}
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={
-                materials.length === 0
-                  ? "输入你的问题..."
-                  : selectedIds.size > 0
-                    ? "针对选中资料提问..."
-                    : "输入问题，AI 自动检索所有资料..."
-              }
-              className="flex-1 px-4 py-2.5 text-sm border border-border/50 rounded-xl bg-muted/50 focus:outline-none focus:ring-2 focus:ring-brand/20"
-              disabled={loading}
-            />
-            <Button type="submit" disabled={loading || !input.trim()} className="px-5">
-              发送
-            </Button>
-          </form>
+          <div className="relative">
+            {showSkillMenu && (
+              <div
+                ref={skillMenuRef}
+                role="menu"
+                aria-label="运行技能"
+                className="absolute bottom-full left-0 right-0 mb-2 bg-card border border-border/50 rounded-xl shadow-lg overflow-hidden z-20"
+              >
+                <p className="px-3 py-2 text-[10px] text-muted-foreground border-b border-border/50 bg-muted/30">
+                  ⚡ 运行技能（输入 / 唤起）
+                </p>
+                {userSkills.map((s) => (
+                  <button
+                    key={s.id}
+                    role="menuitem"
+                    onClick={() => pickSkill(s)}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-muted/60 transition-colors"
+                  >
+                    <span>{s.icon}</span>
+                    <span className="flex-1">{s.name}</span>
+                    <span className="text-[10px] text-muted-foreground">运行 →</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <form onSubmit={handleSubmit} className="flex gap-2">
+              <input
+                ref={inputRef}
+                type="text"
+                value={input}
+                onChange={(e) => {
+                  const v = e.target.value
+                  setInput(v)
+                  setShowSkillMenu(v.startsWith('/') && userSkills.length > 0)
+                }}
+                placeholder={
+                  materials.length === 0
+                    ? "输入你的问题...（输入 / 可运行技能）"
+                    : selectedIds.size > 0
+                      ? "针对选中资料提问..."
+                      : "输入问题，AI 自动检索所有资料..."
+                }
+                className="flex-1 px-4 py-2.5 text-sm border border-border/50 rounded-xl bg-muted/50 focus:outline-none focus:ring-2 focus:ring-brand/20"
+                disabled={loading}
+              />
+              <Button type="submit" disabled={loading || !input.trim()} className="px-5">
+                发送
+              </Button>
+            </form>
+          </div>
           <p className="text-[10px] text-muted-foreground text-center">
             AI 回答基于你的学习资料生成，请对重要信息进行核实
           </p>

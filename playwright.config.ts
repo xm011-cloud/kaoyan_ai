@@ -82,6 +82,7 @@ export default defineConfig({
         "leaderboard.spec.ts",
         "export.spec.ts",
         "profile.spec.ts",
+        "skills.spec.ts",
       ],
     },
     // Unauthenticated tests (no storage state)

@@ -32,6 +32,7 @@ export const navItems: NavItem[] = [
   { href: '/chat',       label: 'AI 对话',  icon: '💬', shortLabel: 'AI' },
   { href: '/feedback',   label: '周报',     icon: '📊', shortLabel: '周报' },
   { href: '/study-path', label: '学习路径', icon: '🗺️', shortLabel: '路径' },
+  { href: '/skills',     label: '技能',     icon: '⚡', shortLabel: '技能' },
   { href: '/materials',  label: '资料',     icon: '📖', shortLabel: '资料' },
   { href: '/knowledge-graph', label: '知识图谱', icon: '🧠', shortLabel: '图谱' },
   { href: '/admission',  label: '院校',     icon: '🏫', shortLabel: '院校' },
@@ -71,6 +72,7 @@ export const defaultNavGroups: NavGroup[] = [
       { href: '/chat', label: 'AI 对话', icon: '💬', shortLabel: '对话' },
       { href: '/feedback', label: '周报', icon: '📊', shortLabel: '周报' },
       { href: '/study-path', label: '学习路径', icon: '🗺️', shortLabel: '路径' },
+      { href: '/skills', label: '技能', icon: '⚡', shortLabel: '技能' },
     ],
   },
   {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
+import { toast } from "@/stores/toast-store";
 
 interface ImportEntry {
   university: string;
@@ -205,9 +206,9 @@ export function ImportTab({ onImportComplete }: ImportTabProps) {
         body: JSON.stringify(entry),
       });
       onImportComplete();
-      alert("已保存！");
+      toast.success("已保存");
     } catch {
-      alert("保存失败");
+      toast.error("保存失败");
     }
   };
 
@@ -223,10 +224,10 @@ export function ImportTab({ onImportComplete }: ImportTabProps) {
       const data = await res.json();
       if (data.saved > 0) {
         onImportComplete();
-        alert(`已保存 ${data.saved} 条记录！`);
+        toast.success(`已保存 ${data.saved} 条记录`);
       }
     } catch {
-      alert("保存失败");
+      toast.error("保存失败");
     } finally {
       setImporting(false);
     }
@@ -236,7 +237,7 @@ export function ImportTab({ onImportComplete }: ImportTabProps) {
   return (
     <div className="space-y-5">
       {/* Mode switch */}
-      <div className="flex bg-gray-100 dark:bg-gray-700/50 rounded-lg p-1">
+      <div className="flex bg-muted rounded-xl p-1">
         {[
           ["file", "📁 文件上传"],
           ["text", "📝 粘贴文本"],
@@ -251,8 +252,8 @@ export function ImportTab({ onImportComplete }: ImportTabProps) {
             }}
             className={`flex-1 py-2 text-sm rounded-md transition-colors ${
               mode === key
-                ? "bg-white dark:bg-gray-600 shadow-sm font-medium"
-                : "text-gray-500 hover:text-gray-700"
+                ? "bg-card shadow-sm font-medium"
+                : "text-muted-foreground"
             }`}
           >
             {label}
@@ -271,7 +272,7 @@ export function ImportTab({ onImportComplete }: ImportTabProps) {
             value={universityHint}
             onChange={(e) => setUniversityHint(e.target.value)}
             placeholder="例如：北京大学"
-            className="w-full border rounded-lg px-3 py-2 text-sm dark:bg-gray-700 dark:border-gray-600"
+            className="w-full rounded-xl border border-border/50 bg-muted/50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
           />
         </div>
         <div>
@@ -283,7 +284,7 @@ export function ImportTab({ onImportComplete }: ImportTabProps) {
             value={majorHint}
             onChange={(e) => setMajorHint(e.target.value)}
             placeholder="例如：计算机科学与技术"
-            className="w-full border rounded-lg px-3 py-2 text-sm dark:bg-gray-700 dark:border-gray-600"
+            className="w-full rounded-xl border border-border/50 bg-muted/50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
           />
         </div>
         <div>
@@ -297,7 +298,7 @@ export function ImportTab({ onImportComplete }: ImportTabProps) {
             placeholder="例如：2025"
             min={2000}
             max={2100}
-            className="w-full border rounded-lg px-3 py-2 text-sm dark:bg-gray-700 dark:border-gray-600"
+            className="w-full rounded-xl border border-border/50 bg-muted/50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
           />
         </div>
       </div>
@@ -316,7 +317,7 @@ export function ImportTab({ onImportComplete }: ImportTabProps) {
             className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
               dragOver
                 ? "border-blue-400 bg-blue-50 dark:bg-blue-900/20"
-                : "border-gray-300 dark:border-gray-600 hover:border-blue-300"
+                : "border-border/50 hover:border-brand/40"
             }`}
           >
             <input
@@ -378,7 +379,7 @@ export function ImportTab({ onImportComplete }: ImportTabProps) {
             }}
             placeholder={`在此粘贴从网站或文件中复制的录取数据文本...\n\n例如：\n清华大学 2024年 计算机科学与技术 复试分数线\n总分: 350分\n政治: 60分\n英语: 60分\n数学一: 90分\n专业课: 140分\n\n北京大学 2024年 软件工程 招生人数: 80人`}
             rows={12}
-            className="w-full border rounded-lg px-3 py-2.5 text-sm dark:bg-gray-700 dark:border-gray-600 font-mono resize-y"
+            className="w-full rounded-xl border border-border/50 bg-muted/50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 font-mono resize-y"
           />
 
           <div className="flex gap-3">
@@ -411,7 +412,7 @@ export function ImportTab({ onImportComplete }: ImportTabProps) {
         <div className="space-y-3">
           <details className="text-xs text-gray-500">
             <summary className="cursor-pointer">📋 查看 JSON 格式模板</summary>
-            <pre className="mt-2 p-3 bg-gray-50 dark:bg-gray-800 rounded border text-[11px] overflow-x-auto whitespace-pre">
+            <pre className="mt-2 p-3 bg-muted/50 rounded-lg border border-border/50 text-[11px] overflow-x-auto whitespace-pre">
               {JSON_TEMPLATE}
             </pre>
           </details>
@@ -425,7 +426,7 @@ export function ImportTab({ onImportComplete }: ImportTabProps) {
             }}
             placeholder={JSON_TEMPLATE}
             rows={12}
-            className="w-full border rounded-lg px-3 py-2.5 text-sm dark:bg-gray-700 dark:border-gray-600 font-mono resize-y"
+            className="w-full rounded-xl border border-border/50 bg-muted/50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 font-mono resize-y"
           />
 
           <button
@@ -482,7 +483,7 @@ export function ImportTab({ onImportComplete }: ImportTabProps) {
           {result.entries?.map((entry, i) => (
             <div
               key={i}
-              className="border dark:border-gray-700 rounded-lg p-4"
+              className="border border-border/50 rounded-xl p-4"
             >
               <div className="flex items-start justify-between mb-2">
                 <div>
@@ -509,7 +510,7 @@ export function ImportTab({ onImportComplete }: ImportTabProps) {
                     ).map(([k, v]) => (
                       <div
                         key={k}
-                        className="bg-gray-50 dark:bg-gray-700/50 rounded px-3 py-2 text-center"
+                        className="bg-muted/50 rounded-lg px-3 py-2 text-center"
                       >
                         <div className="text-lg font-bold">
                           {typeof v === "number" ? v : String(v)}
@@ -577,7 +578,7 @@ export function ImportTab({ onImportComplete }: ImportTabProps) {
 
           {/* Raw text preview (only if AI extraction failed with partial data) */}
           {result.rawText && (result.entries?.length ?? 0) === 0 && (
-            <details className="bg-white dark:bg-gray-800 rounded-xl border p-4">
+            <details className="bg-card rounded-2xl border border-border/50 p-4">
               <summary className="cursor-pointer text-sm text-gray-500">
                 📄 查看提取的原始文本
               </summary>

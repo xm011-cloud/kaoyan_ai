@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import { PageHeader } from '@/components/ui/page-header'
 import { Avatar } from '@/components/avatar'
 
 type ProfileStats = {
@@ -100,15 +101,15 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="p-4 lg:p-6 max-w-2xl mx-auto space-y-6 text-sm text-muted-foreground">
+      <div className="p-4 lg:p-6 max-w-3xl mx-auto space-y-6 text-sm text-muted-foreground">
         加载中...
       </div>
     )
   }
 
   return (
-    <div className="p-4 lg:p-6 max-w-2xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold tracking-tight">个人资料</h1>
+    <div className="p-4 lg:p-6 max-w-3xl mx-auto space-y-6">
+      <PageHeader title="个人资料" />
 
       {/* 头像 */}
       <div className="rounded-2xl bg-card border border-border/50 shadow-sm p-6 space-y-4">

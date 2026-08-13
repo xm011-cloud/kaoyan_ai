@@ -204,7 +204,7 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="p-4 lg:p-6 space-y-6">
+    <div className="p-4 lg:p-6 max-w-6xl mx-auto space-y-6">
       {/* ── 今日状态 Banner ── */}
       <div className="rounded-2xl bg-card border border-border/50 shadow-sm overflow-hidden">
         <div className="bg-gradient-to-r from-brand/8 to-brand/3 px-5 py-4 lg:px-6 lg:py-5">

@@ -76,7 +76,7 @@ export function Header({ daysLeft }: { daysLeft: number }) {
         </button>
 
         {/* Desktop tabs */}
-        <nav className="hidden lg:flex items-center h-full ml-2">
+        <nav className="hidden lg:flex items-center h-full ml-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {groups.map((g) => {
             const href = g.firstItem?.href || '/dashboard'
             const isActive = pathname === href || (href !== '/dashboard' && pathname.startsWith(href + '/'))
@@ -85,7 +85,7 @@ export function Header({ daysLeft }: { daysLeft: number }) {
                 key={g.id}
                 href={href}
                 className={cn(
-                  'flex items-center gap-1.5 px-3 h-full text-[13px] font-medium border-b-[3px] transition-colors',
+                  'flex items-center gap-1.5 px-3 h-full shrink-0 text-[13px] font-medium border-b-[3px] transition-colors',
                   isActive
                     ? 'border-brand text-brand'
                     : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50'
@@ -102,7 +102,7 @@ export function Header({ daysLeft }: { daysLeft: number }) {
         <div className="flex-1 min-w-0" />
 
         {/* Date (desktop only) */}
-        <span className="hidden lg:block text-xs text-muted-foreground mr-2 shrink-0 whitespace-nowrap">
+        <span className="hidden xl:block text-xs text-muted-foreground mr-2 shrink-0 whitespace-nowrap">
           📅 {dateStr}{daysLeft > 0 ? ` · ⏳ ${daysLeft}天` : ''}
         </span>
 

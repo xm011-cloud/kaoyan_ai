@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Avatar } from '@/components/avatar'
+import { PageHeader } from '@/components/ui/page-header'
 
 type Period = 'week' | 'month' | 'all'
 type Row = {
@@ -59,23 +60,25 @@ export default function LeaderboardPage() {
   const rest = rows.slice(3)
 
   return (
-    <div className="p-4 lg:p-6 max-w-2xl mx-auto space-y-6">
-      <div className="flex items-end justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">🏆 学习圈排行榜</h1>
-        <div className="flex gap-1 p-1 rounded-2xl bg-muted">
-          {PERIOD_TABS.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setPeriod(t.id)}
-              className={`px-3 py-1.5 rounded-xl text-sm font-medium transition-all active:scale-[0.98] ${
-                period === t.id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </div>
+    <div className="p-4 lg:p-6 max-w-3xl mx-auto space-y-6">
+      <PageHeader
+        title="🏆 学习圈排行榜"
+        action={
+          <div className="flex gap-1 p-1 rounded-2xl bg-muted">
+            {PERIOD_TABS.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setPeriod(t.id)}
+                className={`px-3 py-1.5 rounded-xl text-sm font-medium transition-all active:scale-[0.98] ${
+                  period === t.id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        }
+      />
 
       {/* 我的排名 */}
       <div className="rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200/50 dark:border-amber-500/20 p-4 text-center">

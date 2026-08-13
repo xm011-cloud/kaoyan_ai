@@ -197,6 +197,7 @@ export function AiFloating() {
 
       {/* ── 抽屉面板 ── */}
       <div
+        aria-hidden={!open}
         className={cn(
           'fixed z-50 bg-card border-border/50 shadow-2xl flex flex-col transition-transform duration-300',
           // 桌面端：右侧滑出
@@ -231,6 +232,7 @@ export function AiFloating() {
               onClick={() => setOpen(false)}
               className="text-xs px-2 py-1 rounded-md hover:bg-muted text-muted-foreground transition-colors"
               title="关闭 (Esc)"
+              aria-label="关闭"
             >
               ✕
             </button>

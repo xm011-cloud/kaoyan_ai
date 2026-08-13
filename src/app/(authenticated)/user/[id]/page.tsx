@@ -53,11 +53,11 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   }, [id])
 
   if (loading) {
-    return <div className="p-4 lg:p-6 max-w-2xl mx-auto space-y-6 text-sm text-muted-foreground">加载中...</div>
+    return <div className="p-4 lg:p-6 max-w-3xl mx-auto space-y-6 text-sm text-muted-foreground">加载中...</div>
   }
   if (notFound) {
     return (
-      <div className="p-4 lg:p-6 max-w-2xl mx-auto space-y-6 text-center">
+      <div className="p-4 lg:p-6 max-w-3xl mx-auto space-y-6 text-center">
         <p className="text-muted-foreground">用户不存在</p>
         <Link href="/leaderboard" className="text-brand text-sm underline">
           返回学习圈
@@ -66,7 +66,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
     )
   }
   if (error) {
-    return <div className="p-4 lg:p-6 max-w-2xl mx-auto space-y-6 text-destructive">{error}</div>
+    return <div className="p-4 lg:p-6 max-w-3xl mx-auto space-y-6 text-destructive">{error}</div>
   }
   if (!profile) return null
 
@@ -78,7 +78,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   ]
 
   return (
-    <div className="p-4 lg:p-6 max-w-2xl mx-auto space-y-6">
+    <div className="p-4 lg:p-6 max-w-3xl mx-auto space-y-6">
       <div className="rounded-2xl bg-card border border-border/50 shadow-sm p-6 flex flex-col items-center gap-3">
         <Avatar src={profile.avatar} name={profile.name} size={96} />
         <h1 className="text-xl font-bold tracking-tight">{profile.name || '匿名用户'}</h1>

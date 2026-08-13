@@ -9,7 +9,7 @@ const StatsCharts = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="text-center py-6 text-sm text-gray-400">加载图表...</div>
+      <div className="text-center py-6 text-sm text-muted-foreground">加载图表...</div>
     ),
   }
 );
@@ -37,7 +37,7 @@ export function DashboardCharts({
   return (
     <div className="space-y-6">
       {/* 热力图 */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl border p-5">
+      <div className="bg-card rounded-2xl border border-border/50 p-5">
         <h3 className="font-semibold mb-4">学习日历</h3>
         <Heatmap checkIns={heatmapData} months={3} />
       </div>

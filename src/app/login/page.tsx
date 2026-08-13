@@ -61,16 +61,16 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex flex-1 items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
+    <div className="flex flex-1 items-center justify-center bg-background px-4">
       <div className="w-full max-w-md space-y-8">
         <div className="text-center">
           <h1 className="text-2xl font-bold">AI 考研助手</h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
+          <p className="mt-2 text-muted-foreground">
             {isSignUp ? '创建新账户' : '登录你的账户'}
           </p>
         </div>
 
-        <form onSubmit={handleAuth} className="space-y-4 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border">
+        <form onSubmit={handleAuth} className="space-y-4 bg-card p-6 rounded-2xl shadow-sm border border-border/50">
           {/* 蜜罐字段：真人看不见，机器人填了就静默拒绝 */}
           <input
             type="text"
@@ -93,7 +93,7 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="your@email.com"
               required
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+              className="w-full h-10 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
             />
           </div>
 
@@ -109,13 +109,13 @@ export default function LoginPage() {
               placeholder="••••••••"
               required
               minLength={6}
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+              className="w-full h-10 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
             />
           </div>
 
           {!isSignUp && (
             <p className="text-right -mt-2">
-              <Link href="/forgot-password" className="text-sm text-blue-600 hover:underline">
+              <Link href="/forgot-password" className="text-sm text-brand hover:underline">
                 忘记密码?
               </Link>
             </p>
@@ -134,19 +134,19 @@ export default function LoginPage() {
                 placeholder="向管理员获取邀请码"
                 required
                 autoComplete="off"
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                className="w-full h-10 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
               />
             </div>
           )}
 
           {recoveryError && (
-            <p className="text-sm text-red-500">
+            <p className="text-sm text-destructive">
               重置链接无效或已过期，请重新申请。
             </p>
           )}
 
           {error && (
-            <p className={`text-sm ${error.includes('成功') ? 'text-green-600' : 'text-red-500'}`}>
+            <p className={`text-sm ${error.includes('成功') ? 'text-success' : 'text-destructive'}`}>
               {error}
             </p>
           )}
@@ -155,12 +155,12 @@ export default function LoginPage() {
             {loading ? '处理中...' : isSignUp ? '注册' : '登录'}
           </Button>
 
-          <p className="text-center text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-center text-sm text-muted-foreground">
             {isSignUp ? '已有账户？' : '没有账户？'}
             <button
               type="button"
               onClick={() => setIsSignUp(!isSignUp)}
-              className="ml-1 text-blue-600 hover:underline"
+              className="ml-1 text-brand hover:underline"
             >
               {isSignUp ? '登录' : '注册'}
             </button>

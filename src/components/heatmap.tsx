@@ -101,7 +101,7 @@ export function Heatmap({ checkIns, months = 3 }: HeatmapProps) {
 
   const CELL = "w-3.5 h-3.5 rounded-[2px]";
   const getColor = (level: number) => {
-    if (level === 0) return "bg-gray-100 dark:bg-gray-800";
+    if (level === 0) return "bg-muted";
     if (level === 1) return "bg-green-200 dark:bg-green-900/50";
     if (level === 2) return "bg-green-400 dark:bg-green-600";
     if (level === 3) return "bg-green-500 dark:bg-green-500";
@@ -110,20 +110,20 @@ export function Heatmap({ checkIns, months = 3 }: HeatmapProps) {
 
   return (
     <div className="overflow-x-auto">
-      {/* Month labels */}
+      {/* Month labels — 列距 = CELL 14px + gap 3px = 17px,不渲染被隐藏的月份 */}
       <div className="flex mb-1" style={{ paddingLeft: 28 }}>
-        {monthLabels.map((ml, i) => (
-          <span
-            key={i}
-            className="text-[10px] text-gray-400 shrink-0"
-            style={{
-              marginLeft: i === 0 ? ml.col * 16 : (ml.col - monthLabels[i - 1].col) * 16,
-              visibility: ml.visible ? "visible" : "hidden",
-            }}
-          >
-            {ml.label}
-          </span>
-        ))}
+        {monthLabels.filter((ml) => ml.visible).map((ml, i, arr) => {
+          const prevCol = i === 0 ? 0 : arr[i - 1].col;
+          return (
+            <span
+              key={i}
+              className="text-[10px] text-muted-foreground shrink-0"
+              style={{ marginLeft: (ml.col - prevCol) * 17 }}
+            >
+              {ml.label}
+            </span>
+          );
+        })}
       </div>
 
       {/* Grid + row labels */}
@@ -131,7 +131,7 @@ export function Heatmap({ checkIns, months = 3 }: HeatmapProps) {
         {/* Day-of-week labels */}
         <div className="flex flex-col gap-[3px] mr-2 shrink-0" style={{ paddingTop: 3 }}>
           {dayLabels.map((l, i) => (
-            <div key={i} className="w-5 text-[10px] text-gray-400 leading-3">
+            <div key={i} className="w-5 text-[10px] text-muted-foreground leading-3">
               {l}
             </div>
           ))}
@@ -157,9 +157,9 @@ export function Heatmap({ checkIns, months = 3 }: HeatmapProps) {
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-1 mt-3 text-[10px] text-gray-400" style={{ paddingLeft: 28 }}>
+      <div className="flex items-center gap-1 mt-3 text-[10px] text-muted-foreground" style={{ paddingLeft: 28 }}>
         <span>少</span>
-        <div className={`${CELL} bg-gray-100 dark:bg-gray-800`} />
+        <div className={`${CELL} bg-muted`} />
         <div className={`${CELL} bg-green-200 dark:bg-green-900/50`} />
         <div className={`${CELL} bg-green-400 dark:bg-green-600`} />
         <div className={`${CELL} bg-green-500 dark:bg-green-500`} />

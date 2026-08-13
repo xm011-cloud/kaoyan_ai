@@ -29,20 +29,20 @@ const modeConfig: Record<
 > = {
   focus: {
     label: "专注",
-    ringColor: "text-red-500",
-    pillBg: "bg-red-100 dark:bg-red-900/30",
-    pillText: "text-red-600 dark:text-red-400",
+    ringColor: "text-destructive",
+    pillBg: "bg-destructive/10",
+    pillText: "text-destructive",
   },
   short_break: {
     label: "短休息",
-    ringColor: "text-green-500",
-    pillBg: "bg-green-100 dark:bg-green-900/30",
-    pillText: "text-green-600 dark:text-green-400",
+    ringColor: "text-success",
+    pillBg: "bg-success/10",
+    pillText: "text-success",
   },
   long_break: {
     label: "长休息",
     ringColor: "text-blue-500",
-    pillBg: "bg-blue-100 dark:bg-blue-900/30",
+    pillBg: "bg-blue-500/10",
     pillText: "text-blue-600 dark:text-blue-400",
   },
 };
@@ -84,7 +84,7 @@ export function PomodoroTimer({
             fill="none"
             stroke="currentColor"
             strokeWidth="8"
-            className="text-gray-200 dark:text-gray-700"
+            className="text-muted"
           />
           {/* Progress ring */}
           <circle
@@ -106,8 +106,8 @@ export function PomodoroTimer({
           <span
             className={`text-4xl sm:text-5xl lg:text-6xl font-mono font-bold tabular-nums ${
               timeLeft <= 10 && mode === "focus" && isRunning
-                ? "text-red-500 animate-pulse"
-                : "text-gray-900 dark:text-gray-100"
+                ? "text-destructive animate-pulse"
+                : "text-foreground"
             }`}
           >
             {formatTime(timeLeft)}
@@ -127,19 +127,19 @@ export function PomodoroTimer({
             key={i}
             className={`w-2.5 h-2.5 rounded-full transition-colors ${
               i < completedFocusCount % longBreakInterval
-                ? "bg-red-400 dark:bg-red-500"
+                ? "bg-destructive"
                 : (completedFocusCount > 0 &&
                     Math.floor((completedFocusCount - 1) / longBreakInterval) ===
                       Math.floor(completedFocusCount / longBreakInterval) &&
                     completedFocusCount % longBreakInterval === 0
                     ? i === 0
                     : i === completedFocusCount % longBreakInterval)
-                  ? "bg-red-200 dark:bg-red-800 animate-pulse"
-                  : "bg-gray-200 dark:bg-gray-700"
+                  ? "bg-destructive/20 animate-pulse"
+                  : "bg-muted"
             }`}
           />
         ))}
-        <span className="text-xs text-gray-400 ml-1">
+        <span className="text-xs text-muted-foreground ml-1">
           {completedFocusCount}
         </span>
       </div>

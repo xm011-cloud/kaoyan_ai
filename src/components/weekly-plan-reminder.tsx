@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
 import { useGoal } from "@/hooks/use-goal";
 import { getWeekStart, toDateString } from "@/lib/date-utils";
 
@@ -87,32 +88,27 @@ export function WeeklyPlanReminder() {
   if (!show) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-      onClick={handleDismiss}
-    >
-      <div
-        className="bg-white dark:bg-gray-800 rounded-xl border shadow-xl w-full max-w-sm mx-4 p-6 space-y-4"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start gap-3">
-          <span className="text-2xl">📅</span>
-          <div>
-            <h3 className="font-bold">本周计划已结束</h3>
-            <p className="text-sm text-gray-500 mt-1">
-              下周计划还未生成，现在安排下周的学习任务吗？
-            </p>
-          </div>
-        </div>
-        <div className="flex gap-2">
+    <Modal
+      open
+      onClose={handleDismiss}
+      size="sm"
+      title={
+        <span className="flex items-center gap-3">
+          <span className="text-2xl leading-none">📅</span>
+          <span>本周计划已结束</span>
+        </span>
+      }
+      description="下周计划还未生成，现在安排下周的学习任务吗？"
+      footer={
+        <>
           <Button variant="outline" className="flex-1" onClick={handleDismiss}>
             今天先不用
           </Button>
           <Button className="flex-1" onClick={handleGenerate}>
             生成下周计划
           </Button>
-        </div>
-      </div>
-    </div>
+        </>
+      }
+    />
   );
 }

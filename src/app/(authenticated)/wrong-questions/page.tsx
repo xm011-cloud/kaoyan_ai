@@ -2,8 +2,9 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
+import { ModuleLinks } from "@/components/ui/module-links";
 import { useGoal } from "@/hooks/use-goal";
 import {
   useWrongQuestions,
@@ -14,6 +15,8 @@ import { AddModal } from "./_components/add-modal";
 import { BatchImportModal } from "./_components/batch-import-modal";
 import { ReviewModal } from "./_components/review-modal";
 import { DetailModal } from "./_components/detail-modal";
+import { toast } from "@/stores/toast-store";
+import { confirmDialog } from "@/stores/confirm-store";
 
 interface WrongQuestion {
   id: string;
@@ -97,8 +100,14 @@ export default function WrongQuestionsPage() {
     );
   };
 
-  const handleDelete = (id: string) => {
-    if (!confirm("确定删除这道错题吗？")) return;
+  const handleDelete = async (id: string) => {
+    const ok = await confirmDialog({
+      title: "删除错题",
+      message: "确定删除这道错题吗？",
+      confirmLabel: "删除",
+      danger: true,
+    });
+    if (!ok) return;
     deleteMut.mutate(id, {
       onSuccess: () => {
         if (detail?.id === id) setDetail(null);
@@ -114,7 +123,7 @@ export default function WrongQuestionsPage() {
       if (tab === "due") return !q.reviewed;
       return true;
     });
-    if (toExport.length === 0) { alert("没有可导出的错题"); return; }
+    if (toExport.length === 0) { toast.info("没有可导出的错题"); return; }
 
     const html = `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -165,26 +174,25 @@ export default function WrongQuestionsPage() {
   return (
     <div className="p-4 lg:p-6">
       <div className="max-w-3xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div>
-            <h1 className="text-2xl font-bold">错题</h1>
-            <p className="text-gray-500 mt-1">
-              {questions.length > 0
-                ? `共 ${questions.length} 道错题，${unreviewedCount} 道待复习${dueTodayCount > 0 ? `，${dueTodayCount} 道今日到期` : ""}`
-                : "收集错题，定期复习，巩固薄弱知识点"}
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setShowBatch(true)}>📥 批量导入</Button>
-            <Button variant="outline" onClick={handleExportPDF}>🖨️ 导出</Button>
-            <Button onClick={() => setShowAdd(true)}>添加错题</Button>
-          </div>
-        </div>
+        <PageHeader
+          title="错题"
+          subtitle={
+            questions.length > 0
+              ? `共 ${questions.length} 道错题，${unreviewedCount} 道待复习${dueTodayCount > 0 ? `，${dueTodayCount} 道今日到期` : ""}`
+              : "收集错题，定期复习，巩固薄弱知识点"
+          }
+          action={
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setShowBatch(true)}>📥 批量导入</Button>
+              <Button variant="outline" onClick={handleExportPDF}>🖨️ 导出</Button>
+              <Button onClick={() => setShowAdd(true)}>添加错题</Button>
+            </div>
+          }
+        />
 
         {/* Filters */}
         <div className="flex flex-wrap gap-3 items-center">
-          <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+          <div className="flex rounded-2xl bg-muted p-1">
             {[
               ["all", "全部"],
               ["due", "今日到期"],
@@ -194,8 +202,8 @@ export default function WrongQuestionsPage() {
               <button
                 key={k}
                 onClick={() => { setTab(k as typeof tab); syncUrl({ tab: k === "all" ? "" : k }); }}
-                className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                  tab === k ? "bg-white dark:bg-gray-700 shadow-sm font-medium" : "text-gray-500 hover:text-gray-700"
+                className={`px-3 py-1.5 text-sm rounded-xl transition-all ${
+                  tab === k ? "bg-card shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 {label}
@@ -211,7 +219,7 @@ export default function WrongQuestionsPage() {
           <select
             value={subjectFilter}
             onChange={(e) => { setSubjectFilter(e.target.value); syncUrl({ subject: e.target.value }); }}
-            className="text-sm border rounded-lg px-3 py-1.5 bg-white dark:bg-gray-800 dark:border-gray-700"
+            className="text-sm h-10 rounded-xl border border-border/50 bg-muted/50 px-3"
           >
             <option value="">全部科目</option>
             {subjects.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -221,15 +229,15 @@ export default function WrongQuestionsPage() {
             placeholder="搜索错题..."
             value={searchTerm}
             onChange={(e) => { setSearchTerm(e.target.value); syncUrl({ q: e.target.value }); }}
-            className="text-sm border rounded-lg px-3 py-1.5 bg-white dark:bg-gray-800 dark:border-gray-700 flex-1 min-w-[120px]"
+            className="text-sm h-10 rounded-xl border border-border/50 bg-muted/50 px-3 flex-1 min-w-[120px] focus:outline-none focus:ring-2 focus:ring-brand/20"
           />
         </div>
 
         {/* Question list */}
         {isLoading ? (
-          <div className="text-center py-12 text-gray-500">加载中...</div>
+          <div className="text-center py-12 text-muted-foreground">加载中...</div>
         ) : questions.length === 0 ? (
-          <div className="text-center py-16 text-gray-500">
+          <div className="text-center py-16 text-muted-foreground">
             <div className="text-5xl mb-4">🔴</div>
             <p className="font-medium">还没有错题</p>
             <p className="text-sm mt-1">去 AI 问答提问后把没掌握的加入错题本，或点击"添加错题"手动添加</p>
@@ -239,7 +247,7 @@ export default function WrongQuestionsPage() {
             {questions.map((q) => (
               <div
                 key={q.id}
-                className={`p-4 rounded-lg border bg-white dark:bg-gray-800 hover:shadow-sm transition-shadow ${
+                className={`p-4 rounded-2xl border border-border/50 bg-card hover:shadow-sm transition-shadow ${
                   isDue(q) ? "border-l-4 border-l-orange-400"
                     : !q.reviewed ? "border-l-4 border-l-red-400"
                     : "border-l-4 border-l-green-400"
@@ -248,27 +256,27 @@ export default function WrongQuestionsPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setDetail(q)}>
                     <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                      <span className="text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 px-2 py-0.5 rounded">{q.subject}</span>
-                      <span className="text-xs text-gray-400">{sourceLabel(q.source)}</span>
+                      <span className="text-xs font-medium bg-brand-muted text-brand px-2 py-0.5 rounded">{q.subject}</span>
+                      <span className="text-xs text-muted-foreground">{sourceLabel(q.source)}</span>
                       {isDue(q) ? (
-                        <span className="text-xs bg-orange-50 text-orange-500 dark:bg-orange-900/20 px-1.5 py-0.5 rounded">🔔 今日复习</span>
+                        <span className="text-xs bg-orange-50 text-orange-600 dark:bg-orange-900/20 dark:text-orange-400 px-1.5 py-0.5 rounded">🔔 今日复习</span>
                       ) : !q.reviewed ? (
-                        <span className="text-xs bg-red-50 text-red-500 dark:bg-red-900/20 px-1.5 py-0.5 rounded">待复习</span>
+                        <span className="text-xs bg-destructive/10 text-destructive px-1.5 py-0.5 rounded">待复习</span>
                       ) : (
-                        <span className="text-xs bg-green-50 text-green-500 dark:bg-green-900/20 px-1.5 py-0.5 rounded">已复习 ×{q.reviewCount}</span>
+                        <span className="text-xs bg-success/10 text-success px-1.5 py-0.5 rounded">已复习 ×{q.reviewCount}</span>
                       )}
                       {q.nextReviewDate && !q.reviewed && (
-                        <span className="text-xs text-gray-400">下次复习：{new Date(q.nextReviewDate).toLocaleDateString("zh-CN")}</span>
+                        <span className="text-xs text-muted-foreground">下次复习：{new Date(q.nextReviewDate).toLocaleDateString("zh-CN")}</span>
                       )}
                       {q.interval > 0 && (
-                        <span className="text-xs text-gray-400">间隔 {q.interval} 天 · EF {q.easeFactor.toFixed(1)}</span>
+                        <span className="text-xs text-muted-foreground">间隔 {q.interval} 天 · EF {q.easeFactor.toFixed(1)}</span>
                       )}
                     </div>
                     <p className="text-sm leading-relaxed line-clamp-2">{q.question}</p>
                     {q.tags.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-2">
                         {q.tags.map((t, i) => (
-                          <span key={i} className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-500 px-1.5 py-0.5 rounded">{t}</span>
+                          <span key={i} className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">{t}</span>
                         ))}
                       </div>
                     )}
@@ -276,7 +284,7 @@ export default function WrongQuestionsPage() {
                   <div className="flex flex-col gap-1 shrink-0">
                     <button
                       onClick={(e) => { e.stopPropagation(); setReviewing(q); }}
-                      className="text-xs text-blue-500 hover:text-blue-700 px-2 py-1" title="复习" aria-label="复习"
+                      className="text-xs text-brand hover:text-brand/80 px-2 py-1" title="复习" aria-label="复习"
                     >📖</button>
                   </div>
                 </div>
@@ -286,15 +294,14 @@ export default function WrongQuestionsPage() {
         )}
       </div>
 
-      {/* 相关模块 */}
-      <div className="mt-6 pt-4 border-t">
-        <h3 className="text-sm font-medium text-gray-500 mb-3">相关模块</h3>
-        <div className="flex flex-wrap gap-2">
-          <Link href="/practice" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">✏️ 去练习</Link>
-          <Link href="/knowledge-graph" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">🧠 知识图谱</Link>
-          <Link href="/chat" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">💬 AI 对话</Link>
-        </div>
-      </div>
+      {/* 模块联动 */}
+      <ModuleLinks
+        links={[
+          { href: "/practice", icon: "✏️", label: "去练习" },
+          { href: "/knowledge-graph", icon: "🧠", label: "知识图谱" },
+          { href: "/chat", icon: "💬", label: "AI 对话" },
+        ]}
+      />
 
       {/* Modals — no onSaved/onImported callbacks needed (mutation onSuccess handles invalidation) */}
       {showAdd && (

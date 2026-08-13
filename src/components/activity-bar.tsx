@@ -78,19 +78,19 @@ export function ActivityBar() {
             {pomodoro.isPaused ? (
               <button onClick={storeResume}
                 className="shrink-0 w-7 h-7 rounded-full bg-success/20 text-success flex items-center justify-center hover:bg-success/30 active:scale-[0.95] transition-all"
-                title="继续">
+                title="继续" aria-label="继续">
                 <span className="text-xs">▶</span>
               </button>
             ) : (
               <button onClick={storePause}
                 className="shrink-0 w-7 h-7 rounded-full bg-warning/20 text-warning flex items-center justify-center hover:bg-warning/30 active:scale-[0.95] transition-all"
-                title="暂停">
+                title="暂停" aria-label="暂停">
                 <span className="text-xs">⏸</span>
               </button>
             )}
             <button onClick={handleStop}
               className="shrink-0 w-7 h-7 rounded-full bg-muted-foreground/15 text-muted-foreground flex items-center justify-center hover:bg-destructive/20 hover:text-destructive active:scale-[0.95] transition-all"
-              title="停止">
+              title="停止" aria-label="停止">
               <span className="text-[10px]">⏹</span>
             </button>
           </div>

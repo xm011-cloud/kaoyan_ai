@@ -56,11 +56,11 @@ export function PwaInstallPrompt() {
 
   return (
     <div className="fixed bottom-20 lg:bottom-4 left-4 right-4 lg:left-60 lg:right-4 z-50">
-      <div className="max-w-sm mx-auto lg:mx-0 bg-white dark:bg-gray-800 rounded-xl border shadow-lg p-4 flex items-center gap-3 animate-in slide-in-from-bottom">
+      <div className="max-w-sm mx-auto lg:mx-0 bg-card rounded-2xl border border-border/50 shadow-lg p-4 flex items-center gap-3 animate-in slide-in-from-bottom">
         <span className="text-2xl">📱</span>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium">添加到主屏幕</p>
-          <p className="text-xs text-gray-500">快速启动 AI 考研助手</p>
+          <p className="text-xs text-muted-foreground">快速启动 AI 考研助手</p>
         </div>
         <div className="flex gap-2 shrink-0">
           <Button size="sm" onClick={handleInstall}>
@@ -68,7 +68,7 @@ export function PwaInstallPrompt() {
           </Button>
           <button
             onClick={() => setShowPrompt(false)}
-            className="text-gray-400 hover:text-gray-600 text-sm"
+            className="text-muted-foreground hover:text-gray-600 text-sm"
             aria-label="关闭"
           >
             ✕

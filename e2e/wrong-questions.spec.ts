@@ -16,7 +16,7 @@ test.describe("Wrong Questions", () => {
     await addBtn.click();
     await page.waitForTimeout(2000);
     // Modal should appear — check for modal heading or form
-    const modalHeading = page.locator("h3").filter({ hasText: /添加错题/ });
+    const modalHeading = page.getByRole("heading", { name: /添加错题/ });
     const hasModal = await modalHeading.isVisible({ timeout: 5000 }).catch(() => false);
     expect(hasModal).toBe(true);
   });
@@ -36,7 +36,7 @@ test.describe("Wrong Questions", () => {
   });
 
   test("related module links are visible", async ({ page }) => {
-    const related = page.locator("text=相关模块").first();
+    const related = page.getByText("继续学习").first();
     if (await related.isVisible({ timeout: 5000 }).catch(() => false)) {
       // Use .first() to avoid strict mode violation
       await expect(page.locator('a[href="/practice"]').last()).toBeVisible();

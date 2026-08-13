@@ -31,21 +31,21 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="flex flex-1 items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
+    <div className="flex flex-1 items-center justify-center bg-background px-4">
       <div className="w-full max-w-md space-y-8">
         <div className="text-center">
           <h1 className="text-2xl font-bold">重置密码</h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
+          <p className="mt-2 text-muted-foreground">
             输入注册邮箱，我们将发送重置链接
           </p>
         </div>
 
         {sent ? (
-          <div className="space-y-4 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border">
-            <div className="rounded-md bg-green-50 dark:bg-green-900/30 p-4 text-sm text-green-700 dark:text-green-300">
+          <div className="space-y-4 bg-card p-6 rounded-2xl shadow-sm border border-border/50">
+            <div className="rounded-xl bg-success/10 p-4 text-sm text-success">
               📬 若该邮箱已注册，重置链接已发送。<b>请检查收件箱和垃圾箱</b>。
             </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
+            <p className="text-sm text-muted-foreground">
               没收到？联系作者在管理后台为你生成重置链接。
             </p>
             <Link href="/login">
@@ -53,7 +53,7 @@ export default function ForgotPasswordPage() {
             </Link>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-4 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border">
+          <form onSubmit={handleSubmit} className="space-y-4 bg-card p-6 rounded-2xl shadow-sm border border-border/50">
             <div>
               <label htmlFor="email" className="block text-sm font-medium mb-1">邮箱</label>
               <input
@@ -63,16 +63,16 @@ export default function ForgotPasswordPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="your@email.com"
                 required
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                className="w-full h-10 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
               />
             </div>
-            {error && <p className="text-sm text-red-500">{error}</p>}
+            {error && <p className="text-sm text-destructive">{error}</p>}
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? '发送中...' : '发送重置链接'}
             </Button>
-            <p className="text-center text-sm text-gray-600 dark:text-gray-400">
+            <p className="text-center text-sm text-muted-foreground">
               想起密码了？
-              <Link href="/login" className="ml-1 text-blue-600 hover:underline">返回登录</Link>
+              <Link href="/login" className="ml-1 text-brand hover:underline">返回登录</Link>
             </p>
           </form>
         )}

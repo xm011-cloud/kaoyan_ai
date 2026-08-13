@@ -71,7 +71,7 @@ export function SubjectSelector({ selected, onChange }: SubjectSelectorProps) {
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border cursor-pointer transition-colors ${
                     checked
                       ? "bg-blue-50 border-blue-300 text-blue-700 dark:bg-blue-900/30 dark:border-blue-600 dark:text-blue-300"
-                      : "bg-white border-gray-200 text-gray-600 hover:border-gray-300 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-400"
+                      : "bg-card border-border/50 text-muted-foreground hover:border-brand/40"
                   }`}
                 >
                   <input
@@ -100,14 +100,14 @@ export function SubjectSelector({ selected, onChange }: SubjectSelectorProps) {
             value={customUni}
             onChange={(e) => setCustomUni(e.target.value)}
             placeholder="院校名称"
-            className="px-3 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 w-32"
+            className="h-9 px-3 text-sm rounded-xl border border-border/50 bg-muted/50 focus:outline-none focus:ring-2 focus:ring-brand/20 w-32"
           />
           <input
             type="text"
             value={customSubject}
             onChange={(e) => setCustomSubject(e.target.value)}
             placeholder="科目名称"
-            className="px-3 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 flex-1 min-w-[120px]"
+            className="h-9 px-3 text-sm rounded-xl border border-border/50 bg-muted/50 focus:outline-none focus:ring-2 focus:ring-brand/20 flex-1 min-w-[120px]"
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
@@ -119,7 +119,7 @@ export function SubjectSelector({ selected, onChange }: SubjectSelectorProps) {
             type="button"
             onClick={addCustom}
             disabled={!customUni.trim() || !customSubject.trim()}
-            className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-1.5 text-sm bg-muted rounded-lg hover:bg-muted/80 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             添加
           </button>
@@ -147,6 +147,7 @@ export function SubjectSelector({ selected, onChange }: SubjectSelectorProps) {
                   onClick={() => removeSubject(s)}
                   className="text-blue-400 hover:text-blue-600 dark:hover:text-blue-200"
                   title="移除"
+                  aria-label={`移除 ${s}`}
                 >
                   ×
                 </button>
@@ -163,6 +164,7 @@ export function SubjectSelector({ selected, onChange }: SubjectSelectorProps) {
                   onClick={() => removeSubject(s)}
                   className="text-purple-400 hover:text-purple-600 dark:hover:text-purple-200"
                   title="移除"
+                  aria-label={`移除 ${formatCustomSubjectLabel(s)}`}
                 >
                   ×
                 </button>
@@ -180,6 +182,7 @@ export function SubjectSelector({ selected, onChange }: SubjectSelectorProps) {
                   onClick={() => removeSubject(s)}
                   className="text-amber-400 hover:text-amber-600 dark:hover:text-amber-200"
                   title="移除旧格式科目"
+                  aria-label={`移除 ${s}`}
                 >
                   ×
                 </button>

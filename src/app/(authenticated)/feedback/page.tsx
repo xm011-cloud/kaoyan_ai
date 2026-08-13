@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import { PageHeader } from '@/components/ui/page-header'
+import { ModuleLinks } from '@/components/ui/module-links'
 
 interface Feedback {
   id: string
@@ -69,29 +70,29 @@ export default function FeedbackPage() {
   weekEnd.setDate(weekEnd.getDate() + 6)
 
   return (
-    <div className="p-6">
-      <div className="max-w-2xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">学习周报</h1>
-            <p className="text-gray-500 mt-1">AI 基于你的学习数据生成周报和建议</p>
-          </div>
-          <Button onClick={handleGenerate} disabled={generating}>
-            {generating ? 'AI 分析中...' : '生成本周反馈'}
-          </Button>
-        </div>
+    <div className="p-4 lg:p-6">
+      <div className="max-w-3xl mx-auto space-y-6">
+        <PageHeader
+          title="学习周报"
+          subtitle="AI 基于你的学习数据生成周报和建议"
+          action={
+            <Button onClick={handleGenerate} disabled={generating}>
+              {generating ? 'AI 分析中...' : '生成本周反馈'}
+            </Button>
+          }
+        />
 
         {genError && (
-          <p className={`text-sm px-4 py-2 rounded ${genError.includes('已存在') ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30' : 'bg-red-50 text-red-500 dark:bg-red-900/30'}`}>
+          <p className={`text-sm px-4 py-2 rounded ${genError.includes('已存在') ? 'bg-brand/10 text-brand' : 'bg-red-50 text-destructive dark:bg-red-900/30'}`}>
             {genError}
           </p>
         )}
 
         <div className="space-y-6">
           {loading ? (
-            <div className="text-center py-8 text-gray-500">加载中...</div>
+            <div className="text-center py-8 text-muted-foreground">加载中...</div>
           ) : feedbacks.length === 0 ? (
-            <div className="text-center py-12 text-gray-500 bg-white dark:bg-gray-800 rounded-xl border">
+            <div className="text-center py-12 text-muted-foreground bg-card rounded-2xl border border-border/50">
               <div className="text-4xl mb-3">📊</div>
               <p className="font-medium">暂无学习反馈</p>
               <p className="text-sm mt-1">
@@ -100,14 +101,14 @@ export default function FeedbackPage() {
             </div>
           ) : (
             feedbacks.map((feedback) => (
-              <div key={feedback.id} className="bg-white dark:bg-gray-800 rounded-xl border overflow-hidden">
+              <div key={feedback.id} className="bg-card rounded-2xl border border-border/50 overflow-hidden">
                 {/* 头部 */}
-                <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border-b">
+                <div className="px-6 py-4 bg-gradient-to-r from-brand/8 to-brand/3 border-b">
                   <div className="flex items-center justify-between">
                     <h2 className="font-semibold text-lg">
                       📅 {formatWeek(feedback.weekStart, feedback.weekEnd)}
                     </h2>
-                    <span className="text-xs text-gray-400 bg-white dark:bg-gray-800 px-2 py-1 rounded">
+                    <span className="text-xs text-muted-foreground bg-card px-2 py-1 rounded-full">
                       生成于 {new Date(feedback.createdAt).toLocaleDateString('zh-CN')}
                     </span>
                   </div>
@@ -115,8 +116,8 @@ export default function FeedbackPage() {
 
                 {/* 内容 */}
                 <div className="px-6 py-4 space-y-4">
-                  <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg">
-                    <p className="text-gray-700 dark:text-gray-300 leading-relaxed">{feedback.content}</p>
+                  <div className="bg-muted/50 p-4 rounded-xl">
+                    <p className="text-foreground/80 leading-relaxed">{feedback.content}</p>
                   </div>
 
                   {feedback.suggestions.length > 0 && (
@@ -127,8 +128,8 @@ export default function FeedbackPage() {
                       <ul className="space-y-2">
                         {feedback.suggestions.map((suggestion, index) => (
                           <li key={index} className="flex items-start gap-2 text-sm">
-                            <span className="text-blue-500 mt-0.5 shrink-0">▸</span>
-                            <span className="text-gray-600 dark:text-gray-400">{suggestion}</span>
+                            <span className="text-brand mt-0.5 shrink-0">▸</span>
+                            <span className="text-muted-foreground">{suggestion}</span>
                           </li>
                         ))}
                       </ul>
@@ -140,15 +141,15 @@ export default function FeedbackPage() {
           )}
         </div>
 
-        {/* 相关模块 */}
-        <div className="mt-6 pt-4 border-t">
-          <h3 className="text-sm font-medium text-gray-500 mb-3">相关模块</h3>
-          <div className="flex flex-wrap gap-2">
-            <Link href="/tasks" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">📋 任务计划</Link>
-            <Link href="/study-path" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">🗺️ 学习路径</Link>
-            <Link href="/practice" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">✏️ 练习</Link>
-          </div>
-        </div>
+        {/* 模块联动 */}
+        <ModuleLinks
+          links={[
+            { href: "/tasks", icon: "📋", label: "任务计划" },
+            { href: "/study-path", icon: "🗺️", label: "学习路径" },
+            { href: "/practice", icon: "✏️", label: "去练习" },
+            { href: "/wrong-questions", icon: "📕", label: "刷错题" },
+          ]}
+        />
       </div>
     </div>
   )

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { toast } from '@/stores/toast-store'
 
 // 管理后台：为某邮箱生成密码重置链接（跨浏览器通道，token_hash 直链）
 export default function UserReset() {
@@ -34,7 +35,7 @@ export default function UserReset() {
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(link)
-      alert('✅ 链接已复制')
+      toast.success('链接已复制')
     } catch {
       // 手动复制兜底
       prompt('复制这个链接发给用户：', link)

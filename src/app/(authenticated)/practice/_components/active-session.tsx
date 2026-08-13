@@ -62,7 +62,7 @@ export function ActiveSession({
               </span>
             </div>
           </div>
-          <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+          <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
             <div
               className="h-full bg-blue-500 transition-all rounded-full"
               style={{ width: `${progress}%` }}
@@ -84,7 +84,7 @@ export function ActiveSession({
               </Button>
             </div>
           ) : (
-            <div className="bg-white dark:bg-gray-800 rounded-xl border p-5">
+            <div className="bg-card rounded-2xl border border-border/50 p-5">
               <span className="text-xs font-medium text-blue-500 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded">
                 {q?.type === "choice" ? "选择题" : "简答题"}
               </span>
@@ -104,7 +104,7 @@ export function ActiveSession({
                         className={`w-full text-left p-3 rounded-lg border text-sm transition-colors ${
                           selected
                             ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 font-medium"
-                            : "border-gray-200 dark:border-gray-700 hover:border-gray-300"
+                            : "border-border/50 hover:border-brand/40"
                         }`}
                       >
                         {opt}
@@ -120,7 +120,7 @@ export function ActiveSession({
                     value={answers[q?.id || ""] || ""}
                     onChange={(e) => onAnswerChange(q?.id || "", e.target.value)}
                     rows={6}
-                    className="w-full border rounded-lg px-3 py-2 text-sm resize-y dark:bg-gray-900 dark:border-gray-700"
+                    className="w-full rounded-xl border border-border/50 bg-muted/50 px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-brand/20"
                     placeholder="输入你的答案..."
                   />
                 </div>
@@ -131,7 +131,7 @@ export function ActiveSession({
       </div>
 
       {/* Navigation */}
-      <div className="shrink-0 border-t px-4 py-3 bg-white dark:bg-gray-900">
+      <div className="shrink-0 border-t border-border/50 px-4 py-3 bg-card">
         <div className="max-w-2xl mx-auto flex items-center justify-between gap-3">
           <Button variant="outline" onClick={onPrev} disabled={currentIndex === 0}>
             ← 上一题

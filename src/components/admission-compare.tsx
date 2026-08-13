@@ -55,7 +55,7 @@ export function AdmissionCompare({
       <div className="overflow-x-auto">
         <table className="w-full text-sm border-collapse">
           <thead>
-            <tr className="border-b dark:border-gray-700">
+            <tr className="border-b border-border/50">
               <th className="text-left py-2 px-3 font-medium">院校</th>
               <th className="text-left py-2 px-3 font-medium">专业</th>
               <th className="text-left py-2 px-3 font-medium">年份</th>
@@ -74,7 +74,7 @@ export function AdmissionCompare({
             {schools.map((s, i) => (
               <tr
                 key={i}
-                className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                className="border-b border-border/50 hover:bg-muted/50"
               >
                 <td className="py-2 px-3 font-medium">{s.university}</td>
                 <td className="py-2 px-3 text-gray-600 dark:text-gray-400">

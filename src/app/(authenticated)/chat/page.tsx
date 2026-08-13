@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { Modal } from '@/components/ui/modal'
 import { ChatMarkdown } from '@/components/chat-markdown'
 import { useGoal } from '@/hooks/use-goal'
 
@@ -270,12 +271,12 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col h-[calc(100vh-3.5rem)] lg:h-screen">
+    <div className="flex flex-1 flex-col min-h-0">
       {/* Header */}
-      <div className="shrink-0 border-b px-4 lg:px-6 py-3 flex items-center justify-between">
+      <div className="shrink-0 border-b border-border/50 px-4 lg:px-6 py-3 flex items-center justify-between">
         <div>
           <h1 className="text-lg lg:text-xl font-bold">AI 对话</h1>
-          <p className="text-xs lg:text-sm text-gray-500">AI 助手，可以查数据、管任务、答疑解惑</p>
+          <p className="text-xs lg:text-sm text-muted-foreground">AI 助手，可以查数据、管任务、答疑解惑</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={newChat}>新对话</Button>
@@ -285,20 +286,20 @@ export default function ChatPage() {
 
       {/* 历史对话 */}
       {showHistory && (
-        <div className="shrink-0 border-b bg-gray-50 dark:bg-gray-800/50 px-4 lg:px-6 py-3">
+        <div className="shrink-0 border-b border-border/50 bg-muted/50 px-4 lg:px-6 py-3">
           <div className="max-w-3xl mx-auto space-y-1">
-            <h3 className="text-sm font-medium text-gray-500">历史对话</h3>
+            <h3 className="text-sm font-medium text-muted-foreground">历史对话</h3>
             {histories.length === 0 ? (
-              <p className="text-sm text-gray-400">暂无历史对话</p>
+              <p className="text-sm text-muted-foreground/60">暂无历史对话</p>
             ) : (
               <div className="max-h-40 overflow-y-auto space-y-0.5">
                 {histories.map((h) => (
                   <button
                     key={h.id}
                     onClick={() => loadChat(h)}
-                    className="block w-full text-left p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-sm truncate"
+                    className="block w-full text-left p-2 rounded hover:bg-muted text-sm truncate"
                   >
-                    <span className="text-gray-500 text-xs">
+                    <span className="text-muted-foreground text-xs">
                       {new Date(h.createdAt).toLocaleDateString('zh-CN')}
                     </span>
                     {' '}
@@ -312,9 +313,9 @@ export default function ChatPage() {
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 lg:px-6 py-4 space-y-4">
+      <div className="flex-1 overflow-y-auto min-h-0 px-4 lg:px-6 py-4 space-y-4">
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-gray-500">
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
             <div className="text-5xl mb-4">💬</div>
             <p className="font-medium text-lg">开始提问吧</p>
             <p className="text-sm mt-1">上传资料后，AI 可以基于资料内容回答你的问题</p>
@@ -328,7 +329,7 @@ export default function ChatPage() {
                 <button
                   key={q}
                   onClick={() => { setInput(q); inputRef.current?.focus() }}
-                  className="px-3 py-2 text-xs text-gray-500 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-left"
+                  className="px-3 py-2 text-xs text-muted-foreground bg-muted rounded-lg hover:bg-muted/80 transition-colors text-left"
                 >
                   {q}
                 </button>
@@ -345,8 +346,8 @@ export default function ChatPage() {
             <div
               className={`max-w-[85%] lg:max-w-[75%] p-3 lg:p-4 rounded-xl ${
                 message.role === 'user'
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-100 dark:bg-gray-800 border dark:border-gray-700'
+                  ? 'bg-brand text-white'
+                  : 'bg-card border border-border/50'
               }`}
             >
               {message.role === 'user' ? (
@@ -365,11 +366,11 @@ export default function ChatPage() {
 
         {loading && (
           <div className="flex justify-start">
-            <div className="bg-gray-100 dark:bg-gray-800 border dark:border-gray-700 px-4 py-3 rounded-xl">
+            <div className="bg-card border border-border/50 px-4 py-3 rounded-xl">
               <div className="flex items-center gap-1">
-                <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                <span className="w-2 h-2 bg-foreground/30 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-2 h-2 bg-foreground/30 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-2 h-2 bg-foreground/30 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
             </div>
           </div>
@@ -379,7 +380,7 @@ export default function ChatPage() {
       </div>
 
       {/* Input area */}
-      <div className="shrink-0 border-t p-3 lg:p-4 bg-white dark:bg-gray-900">
+      <div className="shrink-0 border-t border-border/50 p-3 lg:p-4 bg-card">
         <div className="max-w-3xl mx-auto space-y-2">
           {/* 资料选择器 */}
           {materials.length > 0 && (
@@ -387,7 +388,7 @@ export default function ChatPage() {
               <div className="flex items-center justify-between">
                 <button
                   onClick={() => setShowMaterialPicker(!showMaterialPicker)}
-                  className="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-500 transition-colors"
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-brand transition-colors"
                 >
                   <span>📚</span>
                   <span>
@@ -400,7 +401,7 @@ export default function ChatPage() {
                 {showMaterialPicker && (
                   <button
                     onClick={selectAllMaterials}
-                    className="text-[10px] text-gray-400 hover:text-blue-500"
+                    className="text-[10px] text-muted-foreground hover:text-brand"
                   >
                     {selectedIds.size === materials.length ? '取消全选' : '全选'}
                   </button>
@@ -417,8 +418,8 @@ export default function ChatPage() {
                         onClick={() => toggleMaterial(m.id)}
                         className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] border transition-colors ${
                           isSelected
-                            ? 'bg-blue-50 border-blue-300 text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300'
-                            : 'bg-gray-50 border-gray-200 text-gray-400 dark:bg-gray-800 dark:border-gray-700 line-through opacity-50'
+                            ? 'bg-brand-muted border-brand/30 text-brand'
+                            : 'bg-muted/50 border-border/50 text-muted-foreground line-through opacity-50'
                         }`}
                       >
                         <span>{typeIcon(m.type)}</span>
@@ -430,7 +431,7 @@ export default function ChatPage() {
               )}
 
               {selectedIds.size > 0 && (
-                <p className="text-[10px] text-blue-500">
+                <p className="text-[10px] text-brand">
                   🤖 AI 将仅从你选中的资料中查找答案
                 </p>
               )}
@@ -451,14 +452,14 @@ export default function ChatPage() {
                     ? "针对选中资料提问..."
                     : "输入问题，AI 自动检索所有资料..."
               }
-              className="flex-1 px-4 py-2.5 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+              className="flex-1 px-4 py-2.5 text-sm border border-border/50 rounded-xl bg-muted/50 focus:outline-none focus:ring-2 focus:ring-brand/20"
               disabled={loading}
             />
             <Button type="submit" disabled={loading || !input.trim()} className="px-5">
               发送
             </Button>
           </form>
-          <p className="text-[10px] text-gray-400 text-center">
+          <p className="text-[10px] text-muted-foreground text-center">
             AI 回答基于你的学习资料生成，请对重要信息进行核实
           </p>
         </div>
@@ -466,27 +467,35 @@ export default function ChatPage() {
 
       {/* ── 加入错题本弹窗 ── */}
       {saveWrongModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          onClick={() => setSaveWrongModal(null)}
+        <Modal
+          open
+          onClose={() => setSaveWrongModal(null)}
+          title="加入错题本"
+          description="保存 AI 的回答以便后续复习"
+          footer={
+            <>
+              <Button
+                variant="outline"
+                onClick={() => setSaveWrongModal(null)}
+              >
+                取消
+              </Button>
+              <Button
+                onClick={handleSaveToWrongBook}
+                disabled={savingWrong || !wrongSubject}
+              >
+                {savingWrong ? '保存中...' : '保存到错题本'}
+              </Button>
+            </>
+          }
         >
-          <div
-            className="bg-white dark:bg-gray-800 rounded-xl border shadow-xl w-full max-w-md max-h-[85vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="px-5 py-4 border-b dark:border-gray-700">
-              <h3 className="font-bold text-lg">加入错题本</h3>
-              <p className="text-xs text-gray-500 mt-0.5">
-                保存 AI 的回答以便后续复习
-              </p>
-            </div>
-            <div className="p-5 space-y-3">
+          <div className="space-y-3">
               <div>
                 <label className="block text-sm font-medium mb-1">科目</label>
                 <select
                   value={wrongSubject}
                   onChange={(e) => setWrongSubject(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2 text-sm dark:bg-gray-900 dark:border-gray-700"
+                  className="w-full h-10 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
                 >
                   {subjects.map((s) => (
                     <option key={s} value={s}>
@@ -502,38 +511,23 @@ export default function ChatPage() {
                   value={wrongTags}
                   onChange={(e) => setWrongTags(e.target.value)}
                   placeholder="如：极限, 导数"
-                  className="w-full border rounded-lg px-3 py-2 text-sm dark:bg-gray-900 dark:border-gray-700"
+                  className="w-full h-10 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">你的问题</label>
-                <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 text-xs max-h-24 overflow-y-auto">
+                <div className="bg-muted/50 rounded-xl p-3 text-xs max-h-24 overflow-y-auto">
                   {saveWrongModal.question || '（无）'}
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">AI 回答</label>
-                <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 text-xs max-h-32 overflow-y-auto">
+                <div className="bg-muted/50 rounded-xl p-3 text-xs max-h-32 overflow-y-auto">
                   {saveWrongModal.answer.slice(0, 500)}
                 </div>
               </div>
-            </div>
-            <div className="px-5 py-3 border-t dark:border-gray-700 flex gap-2 justify-end">
-              <Button
-                variant="outline"
-                onClick={() => setSaveWrongModal(null)}
-              >
-                取消
-              </Button>
-              <Button
-                onClick={handleSaveToWrongBook}
-                disabled={savingWrong || !wrongSubject}
-              >
-                {savingWrong ? '保存中...' : '保存到错题本'}
-              </Button>
-            </div>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   )

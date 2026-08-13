@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Timer, Coffee, Sunrise } from "lucide-react";
 
 interface PomodoroSession {
   id: string;
@@ -22,10 +21,10 @@ function formatTimeStr(dateStr: string) {
   });
 }
 
-const typeConfig: Record<string, { icon: typeof Timer; label: string; color: string }> = {
-  focus: { icon: Timer, label: "专注", color: "text-red-500" },
-  short_break: { icon: Coffee, label: "短休息", color: "text-green-500" },
-  long_break: { icon: Sunrise, label: "长休息", color: "text-blue-500" },
+const typeConfig: Record<string, { icon: string; label: string; color: string }> = {
+  focus: { icon: "🍅", label: "专注", color: "text-destructive" },
+  short_break: { icon: "☕", label: "短休息", color: "text-success" },
+  long_break: { icon: "🌅", label: "长休息", color: "text-blue-500" },
 };
 
 export function PomodoroHistory() {
@@ -91,22 +90,22 @@ export function PomodoroHistory() {
     <div className="space-y-4">
       {/* Stats row */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-white dark:bg-gray-800 rounded-xl border p-4">
+        <div className="bg-card rounded-2xl border border-border/50 p-4">
           <div className="flex items-center gap-2">
             <span className="text-2xl">🍅</span>
             <div>
               <div className="text-xl font-bold">{focusSessions.length}</div>
-              <div className="text-xs text-gray-500">今日番茄</div>
+              <div className="text-xs text-muted-foreground">今日番茄</div>
             </div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl border p-4">
+        <div className="bg-card rounded-2xl border border-border/50 p-4">
           <div className="flex items-center gap-2">
             <span className="text-2xl">⏱️</span>
             <div>
               <div className="text-xl font-bold">{totalFocusMinutes}</div>
-              <div className="text-xs text-gray-500">专注分钟</div>
+              <div className="text-xs text-muted-foreground">专注分钟</div>
             </div>
           </div>
         </div>
@@ -130,23 +129,22 @@ export function PomodoroHistory() {
       )}
 
       {/* Session list */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl border">
+      <div className="bg-card rounded-2xl border border-border/50">
         <h3 className="font-medium px-5 pt-4 pb-2">今日记录</h3>
 
         {loading ? (
-          <div className="px-5 pb-4 text-sm text-gray-400">加载中...</div>
+          <div className="px-5 pb-4 text-sm text-muted-foreground">加载中...</div>
         ) : sessions.length === 0 ? (
-          <div className="px-5 pb-4 text-center text-gray-400 py-6">
+          <div className="px-5 pb-4 text-center text-muted-foreground py-6">
             <span className="text-3xl block mb-2">🍅</span>
             今天还没有番茄记录
             <br />
             <span className="text-xs">开始第一个番茄吧！</span>
           </div>
         ) : (
-          <div className="divide-y dark:divide-gray-700">
+          <div className="divide-y divide-border/50">
             {sessions.map((session) => {
               const cfg = typeConfig[session.type] || typeConfig.focus;
-              const Icon = cfg.icon;
               const minutes = Math.round(session.actualSeconds / 60);
 
               return (
@@ -154,14 +152,14 @@ export function PomodoroHistory() {
                   key={session.id}
                   className="flex items-center gap-3 px-5 py-3"
                 >
-                  <Icon className={`w-4 h-4 ${cfg.color} shrink-0`} />
+                  <span className={`text-base ${cfg.color} shrink-0`}>{cfg.icon}</span>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium">{cfg.label}</div>
-                    <div className="text-xs text-gray-400">
+                    <div className="text-xs text-muted-foreground">
                       {formatTimeStr(session.startedAt)} - {formatTimeStr(session.endedAt)}
                     </div>
                   </div>
-                  <div className="text-sm font-mono text-gray-500">
+                  <div className="text-sm font-mono text-muted-foreground">
                     {minutes} 分钟
                   </div>
                   {session.status === "interrupted" && (

@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import { toast } from '@/stores/toast-store'
+import { PageHeader } from '@/components/ui/page-header'
 import {
   useUIStore, DEFAULT_NAV_GROUPS, DEFAULT_WORKSPACE_CARDS, DEFAULT_PRACTICE_DEFAULTS
 } from '@/stores/ui-store'
@@ -53,7 +55,7 @@ export default function SettingsPage() {
       a.click()
       URL.revokeObjectURL(url)
     } catch (e: unknown) {
-      alert(`❌ ${e instanceof Error ? e.message : '导出失败'}`)
+      toast.error(e instanceof Error ? e.message : '导出失败')
     } finally {
       setExporting(false)
     }
@@ -121,8 +123,8 @@ export default function SettingsPage() {
     setUiSaving(true)
     try {
       await fetch('/api/user/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ navPreferences: navGroups, practicePreferences: practiceDefaults }) })
-      alert('✅ 界面偏好已保存')
-    } catch { alert('❌ 保存失败') }
+      toast.success('界面偏好已保存')
+    } catch { toast.error('保存失败') }
     finally { setUiSaving(false) }
   }
 
@@ -133,8 +135,8 @@ export default function SettingsPage() {
   ]
 
   return (
-    <div className="p-4 lg:p-6 max-w-2xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold tracking-tight">偏好设置</h1>
+    <div className="p-4 lg:p-6 max-w-3xl mx-auto space-y-6">
+      <PageHeader title="偏好设置" />
 
       {/* Tab bar — segmented control */}
       <div className="flex gap-1 p-1 rounded-2xl bg-muted">

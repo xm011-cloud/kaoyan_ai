@@ -19,7 +19,7 @@
 | AI | MiMo v2.5-pro (OpenAI-compatible API) | — |
 | 图表 | Recharts + D3 子模块 (知识图谱) | ^3.9.2 / 7.x |
 | 状态 | zustand (persist) + @tanstack/react-query | ^5.0.14 / ^5.101.4 |
-| 测试 | Playwright (87 用例 → 91 用例) | ^1.61.1 |
+| 测试 | Playwright 91 用例 · 独立测试库 `neondb_test` | ^1.61.1 |
 | 部署 | Vercel (c6-orcin.vercel.app) | — |
 
 ## 模块清单 (19 个)
@@ -195,15 +195,22 @@ src/
 - `/profile` 昵称 + 头像（public `avatars` 桶，首个 public 桶）+ 排行榜头像联动 + `/user/[id]` 公开资料页（不暴露 email）
 - 无需数据库迁移（name/avatar 字段早已存在）；无控制台手动步骤
 
+### 第 6 轮 — UI 一致性整改（2026-08-13，Batch 1A–3）
+- **设计语言统一**：`bg-card`/`focus:ring-brand`/`text-muted-foreground` token 全库替换 + 布局错版修复（chat 高度/热力图偏移/周计划 chips 等）
+- **基础组件抽取**：自建 `Toast`（替代 14 处 `alert()`）、`ConfirmDialog`（替代 5 处 `confirm()`）、`PageHeader`（14 页统一标题）、`Modal`（base-ui Dialog，9 处弹窗统一）
+- **模块联动**：新建 `ModuleLinks` 组件替换 6 处"相关模块"补丁；study-path 里程碑→错题本科目筛选、checkin 成功态→排行榜、result-view→"已收录 X 道错题"
+- **E2E 独立测试库**：`neondb_test`（自动建库 + pgvector + schema push + :3100 独立端口），91 用例隔离跑全绿，不再污染 dev 库
+- 文档：`docs/UI_AUDIT.md` 全程留档
+
 ## 待优化
 
 | 优先级 | 任务 |
 |--------|------|
-| P1 | 院校情报 (`/admission`) 前端启用（ui-store `visible:false`→true；**待用户决定是否接付费 SerpAPI**，Vercel+百度反爬风险） |
+| P1 | 院校情报 (`/admission`) 前端启用（**用户已决定保持隐藏**；SerpAPI 付费 + 反爬风险。前端已整改完，启用只需 ui-store `visible:false`→true） |
 | P1 | 数据库迁移到生产环境（当前 Neon 免费档） |
-| P2 | 模块联动（页面间上下文链接，消除死胡同模块） |
-| P2 | 无障碍: htmlFor + aria-label 完善 |
+| P2 | 无障碍: htmlFor + aria-label 完善（2E 已补 icon-only 按钮与语义化测试选择器，可继续细化） |
 | P2 | PWA 离线策略优化（导航网络优先，仅 offline.html 兜底，未缓存 API 数据） |
+| P3 | SWR 缓存（显式降级 backlog：不引入第三种数据获取模式；统一方向为 React Query + `useApi` hook，见 UI_AUDIT §五-H） |
 | P3 | 学习圈：点赞/互关/动态等更深社交（当前仅排行榜） |
 
 ## 最近提交 (最新→最旧)
@@ -233,4 +240,4 @@ c87ba50 refactor: Apple HIG UI 全面优化
 
 - Playwright 91 用例全绿（authenticated + unauthenticated 双项目，per-project testMatch）
 - 覆盖：全部模块页面 + 认证重定向 + PWA 资源 + 权限（admin/suggestions/profile 403/重定向）+ 导出下载 + 头像上传 + 排行榜点击进公开页
-- 注意：`e2e/.auth/user.json` 为测试账号存储态；E2E 会写少量测试数据（打卡/昵称/头像）到 dev 库
+- 注意：`e2e/.auth/user.json` 为测试账号存储态；E2E 运行在独立测试库 `neondb_test`（`playwright.config.ts` 自动建库 + schema push + 独立端口 3100），不再污染 dev 库

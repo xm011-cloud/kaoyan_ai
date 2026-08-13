@@ -2,8 +2,11 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/stores/confirm-store";
+import { PageHeader } from "@/components/ui/page-header";
+import { Modal } from "@/components/ui/modal";
+import { ModuleLinks } from "@/components/ui/module-links";
 import { useGoal } from "@/hooks/use-goal";
 import { WeeklyPlanner } from "./_components/weekly-planner";
 
@@ -247,7 +250,13 @@ export default function TasksPage() {
   };
 
   const handleDeleteTask = async (id: string) => {
-    if (!confirm("删除此任务？")) return;
+    const ok = await confirmDialog({
+      title: "删除任务",
+      message: "删除此任务？",
+      confirmLabel: "删除",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await fetch(`/api/tasks/${id}`, { method: "DELETE" });
       setWeekTasks((prev) => prev.filter((t) => t.id !== id));
@@ -323,13 +332,11 @@ export default function TasksPage() {
   // ── Render ──
   return (
     <div className="p-4 lg:p-6 space-y-6">
-      <div className="max-w-5xl mx-auto space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">备考计划</h1>
-          <p className="text-gray-500 mt-1">
-            距考试 {daysRemaining} 天 · {subjects.length} 个科目
-          </p>
-        </div>
+      <div className="max-w-6xl mx-auto space-y-6">
+        <PageHeader
+          title="备考计划"
+          subtitle={`距考试 ${daysRemaining} 天 · ${subjects.length} 个科目`}
+        />
 
         {/* 冲刺模式横幅 */}
         {sprintMode && (
@@ -349,7 +356,7 @@ export default function TasksPage() {
         {/* Zone 1: Phase overview */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {phases.map((p) => (
-            <div key={p.name} className={`p-4 rounded-xl border-2 ${p.isCurrent ? "ring-2 ring-blue-400 " + (PHASE_COLORS[p.name] || "border-gray-200") : "border-gray-200 bg-white dark:bg-gray-800 dark:border-gray-700"}`}>
+            <div key={p.name} className={`p-4 rounded-xl border-2 ${p.isCurrent ? "ring-2 ring-blue-400 " + (PHASE_COLORS[p.name] || "border-border/50") : "border-border/50 bg-card"}`}>
               <div className="flex items-center justify-between mb-2">
                 <span className="font-bold text-sm">{p.name}</span>
                 {p.isCurrent && <span className="text-[10px] bg-blue-500 text-white px-1.5 py-0.5 rounded-full">当前</span>}
@@ -366,7 +373,7 @@ export default function TasksPage() {
 
         {/* Zone 2: Subject progress */}
         {subjects.length > 0 && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl border p-5 space-y-3">
+          <div className="bg-card rounded-2xl border border-border/50 p-5 space-y-3">
             <h2 className="font-bold">📝 各科学习进度</h2>
             <p className="text-xs text-gray-500">填写当前进度，AI 生成计划时会根据你的实际水平调整</p>
             {subjects.map((subj) => {
@@ -374,11 +381,11 @@ export default function TasksPage() {
               const stats = systemStats[subj];
               return (
                 <div key={subj} className="space-y-1.5">
-                  <div className="flex items-center justify-between text-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm">
                     <span className="font-medium">{subj}</span>
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
                       {stats && (
-                        <div className="flex gap-3 text-[11px] text-gray-400">
+                        <div className="flex flex-wrap gap-3 text-[11px] text-gray-400">
                           {stats.knowledgeMastery !== null && <span title="知识图谱掌握度">🧠 {Math.round(stats.knowledgeMastery * 100)}%</span>}
                           {stats.wrongQuestions && <span title="错题">🔴 {stats.wrongQuestions.unreviewed}/{stats.wrongQuestions.total}</span>}
                           {stats.practiceScores && <span title="练习均分">📝 {stats.practiceScores.avg}%</span>}
@@ -386,18 +393,18 @@ export default function TasksPage() {
                       )}
                       <input type="number" value={ep.percent || ""}
                         onChange={(e) => setEditProgress((prev) => ({ ...prev, [subj]: { ...prev[subj], percent: parseInt(e.target.value) || 0, note: prev[subj]?.note || "" } }))}
-                        min={0} max={100} className="w-14 px-2 py-0.5 text-xs border rounded text-right dark:bg-gray-700 dark:border-gray-600" />
+                        min={0} max={100} className="w-16 min-w-0 px-2 py-0.5 text-xs border border-border/50 rounded text-right bg-muted/50" />
                       <span className="text-xs text-gray-400 w-6">%</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
                       <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${ep.percent || 0}%` }} />
                     </div>
                     <input type="text" value={ep.note || ""}
                       onChange={(e) => setEditProgress((prev) => ({ ...prev, [subj]: { ...prev[subj], percent: prev[subj]?.percent || 0, note: e.target.value } }))}
                       placeholder="学到哪了..."
-                      className="flex-1 px-2 py-0.5 text-xs border rounded dark:bg-gray-700 dark:border-gray-600 max-w-[280px]" />
+                      className="flex-1 px-2 py-0.5 text-xs border border-border/50 rounded bg-muted/50 max-w-[280px]" />
                   </div>
                 </div>
               );
@@ -424,85 +431,85 @@ export default function TasksPage() {
           />
         </div>
 
-        {/* Zone 4: All tasks history (collapsed by default) */}
-        <details className="bg-white dark:bg-gray-800 rounded-xl border p-5">
-          <summary className="font-bold cursor-pointer">📋 全部任务历史</summary>
-          <div className="mt-3 text-sm text-gray-500">
-            当前显示本周任务。点击上方 ◀ ▶ 按钮可以查看其他周的计划。
-          </div>
-        </details>
-
-        {/* 相关模块 */}
-        <div className="mt-6 pt-4 border-t">
-          <h3 className="text-sm font-medium text-gray-500 mb-3">相关模块</h3>
-          <div className="flex flex-wrap gap-2">
-            <Link href="/knowledge-graph" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">🧠 知识图谱</Link>
-            <Link href="/wrong-questions" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">📕 错题</Link>
-            <Link href="/study-path" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">🗺️ 学习路径</Link>
-          </div>
-        </div>
+        {/* 模块联动 */}
+        <ModuleLinks
+          links={[
+            { href: "/knowledge-graph", icon: "🧠", label: "知识图谱" },
+            { href: "/wrong-questions", icon: "📕", label: "错题本" },
+            { href: "/study-path", icon: "🗺️", label: "学习路径" },
+          ]}
+        />
 
         {/* Edit modal */}
         {editTask && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setEditTask(null)}>
-            <div className="bg-white dark:bg-gray-800 rounded-xl border shadow-xl w-full max-w-md mx-4 p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
-              <h3 className="text-lg font-bold">编辑任务</h3>
-              <form onSubmit={saveEdit} className="space-y-3">
+          <Modal
+            open
+            onClose={() => setEditTask(null)}
+            title="编辑任务"
+            footer={
+              <>
+                <Button type="button" variant="outline" onClick={() => setEditTask(null)}>取消</Button>
+                <Button type="submit" form="task-edit-form" disabled={saving}>{saving ? "保存中..." : "保存"}</Button>
+              </>
+            }
+          >
+            <form id="task-edit-form" onSubmit={saveEdit} className="space-y-3">
                 <div>
                   <label className="block text-xs font-medium mb-1">标题</label>
                   <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded-md dark:bg-gray-700 dark:border-gray-600" required />
+                    className="w-full h-10 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20" required />
                 </div>
                 <div>
                   <label className="block text-xs font-medium mb-1">描述</label>
                   <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} rows={2}
-                    className="w-full px-3 py-2 text-sm border rounded-md dark:bg-gray-700 dark:border-gray-600" />
+                    className="w-full h-10 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20" />
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   <div>
                     <label className="block text-xs font-medium mb-1">时长(分钟)</label>
                     <input type="number" value={editDuration} onChange={(e) => setEditDuration(e.target.value)}
-                      className="w-full px-3 py-2 text-sm border rounded-md dark:bg-gray-700 dark:border-gray-600" />
+                      className="w-full h-10 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium mb-1">日期</label>
                     <input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)}
-                      className="w-full px-3 py-2 text-sm border rounded-md dark:bg-gray-700 dark:border-gray-600" />
+                      className="w-full h-10 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium mb-1">科目</label>
                     <input type="text" value={editSubject} onChange={(e) => setEditSubject(e.target.value)}
-                      className="w-full px-3 py-2 text-sm border rounded-md dark:bg-gray-700 dark:border-gray-600" />
+                      className="w-full h-10 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20" />
                   </div>
                 </div>
-                <div className="flex gap-2 pt-2">
-                  <Button type="button" variant="outline" className="flex-1" onClick={() => setEditTask(null)}>取消</Button>
-                  <Button type="submit" className="flex-1" disabled={saving}>{saving ? "保存中..." : "保存"}</Button>
-                </div>
               </form>
-            </div>
-          </div>
+          </Modal>
         )}
 
         {/* Add task modal */}
         {showAdd && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowAdd(false)}>
-            <div className="bg-white dark:bg-gray-800 rounded-xl border shadow-xl w-full max-w-sm mx-4 p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
-              <h3 className="font-bold">添加任务 — {addDate}</h3>
+          <Modal
+            open
+            onClose={() => setShowAdd(false)}
+            title={`添加任务 — ${addDate}`}
+            size="sm"
+            footer={
+              <>
+                <Button variant="outline" onClick={() => setShowAdd(false)}>取消</Button>
+                <Button onClick={saveAddTask}>添加</Button>
+              </>
+            }
+          >
+            <div className="space-y-3">
               <input type="text" value={addTitle} onChange={(e) => setAddTitle(e.target.value)}
-                placeholder="任务名称" className="w-full px-3 py-2 text-sm border rounded-md dark:bg-gray-700 dark:border-gray-600" />
+                placeholder="任务名称" className="w-full h-10 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20" />
               <div className="flex gap-2">
                 <input type="number" value={addDuration} onChange={(e) => setAddDuration(e.target.value)}
-                  placeholder="时长(分钟)" className="w-28 px-3 py-2 text-sm border rounded-md dark:bg-gray-700 dark:border-gray-600" />
+                  placeholder="时长(分钟)" className="w-28 h-10 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20" />
                 <input type="text" value={addSubject} onChange={(e) => setAddSubject(e.target.value)}
-                  placeholder="科目" className="flex-1 px-3 py-2 text-sm border rounded-md dark:bg-gray-700 dark:border-gray-600" />
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" className="flex-1" onClick={() => setShowAdd(false)}>取消</Button>
-                <Button className="flex-1" onClick={saveAddTask}>添加</Button>
+                  placeholder="科目" className="flex-1 h-10 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20" />
               </div>
             </div>
-          </div>
+          </Modal>
         )}
       </div>
     </div>

@@ -1,6 +1,44 @@
 import { defineConfig, devices } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
-const BASE_URL = process.env.CI ? "http://localhost:3000" : "http://localhost:3000";
+// 加载 .env.local(Playwright 不会自动加载;剥掉双引号)
+function loadEnvLocal() {
+  try {
+    const content = readFileSync(resolve(process.cwd(), ".env.local"), "utf-8");
+    for (const line of content.split("\n")) {
+      const t = line.trim();
+      if (!t || t.startsWith("#")) continue;
+      const i = t.indexOf("=");
+      if (i > 0) {
+        const k = t.slice(0, i).trim();
+        const v = t.slice(i + 1).trim().replace(/^"|"$/g, "");
+        if (!process.env[k]) process.env[k] = v;
+      }
+    }
+  } catch {
+    // .env.local 不存在
+  }
+}
+loadEnvLocal();
+
+// 派生 E2E 测试库 URL:在 dev 库名后追加 "_test"
+// (如 postgresql://.../neondb?... -> postgresql://.../neondb_test?...)
+function testDatabaseUrl(): string {
+  const url = process.env.DATABASE_URL || process.env.MEMFIRE_DATABASE_URL;
+  if (!url) return "";
+  const qIdx = url.indexOf("?");
+  const base = qIdx === -1 ? url : url.slice(0, qIdx);
+  const query = qIdx === -1 ? "" : url.slice(qIdx);
+  const slash = base.lastIndexOf("/");
+  const db = base.slice(slash + 1);
+  return `${base.slice(0, slash + 1)}${db}_test${query}`;
+}
+
+// 独立端口:避免与开发中的 :3000 dev server 冲突,并强制走测试库
+const TEST_DB_URL = testDatabaseUrl();
+const TEST_PORT = 3100;
+const BASE_URL = `http://localhost:${TEST_PORT}`;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -57,9 +95,11 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "npm run dev",
-    url: "http://localhost:3000",
-    reuseExistingServer: !process.env.CI,
+    // 每次启动:确保测试库存在 → 同步 schema → 用测试库跑 dev server
+    command: `node e2e/create-test-db.mjs && npx prisma db push --skip-generate --accept-data-loss && npm run dev -- -p ${TEST_PORT}`,
+    url: BASE_URL,
+    reuseExistingServer: false,
     timeout: 120000,
+    env: TEST_DB_URL ? { ...process.env, DATABASE_URL: TEST_DB_URL } : undefined,
   },
 });

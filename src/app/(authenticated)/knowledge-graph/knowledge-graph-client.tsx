@@ -9,6 +9,7 @@ import { drag as d3Drag } from "d3-drag";
 import { interpolateRgb } from "d3-interpolate";
 import type { SimulationNodeDatum, SimulationLinkDatum } from "d3-force";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 
 interface KnowledgeNode {
   id: string;
@@ -290,16 +291,17 @@ export default function KnowledgeGraphClient() {
 
   return (
     <div className="p-4 lg:p-6">
-      <div className="max-w-7xl mx-auto space-y-4">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h1 className="text-2xl font-bold">🧠 知识图谱</h1>
-            <p className="text-sm text-gray-500 mt-1">
+      <div className="max-w-6xl mx-auto space-y-4">
+        <PageHeader
+          title="🧠 知识图谱"
+          subtitle={
+            <>
               可视化知识点关联，发现薄弱环节
               {graphData && ` · ${graphData.nodes.length} 个节点 · ${graphData.edges.length} 条边`}
-            </p>
-          </div>
-          <div className="flex gap-2">
+            </>
+          }
+          action={
+            <div className="flex gap-2">
             <select
               value={subjectFilter}
               onChange={(e) => {
@@ -309,7 +311,7 @@ export default function KnowledgeGraphClient() {
                 else params.delete("subject");
                 router.replace(`${pathname}?${params.toString()}`, { scroll: false });
               }}
-              className="text-sm border rounded-lg px-3 py-1.5 bg-white dark:bg-gray-800 dark:border-gray-700"
+              className="text-sm h-10 rounded-xl border border-border/50 bg-muted/50 px-3 focus:outline-none focus:ring-2 focus:ring-brand/20"
             >
               <option value="">全部科目</option>
               {graphData?.subjects.map((s) => (
@@ -321,20 +323,21 @@ export default function KnowledgeGraphClient() {
             <Button onClick={handleBuild} disabled={building} variant="outline">
               {building ? "构建中..." : "🔄 重建图谱"}
             </Button>
-          </div>
-        </div>
+            </div>
+          }
+        />
 
         {message && (
-          <div className="text-sm p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300">
+          <div className="text-sm p-3 rounded-xl bg-brand/10 text-brand">
             {message}
           </div>
         )}
 
         <div className="flex flex-col lg:flex-row gap-4">
-          <div className="flex-1 bg-white dark:bg-gray-800 rounded-xl border overflow-hidden min-h-[500px] relative">
+          <div className="flex-1 bg-card rounded-2xl border border-border/50 overflow-hidden min-h-[500px] relative">
             {loading ? (
               <div className="flex items-center justify-center h-full">
-                <span className="text-gray-400">加载中...</span>
+                <span className="text-muted-foreground">加载中...</span>
               </div>
             ) : (
               <svg ref={svgRef} className="w-full h-full" />
@@ -342,23 +345,23 @@ export default function KnowledgeGraphClient() {
           </div>
 
           {selectedNode && (
-            <div className="w-full lg:w-72 shrink-0 bg-white dark:bg-gray-800 rounded-xl border p-4 space-y-3">
+            <div className="w-full lg:w-72 shrink-0 bg-card rounded-2xl border border-border/50 p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="font-bold text-lg">{selectedNode.name}</h3>
                 <button
                   onClick={() => setSelectedNode(null)}
-                  className="text-gray-400 hover:text-gray-600 text-lg"
+                  className="text-muted-foreground hover:text-foreground text-lg"
                 >
                   ✕
                 </button>
               </div>
               <div className="space-y-2 text-sm">
                 <div>
-                  <span className="text-gray-500">科目：</span>
+                  <span className="text-muted-foreground">科目：</span>
                   <span className="font-medium">{selectedNode.subject}</span>
                 </div>
                 <div>
-                  <span className="text-gray-500">分类：</span>
+                  <span className="text-muted-foreground">分类：</span>
                   <span
                     className="px-2 py-0.5 rounded text-xs font-medium"
                     style={{
@@ -376,9 +379,9 @@ export default function KnowledgeGraphClient() {
                   </span>
                 </div>
                 <div>
-                  <span className="text-gray-500">掌握度：</span>
+                  <span className="text-muted-foreground">掌握度：</span>
                   <div className="flex items-center gap-2 mt-1">
-                    <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all"
                         style={{
@@ -391,30 +394,30 @@ export default function KnowledgeGraphClient() {
                   </div>
                 </div>
                 <div>
-                  <span className="text-gray-500">权重：</span>
+                  <span className="text-muted-foreground">权重：</span>
                   <span>{selectedNode.weight.toFixed(1)}</span>
                 </div>
               </div>
 
               <div>
-                <h4 className="text-sm font-medium text-gray-500 mb-2">
+                <h4 className="text-sm font-medium text-muted-foreground mb-2">
                   关联错题 ({wrongQuestions.length})
                 </h4>
                 {wrongQuestions.length === 0 ? (
-                  <p className="text-xs text-gray-400">暂无关联错题</p>
+                  <p className="text-xs text-muted-foreground/60">暂无关联错题</p>
                 ) : (
                   <div className="space-y-2 max-h-60 overflow-y-auto">
                     {wrongQuestions.map((wq) => (
                       <div
                         key={wq.id}
-                        className="text-xs p-2 bg-gray-50 dark:bg-gray-900 rounded"
+                        className="text-xs p-2 bg-muted/50 rounded-lg"
                       >
                         <p className="line-clamp-2">{wq.question}</p>
                         <span
                           className={`inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] ${
                             wq.reviewed
-                              ? "bg-green-100 text-green-600"
-                              : "bg-red-100 text-red-500"
+                              ? "bg-success/10 text-success"
+                              : "bg-destructive/10 text-destructive"
                           }`}
                         >
                           {wq.reviewed ? "已复习" : "待复习"}
@@ -428,9 +431,9 @@ export default function KnowledgeGraphClient() {
           )}
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl border p-4">
+        <div className="bg-card rounded-2xl border border-border/50 p-4">
           <div className="flex flex-wrap gap-4 text-xs">
-            <span className="font-medium text-gray-500">图例：</span>
+            <span className="font-medium text-muted-foreground">图例：</span>
             <div className="flex items-center gap-1.5">
               <div className="w-3 h-3 rounded-full bg-red-500" />
               <span>掌握度低</span>
@@ -459,8 +462,8 @@ export default function KnowledgeGraphClient() {
               <span className="text-purple-500">●</span>
               <span>定理</span>
             </div>
-            <span className="text-gray-400 ml-4">节点大小 = 权重</span>
-            <span className="text-gray-400">拖拽节点移动 · 滚轮缩放</span>
+            <span className="text-muted-foreground ml-4">节点大小 = 权重</span>
+            <span className="text-muted-foreground">拖拽节点移动 · 滚轮缩放</span>
           </div>
         </div>
       </div>

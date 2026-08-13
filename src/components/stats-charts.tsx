@@ -98,7 +98,7 @@ export function StatsCharts({ checkIns, tasks }: Props) {
 
   if (checkIns.length === 0 && tasks.length === 0) {
     return (
-      <div className="text-center py-6 text-sm text-gray-400">
+      <div className="text-center py-6 text-sm text-muted-foreground">
         还没有足够的数据来生成图表，先开始学习和打卡吧
       </div>
     );
@@ -109,10 +109,10 @@ export function StatsCharts({ checkIns, tasks }: Props) {
       {/* 本周每日柱状图 + 状态饼图 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* 本周每日 */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border p-5">
+        <div className="bg-card rounded-2xl border border-border/50 p-5">
           <h3 className="font-semibold mb-3">本周每日学习时长</h3>
           {dailyData.every(d => d.hours === 0) ? (
-            <p className="text-sm text-gray-400 py-8 text-center">本周暂无打卡</p>
+            <p className="text-sm text-muted-foreground py-8 text-center">本周暂无打卡</p>
           ) : (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={dailyData}>
@@ -131,10 +131,10 @@ export function StatsCharts({ checkIns, tasks }: Props) {
         </div>
 
         {/* 状态饼图 */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border p-5">
+        <div className="bg-card rounded-2xl border border-border/50 p-5">
           <h3 className="font-semibold mb-3">学习状态分布</h3>
           {statusData.length === 0 ? (
-            <p className="text-sm text-gray-400 py-8 text-center">暂无打卡数据</p>
+            <p className="text-sm text-muted-foreground py-8 text-center">暂无打卡数据</p>
           ) : (
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
@@ -162,10 +162,10 @@ export function StatsCharts({ checkIns, tasks }: Props) {
       {/* 每周趋势折线 + 阶段柱状 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* 每周趋势 */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border p-5">
+        <div className="bg-card rounded-2xl border border-border/50 p-5">
           <h3 className="font-semibold mb-3">每周学习时长趋势</h3>
           {weeklyData.length === 0 ? (
-            <p className="text-sm text-gray-400 py-8 text-center">至少需要一周数据</p>
+            <p className="text-sm text-muted-foreground py-8 text-center">至少需要一周数据</p>
           ) : (
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={weeklyData}>
@@ -187,10 +187,10 @@ export function StatsCharts({ checkIns, tasks }: Props) {
         </div>
 
         {/* 阶段分布 */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border p-5">
+        <div className="bg-card rounded-2xl border border-border/50 p-5">
           <h3 className="font-semibold mb-3">各阶段任务进度</h3>
           {phaseData.length === 0 ? (
-            <p className="text-sm text-gray-400 py-8 text-center">暂无任务数据</p>
+            <p className="text-sm text-muted-foreground py-8 text-center">暂无任务数据</p>
           ) : (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={phaseData} layout="vertical">

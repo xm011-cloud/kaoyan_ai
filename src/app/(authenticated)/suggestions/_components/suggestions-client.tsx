@@ -57,7 +57,7 @@ export default function SuggestionsClient() {
   }
 
   return (
-    <div className="p-4 lg:p-6 max-w-2xl mx-auto space-y-6">
+    <div className="p-4 lg:p-6 max-w-3xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">意见反馈</h1>
         <p className="text-sm text-muted-foreground mt-1">给作者打个分、提个建议，我会认真看每一条 🙏</p>

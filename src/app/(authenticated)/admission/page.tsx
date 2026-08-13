@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { toast } from "@/stores/toast-store";
+import { confirmDialog } from "@/stores/confirm-store";
+import { PageHeader } from "@/components/ui/page-header";
 import { AdmissionCompare } from "@/components/admission-compare";
 import { ImportTab } from "./_components/import-tab";
 
@@ -116,9 +119,9 @@ export default function AdmissionPage() {
           source: (entry.source as string) || searchResult.sources[0] || "",
         }),
       });
-      alert("已保存！");
+      toast.success("已保存");
     } catch {
-      alert("保存失败");
+      toast.error("保存失败");
     }
   };
 
@@ -213,7 +216,7 @@ export default function AdmissionPage() {
       );
     }
     return entries.map((entry: Record<string, unknown>, i: number) => (
-      <div key={i} className="border dark:border-gray-700 rounded-lg p-4">
+      <div key={i} className="border border-border/50 rounded-xl p-4">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-medium">
             {entry.year ? `${entry.year}年` : "年份未知"}{" "}
@@ -236,7 +239,7 @@ export default function AdmissionPage() {
               ([k, v]) => (
                 <div
                   key={k}
-                  className="bg-gray-50 dark:bg-gray-700/50 rounded px-3 py-2 text-center"
+                  className="bg-muted/50 rounded-lg px-3 py-2 text-center"
                 >
                   <div className="text-lg font-bold">{v}</div>
                   <div className="text-xs text-gray-500">{k}</div>
@@ -271,10 +274,10 @@ export default function AdmissionPage() {
         和各校研究生院官网公布的信息为准。所有数据标注了来源和年份。
       </div>
 
-      <h1 className="text-2xl font-bold">🏫 院校</h1>
+      <PageHeader title="🏫 院校" />
 
       {/* Tabs */}
-      <div className="flex border-b dark:border-gray-700">
+      <div className="flex border-b border-border/50">
         {([
           ["search", "🔍 搜索"],
           ["compare", "📊 对比"],
@@ -298,7 +301,7 @@ export default function AdmissionPage() {
       {/* ── SEARCH TAB ── */}
       {tab === "search" && (
         <div className="space-y-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl border p-5 space-y-3">
+          <div className="bg-card rounded-2xl border border-border/50 p-5 space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-sm font-medium mb-1">
@@ -309,7 +312,7 @@ export default function AdmissionPage() {
                   value={searchUni}
                   onChange={(e) => setSearchUni(e.target.value)}
                   placeholder="例如：北京大学"
-                  className="w-full border rounded-lg px-3 py-2 text-sm dark:bg-gray-700 dark:border-gray-600"
+                  className="w-full rounded-xl border border-border/50 bg-muted/50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
                   onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                 />
               </div>
@@ -320,7 +323,7 @@ export default function AdmissionPage() {
                   value={searchMajor}
                   onChange={(e) => setSearchMajor(e.target.value)}
                   placeholder="例如：计算机科学与技术"
-                  className="w-full border rounded-lg px-3 py-2 text-sm dark:bg-gray-700 dark:border-gray-600"
+                  className="w-full rounded-xl border border-border/50 bg-muted/50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
                   onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                 />
               </div>
@@ -333,7 +336,7 @@ export default function AdmissionPage() {
                   placeholder="例如：2025"
                   min={2000}
                   max={2030}
-                  className="w-full border rounded-lg px-3 py-2 text-sm dark:bg-gray-700 dark:border-gray-600"
+                  className="w-full rounded-xl border border-border/50 bg-muted/50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
                   onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                 />
               </div>
@@ -357,7 +360,7 @@ export default function AdmissionPage() {
             <div className="space-y-4">
               {/* AI Extracted Data */}
               {searchResult.data && (
-                <div className="bg-white dark:bg-gray-800 rounded-xl border p-5 space-y-3">
+                <div className="bg-card rounded-2xl border border-border/50 p-5 space-y-3">
                   <h3 className="font-semibold">
                     📊 {searchResult.university}
                     {searchResult.major ? ` - ${searchResult.major}` : ""}
@@ -369,7 +372,7 @@ export default function AdmissionPage() {
               )}
 
               {/* Raw Results */}
-              <details className="bg-white dark:bg-gray-800 rounded-xl border p-5">
+              <details className="bg-card rounded-2xl border border-border/50 p-5">
                 <summary className="cursor-pointer text-sm font-medium">
                   🔗 原始搜索结果 ({searchResult.rawResults.length} 条)
                 </summary>
@@ -377,7 +380,7 @@ export default function AdmissionPage() {
                   {searchResult.rawResults.map((r, i) => (
                     <div
                       key={i}
-                      className="border dark:border-gray-700 rounded-lg p-3"
+                      className="border border-border/50 rounded-xl p-3"
                     >
                       <a
                         href={r.url}
@@ -411,7 +414,7 @@ export default function AdmissionPage() {
       {tab === "compare" && (
         <div className="space-y-4">
           {/* Select schools from saved */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl border p-5">
+          <div className="bg-card rounded-2xl border border-border/50 p-5">
             <h3 className="font-medium mb-3">从收藏中选择院校对比</h3>
             {loadingSaved ? (
               <p className="text-sm text-gray-400">加载中...</p>
@@ -434,7 +437,7 @@ export default function AdmissionPage() {
                   return (
                     <div
                       key={i}
-                      className="flex items-center justify-between border dark:border-gray-700 rounded-lg p-3"
+                      className="flex items-center justify-between border border-border/50 rounded-xl p-3"
                     >
                       <div>
                         <span className="text-sm font-medium">
@@ -518,7 +521,7 @@ export default function AdmissionPage() {
               return (
                 <div
                   key={i}
-                  className="bg-white dark:bg-gray-800 rounded-xl border p-5"
+                  className="bg-card rounded-2xl border border-border/50 p-5"
                 >
                   <div className="flex items-center justify-between mb-3">
                     <div>
@@ -548,7 +551,7 @@ export default function AdmissionPage() {
                         {g.years[year].map((r) => (
                           <div
                             key={r.id}
-                            className="flex items-center justify-between text-sm border-t dark:border-gray-700 py-2"
+                            className="flex items-center justify-between text-sm border-t border-border/50 py-2"
                           >
                             <span className="text-gray-500">
                               {r.category === "score_line"
@@ -564,7 +567,13 @@ export default function AdmissionPage() {
                             </span>
                             <button
                               onClick={async () => {
-                                if (!confirm("确定删除此记录？")) return;
+                                const ok = await confirmDialog({
+                                  title: "删除记录",
+                                  message: "确定删除此记录？",
+                                  confirmLabel: "删除",
+                                  danger: true,
+                                });
+                                if (!ok) return;
                                 await fetch(
                                   `/api/admission/saved?id=${r.id}`,
                                   { method: "DELETE" }
@@ -589,7 +598,7 @@ export default function AdmissionPage() {
 
       {/* ── IMPORT TAB ── */}
       {tab === "import" && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border p-5">
+        <div className="bg-card rounded-2xl border border-border/50 p-5">
           <ImportTab onImportComplete={loadSaved} />
         </div>
       )}

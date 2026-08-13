@@ -19,7 +19,7 @@ interface PomodoroSettingsProps {
 
 const labelClass = "block text-sm font-medium mb-1";
 const inputClass =
-  "w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 text-sm";
+  "w-full h-10 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20";
 
 export function PomodoroSettings({
   settings,
@@ -61,7 +61,7 @@ export function PomodoroSettings({
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl border p-5">
+    <div className="bg-card rounded-2xl border border-border/50 p-5">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-semibold">⚙️ 番茄钟设置</h3>
         <Button variant="ghost" size="icon-xs" onClick={onClose} aria-label="关闭">
@@ -137,9 +137,9 @@ export function PomodoroSettings({
           </div>
         </div>
 
-        {error && <p className="text-red-500 text-sm">{error}</p>}
+        {error && <p className="text-destructive text-sm">{error}</p>}
         {saved && (
-          <p className="text-green-500 text-sm">✅ 设置已保存</p>
+          <p className="text-success text-sm">✅ 设置已保存</p>
         )}
 
         <Button type="submit" className="w-full" disabled={saving}>

@@ -5,6 +5,7 @@ import { PomodoroTimer, TimerMode, TimerStatus } from "@/components/pomodoro-tim
 import { PomodoroSettings } from "@/components/pomodoro-settings";
 import { PomodoroHistory } from "@/components/pomodoro-history";
 import { usePomodoroStore } from "@/stores/pomodoro-store";
+import { PageHeader } from "@/components/ui/page-header";
 
 interface Settings {
   focusMinutes: number;
@@ -489,7 +490,7 @@ export default function PomodoroPage() {
   if (!settingsLoaded) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-gray-400">加载中...</div>
+        <div className="text-muted-foreground">加载中...</div>
       </div>
     );
   }
@@ -497,16 +498,14 @@ export default function PomodoroPage() {
   return (
     <div className="max-w-lg mx-auto px-4 py-6 space-y-6">
       {/* Page title */}
-      <div className="text-center">
-        <h1 className="text-2xl font-bold">🍅 番茄钟</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          专注 {settings.focusMinutes} 分钟 · 短休 {settings.shortBreakMinutes} 分钟
-          · 长休 {settings.longBreakMinutes} 分钟
-        </p>
-      </div>
+      <PageHeader
+        align="center"
+        title="🍅 番茄钟"
+        subtitle={`专注 ${settings.focusMinutes} 分钟 · 短休 ${settings.shortBreakMinutes} 分钟 · 长休 ${settings.longBreakMinutes} 分钟`}
+      />
 
       {/* Timer */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl border p-6">
+      <div className="bg-card rounded-2xl border border-border/50 p-6">
         <PomodoroTimer
           timeLeft={timeLeft}
           totalSeconds={totalSecondsRef.current}
@@ -523,7 +522,7 @@ export default function PomodoroPage() {
 
         {/* Sub-text under timer */}
         {status === "idle" && (
-          <p className="text-center text-sm text-gray-400 mt-4">
+          <p className="text-center text-sm text-muted-foreground mt-4">
             点击「开始」进入{mode === "focus" ? "专注" : "休息"}模式
           </p>
         )}
@@ -531,12 +530,12 @@ export default function PomodoroPage() {
           <p className="text-center text-sm text-yellow-500 mt-4">已暂停</p>
         )}
         {status === "running" && mode === "focus" && (
-          <p className="text-center text-sm text-red-400 mt-4 animate-pulse">
+          <p className="text-center text-sm text-destructive mt-4 animate-pulse">
             专注中...
           </p>
         )}
         {status === "running" && mode !== "focus" && (
-          <p className="text-center text-sm text-green-400 mt-4">
+          <p className="text-center text-sm text-success mt-4">
             休息中，放松一下
           </p>
         )}

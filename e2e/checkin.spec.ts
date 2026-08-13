@@ -23,7 +23,7 @@ test.describe("Check-in", () => {
   });
 
   test("related module links are visible", async ({ page }) => {
-    const related = page.locator("text=相关模块").first();
+    const related = page.getByText("继续学习").first();
     if (await related.isVisible({ timeout: 5000 }).catch(() => false)) {
       await expect(page.locator('a[href="/pomodoro"]').first()).toBeVisible();
     }

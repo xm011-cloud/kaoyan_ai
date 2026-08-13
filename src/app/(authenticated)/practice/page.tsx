@@ -11,6 +11,8 @@ import { ActiveSession } from "./_components/active-session";
 import { ResultView } from "./_components/result-view";
 import { usePracticeStore } from "@/stores/practice-store";
 import { useUIStore } from "@/stores/ui-store";
+import { confirmDialog } from "@/stores/confirm-store";
+import { PageHeader } from "@/components/ui/page-header";
 
 // ── sessionStorage helpers for answers ──
 const ANSWERS_KEY_PREFIX = "practice-answers-";
@@ -100,6 +102,7 @@ export default function PracticePage() {
   // Result view
   const [resultSession, setResultSession] = useState<PracticeSession | null>(null);
   const [addingWrongId, setAddingWrongId] = useState<string | null>(null);
+  const [addedWrongIds, setAddedWrongIds] = useState<Set<string>>(new Set());
 
   // Advanced options
   const [materials, setMaterials] = useState<{ id: string; name: string }[]>([]);
@@ -287,7 +290,7 @@ export default function PracticePage() {
   const handleAddToWrongBook = async (q: PracticeQuestion) => {
     setAddingWrongId(q.id);
     try {
-      await fetch("/api/wrong-questions", {
+      const res = await fetch("/api/wrong-questions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -298,6 +301,9 @@ export default function PracticePage() {
           tags: [q.type],
         }),
       });
+      if (res.ok) {
+        setAddedWrongIds((prev) => new Set(prev).add(q.id));
+      }
     } catch {
       /* ignore */
     } finally {
@@ -310,8 +316,8 @@ export default function PracticePage() {
   if (view === "main") {
     return (
       <div className="p-4 lg:p-6">
-        <div className="max-w-2xl mx-auto space-y-6">
-          <h1 className="text-2xl font-bold">练习</h1>
+        <div className="max-w-3xl mx-auto space-y-6">
+          <PageHeader title="练习" />
 
           <SessionCreator
             subjects={subjects}
@@ -341,18 +347,18 @@ export default function PracticePage() {
 
           {/* Material selection (shown for material_based mode or when materials exist) */}
           {materials.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl border p-4">
-              <label className="text-xs text-gray-500 block mb-2">
+            <div className="bg-card rounded-2xl border border-border/50 p-4">
+              <label className="text-xs text-muted-foreground block mb-2">
                 📎 关联学习资料（AI 基于这些出题）
               </label>
               <div className="flex flex-wrap gap-2">
                 {materials.map((m) => (
                   <label
                     key={m.id}
-                    className={`text-xs px-3 py-1.5 rounded-full border cursor-pointer transition-colors ${
+                    className={`text-xs px-3 py-1.5 rounded-full border border-border/50 cursor-pointer transition-colors ${
                       selectedMaterialIds.includes(m.id)
-                        ? "bg-blue-50 border-blue-300 text-blue-700"
-                        : "bg-white border-gray-200 text-gray-500"
+                        ? "bg-brand-muted border-brand/30 text-brand"
+                        : "bg-card text-muted-foreground hover:bg-muted"
                     }`}
                   >
                     <input
@@ -374,7 +380,7 @@ export default function PracticePage() {
               {selectedMaterialIds.length > 0 && (
                 <button
                   onClick={() => setSelectedMaterialIds([])}
-                  className="text-xs text-gray-400 hover:text-gray-600 mt-2"
+                  className="text-xs text-muted-foreground hover:text-foreground mt-2"
                 >
                   清除选择
                 </button>
@@ -386,34 +392,34 @@ export default function PracticePage() {
           <div>
             <h2 className="text-lg font-semibold mb-3">练习记录</h2>
             {loadingSessions ? (
-              <p className="text-gray-500 text-sm">加载中...</p>
+              <p className="text-muted-foreground text-sm">加载中...</p>
             ) : sessions.length === 0 ? (
-              <p className="text-gray-500 text-sm">还没有练习记录</p>
+              <p className="text-muted-foreground text-sm">还没有练习记录</p>
             ) : (
               <div className="space-y-2">
                 {sessions.map((s) => (
                   <button
                     key={s.id}
                     onClick={() => handleViewResult(s)}
-                    className={`w-full text-left p-4 bg-white dark:bg-gray-800 rounded-lg border hover:shadow-sm transition-shadow ${
+                    className={`w-full text-left p-4 bg-card rounded-2xl border border-border/50 hover:shadow-sm transition-shadow ${
                       s.status === "in_progress" ? "border-brand/30 bg-brand-muted/50" : ""
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="font-medium text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-medium text-sm truncate">
                           {s.type === "daily" ? "📝 每日一练" : "⏱️ 模拟考试"}
                         </span>
-                        <span className="text-xs text-gray-400 ml-2">{s.subject}</span>
+                        <span className="text-xs text-muted-foreground truncate">{s.subject}</span>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 shrink-0">
                         {s.status === "completed" && s.totalScore != null && (
                           <span className="text-sm font-medium">
                             {s.totalScore}/{s.maxScore}
                           </span>
                         )}
                         <span className={`text-xs ${
-                          s.status === "in_progress" ? "text-brand font-medium" : "text-gray-400"
+                          s.status === "in_progress" ? "text-brand font-medium" : "text-muted-foreground"
                         }`}>
                           {s.status === "completed"
                             ? "✅ 已完成"
@@ -421,7 +427,7 @@ export default function PracticePage() {
                             ? "⏹️ 已放弃"
                             : "🕐 继续做题 →"}
                         </span>
-                        <span className="text-xs text-gray-400">
+                        <span className="text-xs text-muted-foreground hidden sm:inline">
                           {new Date(s.createdAt).toLocaleDateString("zh-CN")}
                         </span>
                       </div>
@@ -451,8 +457,15 @@ export default function PracticePage() {
         onAnswerChange={(qId, val) => setAnswers({ ...answers, [qId]: val })}
         onPrev={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
         onNext={() => setCurrentIndex(Math.min(questions.length - 1, currentIndex + 1))}
-        onSubmit={() => {
-          if (session.type === "mock" && !confirm("确定提交试卷吗？提交后无法修改。")) return;
+        onSubmit={async () => {
+          if (session.type === "mock") {
+            const ok = await confirmDialog({
+              title: "提交试卷",
+              message: "确定提交试卷吗？提交后无法修改。",
+              confirmLabel: "提交",
+            });
+            if (!ok) return;
+          }
           handleSubmit();
         }}
         onBack={() => {
@@ -470,6 +483,7 @@ export default function PracticePage() {
       <ResultView
         resultSession={resultSession}
         addingWrongId={addingWrongId}
+        wrongCount={addedWrongIds.size}
         onAddToWrongBook={handleAddToWrongBook}
         onBack={() => {
           setView("main");

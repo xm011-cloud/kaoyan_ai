@@ -44,15 +44,15 @@ const components = {
 
     return isInline ? (
       <code
-        className="px-1 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs font-mono text-pink-600 dark:text-pink-400"
+        className="px-1 py-0.5 bg-muted rounded text-xs font-mono text-brand"
         {...props}
       />
     ) : (
-      <div className="my-2 rounded-lg overflow-hidden border dark:border-gray-700">
-        <div className="bg-gray-100 dark:bg-gray-800 px-3 py-1 text-[10px] text-gray-400 font-mono">
+      <div className="my-2 rounded-xl overflow-hidden border border-border/50">
+        <div className="bg-muted/80 px-3 py-1 text-[10px] text-muted-foreground font-mono">
           {className?.replace("language-", "") || "code"}
         </div>
-        <pre className="bg-gray-50 dark:bg-gray-900 p-3 overflow-x-auto text-xs font-mono leading-relaxed">
+        <pre className="bg-muted/50 p-3 overflow-x-auto text-xs font-mono leading-relaxed">
           <code {...props} />
         </pre>
       </div>
@@ -63,7 +63,7 @@ const components = {
 
     if (broken || !src) {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-1 my-1 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-xs text-gray-400">
+        <span className="inline-flex items-center gap-1 px-2 py-1 my-1 rounded border border-border/50 bg-muted/50 text-xs text-muted-foreground">
           <span>🖼️</span>
           {alt || "图片无法显示"}
         </span>
@@ -74,7 +74,7 @@ const components = {
       <img
         src={src}
         alt={alt || ""}
-        className="max-w-full rounded-lg my-2 border dark:border-gray-700"
+        className="max-w-full rounded-lg my-2 border border-border/50"
         onError={() => setBroken(true)}
         loading="lazy"
         {...props}
@@ -85,19 +85,19 @@ const components = {
     <a className="text-blue-500 hover:underline" target="_blank" rel="noopener noreferrer" {...props} />
   ),
   blockquote: ({ ...props }: React.HTMLAttributes<HTMLElement>) => (
-    <blockquote className="border-l-3 border-blue-400 pl-3 my-2 text-gray-600 dark:text-gray-400 italic" {...props} />
+    <blockquote className="border-l-3 border-blue-400 pl-3 my-2 text-muted-foreground italic" {...props} />
   ),
-  hr: () => <hr className="my-3 border-gray-200 dark:border-gray-700" />,
+  hr: () => <hr className="my-3 border-border/50" />,
   table: ({ ...props }: React.HTMLAttributes<HTMLTableElement>) => (
     <div className="overflow-x-auto my-2">
       <table className="min-w-full border-collapse text-sm" {...props} />
     </div>
   ),
   th: ({ ...props }: React.HTMLAttributes<HTMLTableCellElement>) => (
-    <th className="border px-3 py-1.5 bg-gray-50 dark:bg-gray-800 font-medium" {...props} />
+    <th className="border-border/50 px-3 py-1.5 bg-muted/50 font-medium" {...props} />
   ),
   td: ({ ...props }: React.HTMLAttributes<HTMLTableCellElement>) => (
-    <td className="border px-3 py-1.5" {...props} />
+    <td className="border-border/50 px-3 py-1.5" {...props} />
   ),
 };
 
@@ -133,7 +133,7 @@ function ActionCardView({ action }: { action: ActionCard }) {
         {action.detail && (
           <>
             {" "}
-            <span className="text-gray-500 dark:text-gray-400">
+            <span className="text-muted-foreground">
               {action.detail}
             </span>
           </>
@@ -147,7 +147,7 @@ function SourceCard({ source, index }: { source: Source; index: number }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="border border-blue-100 dark:border-blue-900/40 rounded-lg overflow-hidden bg-white dark:bg-gray-800/50">
+    <div className="border border-brand/20 rounded-xl overflow-hidden bg-card">
       {/* Header */}
       <button
         onClick={() => setExpanded(!expanded)}
@@ -163,7 +163,7 @@ function SourceCard({ source, index }: { source: Source; index: number }) {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <div className="flex items-center gap-1.5">
-            <div className="w-12 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+            <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
               <div
                 className="h-full rounded-full transition-all"
                 style={{
@@ -172,9 +172,9 @@ function SourceCard({ source, index }: { source: Source; index: number }) {
                 }}
               />
             </div>
-            <span className="text-[10px] text-gray-400 w-8 text-right">{source.score}%</span>
+            <span className="text-[10px] text-muted-foreground w-8 text-right">{source.score}%</span>
           </div>
-          <span className="text-[10px] text-gray-400 transition-transform" style={{ transform: expanded ? 'rotate(180deg)' : '' }}>
+          <span className="text-[10px] text-muted-foreground transition-transform" style={{ transform: expanded ? 'rotate(180deg)' : '' }}>
             ▼
           </span>
         </div>
@@ -184,8 +184,8 @@ function SourceCard({ source, index }: { source: Source; index: number }) {
       {expanded && (
         <div className="px-3 pb-3 space-y-2">
           {/* Preview */}
-          <div className="bg-gray-50 dark:bg-gray-900 rounded-md px-2.5 py-2">
-            <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed line-clamp-3">
+          <div className="bg-muted/50 rounded-lg px-2.5 py-2">
+            <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-3">
               {source.preview}
             </p>
           </div>
@@ -193,7 +193,7 @@ function SourceCard({ source, index }: { source: Source; index: number }) {
           {/* Matched segments */}
           {source.segments.length > 0 && (
             <div className="space-y-1.5">
-              <p className="text-[10px] text-gray-400 flex items-center gap-1">
+              <p className="text-[10px] text-muted-foreground flex items-center gap-1">
                 <span>🔍</span> 匹配内容
               </p>
               {source.segments.map((seg, i) => (
@@ -201,7 +201,7 @@ function SourceCard({ source, index }: { source: Source; index: number }) {
                   key={i}
                   className="bg-amber-50 dark:bg-amber-900/10 border-l-2 border-amber-400 rounded-r-md px-2.5 py-1.5"
                 >
-                  <p className="text-[11px] text-gray-600 dark:text-gray-400 leading-relaxed">
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
                     {seg}
                   </p>
                 </div>
@@ -241,10 +241,10 @@ export function ChatMarkdown({
 
       {/* 加入错题本 */}
       {onSaveToWrongBook && content && content.length > 10 && (
-        <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+        <div className="mt-2 pt-2 border-t border-border/50">
           <button
             onClick={() => onSaveToWrongBook(content)}
-            className="text-xs text-gray-400 hover:text-red-500 transition-colors flex items-center gap-1"
+            className="text-xs text-muted-foreground hover:text-red-500 transition-colors flex items-center gap-1"
           >
             <span>🔴</span>
             <span>加入错题本</span>
@@ -254,10 +254,10 @@ export function ChatMarkdown({
 
       {/* 引用材料 */}
       {sources && sources.length > 0 && (
-        <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-2">
+        <div className="mt-4 pt-3 border-t border-border/50 space-y-2">
           <div className="flex items-center gap-1.5">
             <span className="text-xs">📚</span>
-            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+            <span className="text-xs font-medium text-muted-foreground">
               引用了 {sources.length} 份资料
             </span>
           </div>

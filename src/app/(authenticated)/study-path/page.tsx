@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
+import { ModuleLinks } from "@/components/ui/module-links";
 import { cn } from "@/lib/utils";
 
 interface Milestone {
@@ -148,7 +150,7 @@ export default function StudyPathPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <span className="text-gray-400">加载中...</span>
+        <span className="text-muted-foreground">加载中...</span>
       </div>
     );
   }
@@ -157,14 +159,14 @@ export default function StudyPathPage() {
   if (!data?.path) {
     return (
       <div className="p-4 lg:p-6">
-        <div className="max-w-2xl mx-auto text-center py-16 space-y-4">
+        <div className="max-w-3xl mx-auto text-center py-16 space-y-4">
           <div className="text-6xl">🗺️</div>
           <h1 className="text-2xl font-bold">AI 学习路径</h1>
-          <p className="text-gray-500 max-w-md mx-auto">
+          <p className="text-muted-foreground max-w-md mx-auto">
             基于你的目标院校、薄弱点和剩余时间，AI 自动生成分阶段学习路径，
             包含里程碑、时间线和学习建议。
           </p>
-          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 text-sm text-blue-700 dark:text-blue-300 max-w-md mx-auto text-left space-y-2">
+          <div className="bg-brand/10 rounded-xl p-4 text-sm text-brand max-w-md mx-auto text-left space-y-2">
             <p className="font-medium">📋 生成前请确认：</p>
             <ul className="list-disc pl-4 space-y-1 text-xs opacity-80">
               <li>已设置考研目标（院校、专业、科目）</li>
@@ -184,35 +186,34 @@ export default function StudyPathPage() {
   return (
     <div className="p-4 lg:p-6">
       <div className="max-w-3xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h1 className="text-2xl font-bold">🗺️ 学习路径</h1>
-            <p className="text-sm text-gray-500 mt-1">{data.path.description}</p>
-          </div>
-          <Button variant="outline" onClick={handleGenerate} disabled={generating}>
-            {generating ? "生成中..." : "🔄 重新生成"}
-          </Button>
-        </div>
+        <PageHeader
+          title="🗺️ 学习路径"
+          subtitle={data.path.description}
+          action={
+            <Button variant="outline" onClick={handleGenerate} disabled={generating}>
+              {generating ? "生成中..." : "🔄 重新生成"}
+            </Button>
+          }
+        />
 
         {message && (
-          <div className="text-sm p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300">
+          <div className="text-sm p-3 rounded-lg bg-brand/10 text-brand">
             {message}
           </div>
         )}
 
         {/* Overall progress */}
         {stats && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl border p-5">
+          <div className="bg-card rounded-2xl border border-border/50 p-5">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium">总体进度</span>
-              <span className="text-sm text-gray-500">
+              <span className="text-sm text-muted-foreground">
                 {stats.completedMilestones}/{stats.totalMilestones} 里程碑 · {Math.round(stats.overallProgress * 100)}%
               </span>
             </div>
-            <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+            <div className="h-3 bg-muted rounded-full overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-blue-500 to-purple-600 rounded-full transition-all duration-500"
+                className="h-full bg-gradient-to-r from-brand to-primary/70 rounded-full transition-all duration-500"
                 style={{ width: `${stats.overallProgress * 100}%` }}
               />
             </div>
@@ -232,7 +233,7 @@ export default function StudyPathPage() {
             const isExpanded = expandedPhase === phase;
 
             return (
-              <div key={phase} className={cn("rounded-xl border bg-white dark:bg-gray-800 overflow-hidden", cfg.border)}>
+              <div key={phase} className={cn("rounded-2xl border bg-card overflow-hidden", cfg.border)}>
                 {/* Phase header */}
                 <button
                   onClick={() => setExpandedPhase(isExpanded ? null : phase)}
@@ -241,23 +242,23 @@ export default function StudyPathPage() {
                   <span className="text-xl">{cfg.icon}</span>
                   <div className="flex-1 min-w-0">
                     <h3 className={cn("font-bold", cfg.color)}>{phase}</h3>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-muted-foreground">
                       {completed}/{milestones.length} 完成 · {Math.round(phaseProgress * 100)}%
                     </p>
                   </div>
                   {/* Mini progress bar */}
-                  <div className="w-16 h-1.5 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden shrink-0">
+                  <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden shrink-0">
                     <div
                       className="h-full bg-current rounded-full transition-all"
                       style={{ width: `${phaseProgress * 100}%`, color: cfg.color.replace("text-", "#") }}
                     />
                   </div>
-                  <span className="text-xs text-gray-400 shrink-0">{isExpanded ? "▲" : "▼"}</span>
+                  <span className="text-xs text-muted-foreground shrink-0">{isExpanded ? "▲" : "▼"}</span>
                 </button>
 
                 {/* Phase milestones */}
                 {isExpanded && (
-                  <div className="divide-y dark:divide-gray-700">
+                  <div className="divide-y divide-border/50">
                     {milestones.map((m) => {
                       const isComplete = !!m.completedAt;
                       const subColor = SUBJECT_COLORS[m.subject] || "#6B7280";
@@ -271,7 +272,7 @@ export default function StudyPathPage() {
                               "w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors",
                               isComplete
                                 ? "bg-green-500 border-green-500 text-white"
-                                : "border-gray-300 dark:border-gray-600 hover:border-green-400"
+                                : "border-border/50 hover:border-success"
                             )}
                             style={{ borderColor: !isComplete ? subColor + "60" : undefined }}
                           >
@@ -291,11 +292,11 @@ export default function StudyPathPage() {
                               </span>
                             </div>
                             {m.description && (
-                              <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{m.description}</p>
+                              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{m.description}</p>
                             )}
                             <div className="flex items-center gap-3 mt-1.5">
                               {m.targetDate && (
-                                <span className="text-xs text-gray-400">
+                                <span className="text-xs text-muted-foreground">
                                   📅 {new Date(m.targetDate).toLocaleDateString("zh-CN")}
                                 </span>
                               )}
@@ -304,6 +305,12 @@ export default function StudyPathPage() {
                                   💡 {m.tips}
                                 </span>
                               )}
+                              <Link
+                                href={`/wrong-questions?subject=${encodeURIComponent(m.subject)}`}
+                                className="text-xs text-brand hover:text-brand/80 shrink-0"
+                              >
+                                📕 {m.subject}错题
+                              </Link>
                             </div>
                             {/* Progress slider */}
                             {!isComplete && (
@@ -315,10 +322,10 @@ export default function StudyPathPage() {
                                   step="0.25"
                                   value={m.progress}
                                   onChange={(e) => handleUpdateProgress(m, parseFloat(e.target.value))}
-                                  className="flex-1 h-1 accent-blue-500"
+                                  className="flex-1 h-1 accent-brand"
                                   disabled={!!updatingId}
                                 />
-                                <span className="text-xs text-gray-400 w-8 text-right">
+                                <span className="text-xs text-muted-foreground w-8 text-right">
                                   {Math.round((m.progress || 0) * 100)}%
                                 </span>
                               </div>
@@ -334,15 +341,14 @@ export default function StudyPathPage() {
           })}
         </div>
 
-        {/* 相关模块 */}
-        <div className="mt-6 pt-4 border-t">
-          <h3 className="text-sm font-medium text-gray-500 mb-3">相关模块</h3>
-          <div className="flex flex-wrap gap-2">
-            <Link href="/tasks" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">📋 任务计划</Link>
-            <Link href="/wrong-questions" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">📕 错题</Link>
-            <Link href="/knowledge-graph" className="text-xs px-3 py-1.5 rounded-full border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">🧠 知识图谱</Link>
-          </div>
-        </div>
+        {/* 模块联动 */}
+        <ModuleLinks
+          links={[
+            { href: "/tasks", icon: "📋", label: "任务计划" },
+            { href: "/wrong-questions", icon: "📕", label: "错题本" },
+            { href: "/knowledge-graph", icon: "🧠", label: "知识图谱" },
+          ]}
+        />
       </div>
     </div>
   );

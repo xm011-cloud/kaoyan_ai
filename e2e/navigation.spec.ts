@@ -41,7 +41,7 @@ test.describe("Navigation & Module Linking", () => {
     await page.goto("/wrong-questions");
     await page.waitForTimeout(2000);
     // Related links section should exist
-    const related = page.locator("text=相关模块").first();
+    const related = page.getByText("继续学习").first();
     if (await related.isVisible({ timeout: 5000 }).catch(() => false)) {
       // Use last() to get the related link (not sidebar)
       await expect(page.locator('a[href="/practice"]').last()).toBeVisible();
@@ -51,7 +51,7 @@ test.describe("Navigation & Module Linking", () => {
   test("tasks related links exist", async ({ page }) => {
     await page.goto("/tasks");
     await page.waitForTimeout(2000);
-    const related = page.locator("text=相关模块").first();
+    const related = page.getByText("继续学习").first();
     if (await related.isVisible({ timeout: 5000 }).catch(() => false)) {
       await expect(page.locator('a[href="/knowledge-graph"]').last()).toBeVisible();
     }
@@ -60,7 +60,7 @@ test.describe("Navigation & Module Linking", () => {
   test("feedback related links exist", async ({ page }) => {
     await page.goto("/feedback");
     await page.waitForTimeout(2000);
-    const related = page.locator("text=相关模块").first();
+    const related = page.getByText("继续学习").first();
     if (await related.isVisible({ timeout: 5000 }).catch(() => false)) {
       await expect(page.locator('a[href="/tasks"]').last()).toBeVisible();
     }

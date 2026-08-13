@@ -14,7 +14,7 @@ function loadEnvLocal() {
       const eqIdx = trimmed.indexOf("=");
       if (eqIdx > 0) {
         const key = trimmed.slice(0, eqIdx).trim();
-        const value = trimmed.slice(eqIdx + 1).trim();
+        const value = trimmed.slice(eqIdx + 1).trim().replace(/^"|"$/g, "");
         if (!process.env[key]) process.env[key] = value;
       }
     }
@@ -55,6 +55,13 @@ async function globalSetup(config: FullConfig) {
 
     // Wait for redirect to dashboard (or any authenticated page)
     await page.waitForURL(/\/(dashboard|goal|tasks)/, { timeout: 15000 });
+
+    // 触发 ensureLocalUser:在隔离的测试库里写入 User 行(首个认证 API 调用即自动 upsert)
+    try {
+      await page.request.get(`${baseURL}/api/goal`);
+    } catch {
+      // 非致命 — 后续测试遇到真实 API 时也会触发
+    }
 
     // Save storage state (cookies + localStorage)
     await page.context().storageState({ path: "e2e/.auth/user.json" });

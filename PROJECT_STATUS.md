@@ -264,7 +264,7 @@ src/
 - **反馈闭环**：结果页「🙏 数据有误？反馈给作者」→ `/suggestions?content=` 预填上下文（suggestions-client 新增 URL 预填）
 - 测试：admission 新增导航可见 + 缓存命中 2 用例（真实搜索 1.4m 慢但稳），104 全绿
 
-### 第 15 轮 — AI 用户自带 Key 模式（2026-08-14，待部署）
+### 第 15 轮 — AI 用户自带 Key 模式（2026-08-14，已部署）
 - **模式切换**：移除生产 Vercel env 的 `OPENAI_API_KEY`（代码保留全局兜底逻辑供本地 dev/E2E 用）；生产 AI 由用户自配 OpenAI 兼容 Key（MiMo/DeepSeek/通义千问等），`getUserAiConfig` 无 key 返回 null
 - **配置状态卡**：settings「AI 配置」Tab 顶部状态卡（⚪ 未启用 / 🟢 已配置 + key 掩码 + 系统默认态），GET settings 新增 `aiConfigured` 派生字段
 - **测试连接**：`POST /api/user/settings/test-ai`（最小 chat 调用，分类错误：Key 无效/模型不存在/额度不足/网络）；保存后可一键验证 + 延迟展示
@@ -273,7 +273,7 @@ src/
 - **公开文案**：落地页/about 同步「产品免费，AI 功能需自备 API Key 计费」
 - 测试：`e2e/ai-config.spec.ts` 4 用例（未配置状态卡/测试连接成功/chat 引导条禁用/needConfig 联动，全部 route mock 稳定可复现），108 全绿
 
-### 第 16 轮 — AI 产品教练 + 更新日志（2026-08-14，待部署）
+### 第 16 轮 — AI 产品教练 + 更新日志（2026-08-14，已部署）
 - **AI 产品教练**：新增 `src/lib/product-guide.ts`（19 模块真实功能知识：用途/入口/使用要点）注入 `buildChatSystemPrompt`，配置好 AI 的用户在任何对话问"XX 怎么用"都能得到准确回答；技能系统新增第 4 个内置模板「产品教练 🧭」（问功能 → AI 按指引讲解 → 记入档案）
 - **模板补播**：`ensureTemplatesSeeded` 从"count>0 不播"改为**按模板名补缺**，老用户自动获得新增模板
 - **更新日志**：`/changelog` 页（静态数据源 `src/lib/changelog.ts`，用户向文案 7 条）；导航设置组新增「📣 更新日志」
@@ -302,6 +302,8 @@ src/
 
 | 日期 | 范围 | 内容 |
 |------|------|------|
+| 2026-08-14 | `b689d66..71ac7c5` → 生产 | **AI 产品教练 + 更新日志**（PRODUCT_GUIDE 注入对话 + 产品教练技能模板 + `/changelog` 页 + dashboard 更新告示），113 用例全绿；`c6-orcin.vercel.app` |
+| 2026-08-14 | `df6114a..b689d66` → 生产 | **AI 用户自带 Key 模式**（移除生产 `OPENAI_API_KEY`，AI 由用户自配；配置状态卡 + 测试连接 + chat/浮窗未配置引导），108 用例全绿；`c6-orcin.vercel.app` |
 | 2026-08-14 | `df55d06..007adc4` → 生产 | **院校情报启用 + 加固**（24h 全局搜索缓存 + 生产限流 + 数据反馈入口），104 用例全绿；`c6-orcin.vercel.app` |
 | 2026-08-14 | `a3c759c..68e6ae9` → 生产 | **AI 等待安抚状态机**（useAiTask 分阶段文案轮播 + 预估秒数 + 可取消，全量接入对话/浮窗/周计划/学习路径/周报/变式题），102 用例全绿；`c6-orcin.vercel.app` |
 | 2026-08-14 | `310249a..d61c208` → 生产 | 错题本按钮按触发问题智能显示 + **AI 技能系统全三阶段**（架页/模板播种 + 运行引擎 + 蒸馏/AI 提议），100 用例全绿；`c6-orcin.vercel.app` |

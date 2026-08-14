@@ -1,7 +1,7 @@
 /**
- * Web search utilities — Baidu primary, fallback chain for resilience.
- * 百度搜索对中文内容（考研院校、分数线、真题等）覆盖最好，国内部署畅通。
- * 不需要任何 API Key。
+ * Web search utilities — Bing China primary, fallback chain for resilience.
+ * 必应中国（cn.bing.com）对中文内容覆盖好、HTML 结构稳定可解析、无严格反爬（实测可用）。
+ * 百度 HTML 搜索已降级为备选（对非浏览器请求常返回无结果的安全页，解析不稳定）。
  */
 export interface SearchResult {
   title: string;
@@ -11,13 +11,18 @@ export interface SearchResult {
 
 /**
  * Search the web. Priority:
- * 1. Baidu (free, best Chinese coverage, no key needed) ← 主力
- * 2. SerpAPI with Baidu engine (if SEARCH_API_KEY is configured) ← 更稳定的备选
- * 3. DuckDuckGo (last resort, limited Chinese support)
+ * 1. SerpAPI with Baidu engine (if SEARCH_API_KEY is configured) ← 可选付费备选
+ * 2. Tavily (if TAVILY_API_KEY is configured) ← 推荐：免费 1000 次/月，中文效果好，结构化 JSON
+ * 3. Bing China (free, stable HTML) ← 免费兜底（中文分词差，相关性一般）
+ * 4. Baidu / DuckDuckGo (last resort)
+ *
+ * opts.mustInclude：核心词（院校名/专业名）。不丢弃结果，而是**按命中数评分排序**——
+ * 相关结果排前、无关沉底，AI 提取时先取前面的结果，保证有内容可用且相关优先。
  */
 export async function searchWeb(
   query: string,
-  maxResults = 10
+  maxResults = 10,
+  opts: { mustInclude?: string[] } = {}
 ): Promise<SearchResult[]> {
   // Try SerpAPI first if configured (more reliable, still Baidu-backed)
   const serpApiKey = process.env.SEARCH_API_KEY;
@@ -25,16 +30,77 @@ export async function searchWeb(
     try {
       return await searchSerpAPI(query, maxResults, serpApiKey);
     } catch {
-      // Fall through to Baidu
+      // Fall through
     }
   }
 
-  // Primary: Baidu HTML search (best Chinese results, works on domestic servers)
-  const results = await searchBaidu(query, maxResults);
-  if (results.length > 0) return results;
+  // Tavily (recommended: free 1000 req/mo, good Chinese support)
+  const tavilyKey = process.env.TAVILY_API_KEY;
+  if (tavilyKey && !tavilyKey.startsWith("your_")) {
+    const tavilyResults = sortByKeywords(await searchTavily(query, maxResults, tavilyKey), opts.mustInclude);
+    if (tavilyResults.length > 0) return tavilyResults;
+  }
+
+  // Primary free fallback: Bing China (stable HTML, mediocre Chinese relevance)
+  const bingResults = sortByKeywords(await searchBing(query, maxResults), opts.mustInclude);
+  if (bingResults.length > 0) return bingResults;
+
+  // Fallback: Baidu HTML search (best Chinese coverage when it works)
+  const baiduResults = sortByKeywords(await searchBaidu(query, maxResults), opts.mustInclude);
+  if (baiduResults.length > 0) return baiduResults;
 
   // Last resort: DuckDuckGo
-  return searchDuckDuckGo(query, maxResults);
+  return sortByKeywords(await searchDuckDuckGo(query, maxResults), opts.mustInclude);
+}
+
+// ── Tavily (recommended search API, requires TAVILY_API_KEY) ──
+
+async function searchTavily(
+  query: string,
+  maxResults: number,
+  apiKey: string
+): Promise<SearchResult[]> {
+  try {
+    const response = await fetch("https://api.tavily.com/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        api_key: apiKey,
+        query,
+        max_results: Math.min(maxResults, 8),
+        search_depth: "basic",
+        include_answer: false,
+        include_raw_content: false,
+      }),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!response.ok) return [];
+    const data = (await response.json()) as {
+      results?: { title?: string; url?: string; content?: string }[];
+    };
+    return (data.results || [])
+      .filter((r) => r.url && r.title)
+      .map((r) => ({
+        title: String(r.title),
+        url: String(r.url),
+        snippet: String(r.content || "").slice(0, 300),
+      }));
+  } catch {
+    return [];
+  }
+}
+
+/** 相关性评分排序：标题/URL 命中核心词越多越靠前（子串匹配，容忍简称差异）；不做硬过滤 */
+function sortByKeywords(results: SearchResult[], keywords?: string[]): SearchResult[] {
+  if (!keywords || keywords.length === 0) return results;
+  const kws = keywords.map((k) => k.trim()).filter((k) => k && k.length >= 2);
+  if (kws.length === 0) return results;
+  return [...results].sort((a, b) => scoreOf(b, kws) - scoreOf(a, kws));
+}
+
+function scoreOf(r: SearchResult, kws: string[]): number {
+  const text = `${r.title} ${r.url}`;
+  return kws.reduce((s, k) => s + (text.includes(k) ? 1 : 0), 0);
 }
 
 // ── Invalid result filter ─────────────────────────────────
@@ -75,7 +141,76 @@ function isValidResult(url: string, title: string): boolean {
   return true;
 }
 
-// ── Baidu search ──────────────────────────────────────────
+// ── Bing China search (primary, stable) ─────────────────
+
+async function searchBing(
+  query: string,
+  maxResults: number
+): Promise<SearchResult[]> {
+  try {
+    const url = new URL("https://cn.bing.com/search");
+    url.searchParams.set("q", query);
+    url.searchParams.set("count", String(maxResults));
+    url.searchParams.set("setlang", "zh-CN");
+
+    const response = await fetch(url.toString(), {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept-Language": "zh-CN,zh;q=0.9",
+        Accept: "text/html,application/xhtml+xml",
+      },
+      signal: AbortSignal.timeout(12000),
+    });
+
+    if (!response.ok) return [];
+    const html = await response.text();
+    return parseBingResults(html, maxResults);
+  } catch {
+    return [];
+  }
+}
+
+function parseBingResults(html: string, maxResults: number): SearchResult[] {
+  const results: SearchResult[] = [];
+  const seen = new Set<string>();
+
+  // 必应结果块：<li class="b_algo">…<h2><a href="URL">TITLE</a></h2>…<p>SNIPPET</p>…</li>
+  const algoRegex = /<li class="b_algo"[\s\S]*?<\/li>/g;
+  let match: RegExpExecArray | null;
+  while ((match = algoRegex.exec(html)) !== null && results.length < maxResults) {
+    const block = match[0];
+    const linkMatch = block.match(/<h2[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/);
+    if (!linkMatch) continue;
+    const url = linkMatch[1];
+    const title = cleanBingEntities(linkMatch[2].replace(/<[^>]+>/g, "").trim());
+    if (!isValidResult(url, title)) continue;
+    if (seen.has(url)) continue;
+    const snippetMatch = block.match(/<p[^>]*>([\s\S]*?)<\/p>/);
+    const snippet = snippetMatch
+      ? cleanBingEntities(snippetMatch[1].replace(/<[^>]+>/g, "").trim())
+      : "";
+    seen.add(url);
+    results.push({ title, url, snippet: snippet || title });
+  }
+
+  return results;
+}
+
+function cleanBingEntities(text: string): string {
+  return text
+    .replace(/&ensp;/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#0183;/g, "·")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .trim();
+}
+
+// ── Baidu search (fallback) ──────────────────────────
 
 async function searchBaidu(
   query: string,

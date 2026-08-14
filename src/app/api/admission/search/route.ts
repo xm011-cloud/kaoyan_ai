@@ -115,17 +115,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── 2. 未命中 → 联网搜索 ──
+    // ── 2. 未命中 → 联网搜索（必应主力，带核心词相关性过滤）──
     const yearStr = year ? `${year}年` : "";
     const queries = [
       `${university} ${major} 考研 ${yearStr} 复试分数线 录取最低分`,
       `${university} ${major} 考研 ${yearStr} 招生人数 报录比`,
       `${university} ${major} 考研 ${yearStr} 考试科目 参考书目`,
     ];
+    // 相关性核心词：院校名 + 专业词（过滤必应分词不准带来的无关结果）
+    const mustInclude = [university, ...major.trim().split(/[\s,，、]+/)];
 
     const allResults: { query: string; results: Awaited<ReturnType<typeof searchWeb>> }[] = [];
     for (const q of queries) {
-      const results = await searchWeb(q, 5);
+      const results = await searchWeb(q, 5, { mustInclude });
       allResults.push({ query: q, results });
     }
 

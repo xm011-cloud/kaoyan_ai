@@ -23,8 +23,10 @@ export async function POST(request: NextRequest) {
     const keywordStr = keywords ? ` ${keywords}` : "";
     const query = `${yearStr} ${subject} 考研真题${keywordStr} 答案 解析`;
 
-    // Search the web
-    const searchResults = await searchWeb(query, 8);
+    // Search the web（带科目核心词过滤，避免必应分词不准的无关结果）
+    const searchResults = await searchWeb(query, 8, {
+      mustInclude: [subject, ...keywordStr.trim().split(/[\s,，、]+/)],
+    });
 
     // Fetch page content for top results
     const contents: { url: string; sourceName: string; text: string }[] = [];

@@ -3,6 +3,7 @@ import { startOfDay, getWeekStart, getWeekEnd, toDateString } from "@/lib/date-u
 import { randomUUID } from "node:crypto";
 import type { AiTool } from "@/lib/ai-config";
 import { appendSkillNote, skillFinish } from "@/lib/skills";
+import { searchWeb } from "@/lib/search";
 
 // ── 工具执行结果 ──
 
@@ -239,6 +240,41 @@ const TOOL_ENTRIES: ToolEntry[] = [
   // ═══════════════════════════════════════════
   // 写操作
   // ═══════════════════════════════════════════
+
+  {
+    definition: {
+      type: "function",
+      function: {
+        name: "search_web",
+        description:
+          "联网搜索网页。当用户询问院校复试分数线、招生人数、考试科目、报录比、考研政策、参考书目等需要最新网络信息的问题时使用。返回标题/URL/摘要列表（按相关性排序），请基于返回结果回答并标注来源，不要编造。",
+        parameters: {
+          type: "object",
+          properties: {
+            query: { type: "string", description: "搜索关键词，建议包含院校名和专业，如'北京大学 计算机 考研 复试分数线'" },
+            maxResults: { type: "number", description: "返回结果数，默认 6" },
+          },
+          required: ["query"],
+        },
+      },
+    },
+    executor: async (_userId, args) => {
+      const query = String(args.query || "").trim();
+      if (!query) {
+        return { writes: false, result: JSON.stringify({ error: "缺少搜索关键词" }) };
+      }
+      const max = typeof args.maxResults === "number" ? Math.min(Math.max(1, args.maxResults), 8) : 6;
+      const results = await searchWeb(query, max);
+      return {
+        writes: false,
+        result: JSON.stringify({
+          query,
+          total: results.length,
+          results: results.map((r) => ({ title: r.title, url: r.url, snippet: r.snippet })),
+        }),
+      };
+    },
+  },
 
   {
     definition: {

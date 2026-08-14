@@ -290,6 +290,13 @@ src/
 - **前端**：结果区改造（库命中横幅 + 重新搜索最新 + 新入库提示 + needAI 引导 + 反馈按钮计数）；「数据有误？反馈」直通建议页保留
 - 测试：admission 缓存用例 → **共享库 + 反馈用例**（直插测试库全局数据验证查库/认同/质疑全链路，E2E 网络受限不依赖真实爬取），113 全绿
 
+### 第 18 轮 — 院校数据获取三路线（2026-08-14，待部署）
+- **数据源实测结论**：百度/必应中国/搜狗/研招网对非浏览器请求全部反爬或相关性灾难（实测：必应"复旦计算机分数线"返回魔兽攻略）→ **服务端免费爬虫路线确认不可行**
+- **searchWeb 重构**：新增 **Tavily API 优先**（`TAVILY_API_KEY`，免费 1000 次/月，中文效果好）；必应/百度/DuckDuckGo 降为免费兜底；新增**核心词相关性评分排序**（`mustInclude`：标题/URL 命中核心词越多越靠前，相关结果排前供 AI 提取）
+- **AI 联网调研工具**：`ai-tools` 新增 `search_web` 工具（对话里用户问院校分数线/科目等 → AI 自行联网搜索带来源回答，对应开源社区 kaoyan-navigator 形态）
+- **种子数据初稿**：`docs/seed-data-draft.json`（20 所热门院校计算机专业科目 + 复试线，**全部标注待核对**，作者核实后批量导入全局库）
+- **待办**：① 用户注册 Tavily 拿 key 填 env ② 用户核对种子数据后导入
+
 ### 第 10 轮 — 对话→任务落地（事务边界）（2026-08-13）
 - **schema**：Task `proposalId/chatId` + `@@index([userId, proposalId])`；Chat `pendingProposal Json?`
 - **propose_tasks 工具**（writes:false 草稿不落库）：批量建议挂到对话 pendingProposal；`create_task` description 引导勿批量直写；chat 路由读 body.chatId → 提案时无对话则先建 → 返回 `chatId + proposal`

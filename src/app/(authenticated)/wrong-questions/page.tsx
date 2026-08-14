@@ -15,6 +15,7 @@ import { AddModal } from "./_components/add-modal";
 import { BatchImportModal } from "./_components/batch-import-modal";
 import { ReviewModal } from "./_components/review-modal";
 import { DetailModal } from "./_components/detail-modal";
+import { ExamQuestionsTab } from "./_components/exam-questions-tab";
 import { toast } from "@/stores/toast-store";
 import { confirmDialog } from "@/stores/confirm-store";
 
@@ -45,8 +46,8 @@ export default function WrongQuestionsPage() {
   const router = useRouter();
   const pathname = usePathname();
 
-  const [tab, setTab] = useState<"all" | "unreviewed" | "reviewed" | "due">(
-    () => (searchParams.get("tab") as "all" | "unreviewed" | "reviewed" | "due") || "all"
+  const [tab, setTab] = useState<"all" | "unreviewed" | "reviewed" | "due" | "exam">(
+    () => (searchParams.get("tab") as "all" | "unreviewed" | "reviewed" | "due" | "exam") || "all"
   );
   const [subjectFilter, setSubjectFilter] = useState(
     () => searchParams.get("subject") || ""
@@ -190,32 +191,36 @@ export default function WrongQuestionsPage() {
           }
         />
 
-        {/* Filters */}
-        <div className="flex flex-wrap gap-3 items-center">
-          <div className="flex rounded-2xl bg-muted p-1">
-            {[
-              ["all", "全部"],
-              ["due", "今日到期"],
-              ["unreviewed", "未复习"],
-              ["reviewed", "已复习"],
-            ].map(([k, label]) => (
-              <button
-                key={k}
-                onClick={() => { setTab(k as typeof tab); syncUrl({ tab: k === "all" ? "" : k }); }}
-                className={`px-3 py-1.5 text-sm rounded-xl transition-all ${
-                  tab === k ? "bg-card shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {label}
-                {k === "due" && dueTodayCount > 0 && (
-                  <span className="ml-1 text-xs bg-orange-500 text-white px-1.5 py-0.5 rounded-full">{dueTodayCount}</span>
-                )}
-                {k === "unreviewed" && unreviewedCount > 0 && (
-                  <span className="ml-1 text-xs bg-red-500 text-white px-1.5 py-0.5 rounded-full">{unreviewedCount}</span>
-                )}
-              </button>
-            ))}
-          </div>
+        {/* Tab 按钮区（始终显示） */}
+        <div className="flex rounded-2xl bg-muted p-1">
+          {[
+            ["all", "全部"],
+            ["due", "今日到期"],
+            ["unreviewed", "未复习"],
+            ["reviewed", "已复习"],
+            ["exam", "📚 真题"],
+          ].map(([k, label]) => (
+            <button
+              key={k}
+              onClick={() => { setTab(k as typeof tab); syncUrl({ tab: k === "all" ? "" : k }); }}
+              className={`px-3 py-1.5 text-sm rounded-xl transition-all ${
+                tab === k ? "bg-card shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {label}
+              {k === "due" && dueTodayCount > 0 && (
+                <span className="ml-1 text-xs bg-orange-500 text-white px-1.5 py-0.5 rounded-full">{dueTodayCount}</span>
+              )}
+              {k === "unreviewed" && unreviewedCount > 0 && (
+                <span className="ml-1 text-xs bg-red-500 text-white px-1.5 py-0.5 rounded-full">{unreviewedCount}</span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* 错题筛选（真题 Tab 不显示） */}
+        {tab !== "exam" && (
+          <div className="flex flex-wrap gap-3 items-center">
           <select
             value={subjectFilter}
             onChange={(e) => { setSubjectFilter(e.target.value); syncUrl({ subject: e.target.value }); }}
@@ -232,7 +237,13 @@ export default function WrongQuestionsPage() {
             className="text-sm h-10 rounded-xl border border-border/50 bg-muted/50 px-3 flex-1 min-w-[120px] focus:outline-none focus:ring-2 focus:ring-brand/20"
           />
         </div>
+        )}
 
+        {/* 真题 Tab：管理导入的真题 */}
+        {tab === "exam" ? (
+          <ExamQuestionsTab subjects={subjects} />
+        ) : (
+          <>
         {/* Question list */}
         {isLoading ? (
           <div className="text-center py-12 text-muted-foreground">加载中...</div>
@@ -291,6 +302,8 @@ export default function WrongQuestionsPage() {
               </div>
             ))}
           </div>
+        )}
+          </>
         )}
       </div>
 

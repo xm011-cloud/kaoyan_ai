@@ -13,11 +13,21 @@ interface GenerateOptions {
   count?: number;
   materialIds?: string[];
   wrongQuestionIds?: string[];
-  generationMode?: "daily_review" | "spaced_review" | "mock_exam" | "custom" | "material_based";
+  generationMode?: "daily_review" | "spaced_review" | "mock_exam" | "custom" | "material_based" | "exam_questions";
   todaySubjects?: string[];
   difficulty?: number; // 0.0 ~ 1.0
   includeMermaid?: boolean;
   chartRatio?: number; // 0.0 ~ 1.0 how many questions should use charts
+}
+
+/** Fisher-Yates 洗牌（真题抽题用） */
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
 }
 
 export async function generatePracticeQuestions(
@@ -37,6 +47,36 @@ export async function generatePracticeQuestions(
   } = opts;
 
   const questionCount = count || (type === "mock" ? 20 : 5);
+
+  // ── 真题模式：从导入的真题库直接抽题（真实题目，无需 AI）──
+  if (generationMode === "exam_questions") {
+    const exams = await prisma.importedQuestion.findMany({
+      where: { userId, subject },
+      orderBy: { year: "desc" },
+      take: Math.max(questionCount * 3, 20),
+      select: {
+        id: true,
+        question: true,
+        type: true,
+        options: true,
+        answer: true,
+        explanation: true,
+        year: true,
+      },
+    });
+    if (exams.length === 0) {
+      return [];
+    }
+    return shuffle(exams).slice(0, questionCount).map((q, i) => ({
+      id: `q${i}`,
+      type: q.type === "choice" ? "choice" : "essay",
+      question: q.question,
+      options: (q.options as string[] | null | undefined) || undefined,
+      correctAnswer: q.answer,
+      explanation: q.explanation || "（真题未提供解析）",
+    }));
+  }
+
   const aiConfig = await getUserAiConfig(userId);
 
   // Build context: wrong questions + materials via semantic search

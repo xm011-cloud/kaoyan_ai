@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 
-export type GenerationMode = "daily_review" | "spaced_review" | "mock_exam" | "custom" | "material_based";
+export type GenerationMode = "daily_review" | "spaced_review" | "mock_exam" | "custom" | "material_based" | "exam_questions";
 
 interface SessionCreatorProps {
   subjects: string[]; todaySubjects: string[]; dueWrongCount: number;
@@ -20,6 +20,7 @@ const modes = [
   { mode: "spaced_review" as const, icon: "🔄", title: "间隔复习", desc: "遗忘曲线复习" },
   { mode: "mock_exam" as const, icon: "⏱️", title: "模拟考试", desc: "限时全真模考" },
   { mode: "material_based" as const, icon: "📎", title: "资料出题", desc: "基于上传资料" },
+  { mode: "exam_questions" as const, icon: "📚", title: "真题练习", desc: "用导入的真题" },
   { mode: "custom" as const, icon: "🔧", title: "自由定制", desc: "完全自定义" },
 ] as const;
 

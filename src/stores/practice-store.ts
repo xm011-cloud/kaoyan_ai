@@ -13,7 +13,7 @@ export interface PracticeState {
 
   // Pending generation (AI is working)
   isGenerating: boolean
-  generationMode?: 'daily_review' | 'spaced_review' | 'mock_exam' | 'custom' | 'material_based'
+  generationMode?: 'daily_review' | 'spaced_review' | 'mock_exam' | 'custom' | 'material_based' | 'exam_questions'
 
   // Actions
   setActiveSession: (sessionId: string, subject: string, type: 'daily' | 'mock') => void

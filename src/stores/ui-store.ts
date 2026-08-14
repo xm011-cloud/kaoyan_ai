@@ -18,7 +18,7 @@ export interface NavGroup {
   items: NavGroupItem[]
 }
 
-export type PracticeMode = 'daily_review' | 'spaced_review' | 'mock_exam' | 'custom' | 'material_based'
+export type PracticeMode = 'daily_review' | 'spaced_review' | 'mock_exam' | 'custom' | 'material_based' | 'exam_questions'
 export type PracticeUIMode = 'simple' | 'smart' | 'advanced'
 
 export interface PracticeDefaults {

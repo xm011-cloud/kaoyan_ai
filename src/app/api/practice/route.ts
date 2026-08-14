@@ -90,10 +90,18 @@ export async function POST(request: NextRequest) {
       count,
       materialIds,
       wrongQuestionIds: resolvedWrongIds,
-      generationMode: generationMode as "daily_review" | "spaced_review" | "mock_exam" | "custom" | "material_based",
+      generationMode: generationMode as "daily_review" | "spaced_review" | "mock_exam" | "custom" | "material_based" | "exam_questions",
       difficulty: difficulty ?? 0.5,
       includeMermaid: includeMermaid ?? true,
     });
+
+    // 真题模式：库里没有该科目真题时给出友好提示（不建空会话）
+    if (generationMode === "exam_questions" && questions.length === 0) {
+      return jsonNoStore(
+        { error: "暂无该科目的真题，请先导入（错题本 → 真题 Tab → 联网导入）" },
+        { status: 404 }
+      );
+    }
 
     // Create session with generated questions
     const maxScore = questions.length * 10;

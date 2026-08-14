@@ -49,7 +49,7 @@ export default function PracticePage() {
   const { data: sessions = [], isLoading: loadingSessions } = usePracticeSessions();
 
   // Create form
-  const [createMode, setCreateMode] = useState<"daily_review" | "spaced_review" | "mock_exam" | "custom" | "material_based">("daily_review");
+  const [createMode, setCreateMode] = useState<"daily_review" | "spaced_review" | "mock_exam" | "custom" | "material_based" | "exam_questions">("daily_review");
   const [createType, setCreateType] = useState<"daily" | "mock">("daily");
   const [createSubject, setCreateSubject] = useState("");
   const [createCount, setCreateCount] = useState(10);

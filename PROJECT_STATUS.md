@@ -19,7 +19,7 @@
 | AI | MiMo v2.5-pro (OpenAI-compatible API) | — |
 | 图表 | Recharts + D3 子模块 (知识图谱) | ^3.9.2 / 7.x |
 | 状态 | zustand (persist) + @tanstack/react-query | ^5.0.14 / ^5.101.4 |
-| 测试 | Playwright 102 用例 · 独立测试库 `neondb_test` | ^1.61.1 |
+| 测试 | Playwright 108 用例 · 独立测试库 `neondb_test` | ^1.61.1 |
 | 部署 | Vercel (c6-orcin.vercel.app) | — |
 
 ## 模块清单 (19 个)
@@ -95,7 +95,7 @@
 - **API**: `api/user/profile/route.ts`（GET 自己/公开视图 + PUT 昵称）、`api/user/avatar/route.ts`（上传 + best-effort 清理旧图）
 
 #### ⚙️ 设置 (`/settings`)
-- AI Key/URL/Model，学习提醒，界面定制（导航分组/工作台卡片/出题偏好），数据导出
+- AI Key/URL/Model 配置（**用户自带 Key 模式**，含配置状态卡 + 测试连接 + 服务指引），学习提醒，界面定制（导航分组/工作台卡片/出题偏好），数据导出
 
 ### 🆕 公开 / 运营模块 (2026-08-10)
 
@@ -264,6 +264,15 @@ src/
 - **反馈闭环**：结果页「🙏 数据有误？反馈给作者」→ `/suggestions?content=` 预填上下文（suggestions-client 新增 URL 预填）
 - 测试：admission 新增导航可见 + 缓存命中 2 用例（真实搜索 1.4m 慢但稳），104 全绿
 
+### 第 15 轮 — AI 用户自带 Key 模式（2026-08-14，待部署）
+- **模式切换**：移除生产 Vercel env 的 `OPENAI_API_KEY`（代码保留全局兜底逻辑供本地 dev/E2E 用）；生产 AI 由用户自配 OpenAI 兼容 Key（MiMo/DeepSeek/通义千问等），`getUserAiConfig` 无 key 返回 null
+- **配置状态卡**：settings「AI 配置」Tab 顶部状态卡（⚪ 未启用 / 🟢 已配置 + key 掩码 + 系统默认态），GET settings 新增 `aiConfigured` 派生字段
+- **测试连接**：`POST /api/user/settings/test-ai`（最小 chat 调用，分类错误：Key 无效/模型不存在/额度不足/网络）；保存后可一键验证 + 延迟展示
+- **服务指引**：settings 内嵌 MiMo/DeepSeek/通义千问 Key 获取说明（URL + 模型名 + Base URL）
+- **chat / 浮窗引导**：未配置时前置引导条（`AiConfigBanner`：AI 未启用 + 去配置）+ 输入禁用；后端 `needConfig` 响应 → `markUnconfigured` 联动显示引导条（普通发送 + 技能运行两路）；新建 `useAiConfigStatus` hook（默认 configured=true 防首帧闪烁）
+- **公开文案**：落地页/about 同步「产品免费，AI 功能需自备 API Key 计费」
+- 测试：`e2e/ai-config.spec.ts` 4 用例（未配置状态卡/测试连接成功/chat 引导条禁用/needConfig 联动，全部 route mock 稳定可复现），108 全绿
+
 ### 第 10 轮 — 对话→任务落地（事务边界）（2026-08-13）
 - **schema**：Task `proposalId/chatId` + `@@index([userId, proposalId])`；Chat `pendingProposal Json?`
 - **propose_tasks 工具**（writes:false 草稿不落库）：批量建议挂到对话 pendingProposal；`create_task` description 引导勿批量直写；chat 路由读 body.chatId → 提案时无对话则先建 → 返回 `chatId + proposal`
@@ -327,6 +336,6 @@ c87ba50 refactor: Apple HIG UI 全面优化
 
 ## 测试
 
-- Playwright 104 用例全绿（authenticated + unauthenticated 双项目，per-project testMatch）
-- 覆盖：全部模块页面 + 认证重定向 + PWA 资源 + 权限（admin/suggestions/profile 403/重定向）+ 导出下载 + 头像上传 + 排行榜点击进公开页 + 技能系统（9）+ 等待安抚气泡（2，路由拦截模拟慢 AI）+ 院校导航可见 + 搜索缓存命中（2，真实搜索验证 24h TTL）
+- Playwright 108 用例全绿（authenticated + unauthenticated 双项目，per-project testMatch）
+- 覆盖：全部模块页面 + 认证重定向 + PWA 资源 + 权限（admin/suggestions/profile 403/重定向）+ 导出下载 + 头像上传 + 排行榜点击进公开页 + 技能系统（9）+ 等待安抚气泡（2，路由拦截模拟慢 AI）+ 院校导航可见 + 搜索缓存命中（2，真实搜索验证 24h TTL）+ AI 配置引导（4，状态卡/测试连接/chat 引导条/needConfig 联动，route mock）
 - 注意：`e2e/.auth/user.json` 为测试账号存储态；E2E 运行在独立测试库 `neondb_test`（`playwright.config.ts` 自动建库 + schema push + 独立端口 3100），不再污染 dev 库

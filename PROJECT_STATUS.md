@@ -19,7 +19,7 @@
 | AI | MiMo v2.5-pro (OpenAI-compatible API) | — |
 | 图表 | Recharts + D3 子模块 (知识图谱) | ^3.9.2 / 7.x |
 | 状态 | zustand (persist) + @tanstack/react-query | ^5.0.14 / ^5.101.4 |
-| 测试 | Playwright 100 用例 · 独立测试库 `neondb_test` | ^1.61.1 |
+| 测试 | Playwright 102 用例 · 独立测试库 `neondb_test` | ^1.61.1 |
 | 部署 | Vercel (c6-orcin.vercel.app) | — |
 
 ## 模块清单 (19 个)
@@ -57,7 +57,7 @@
 ### 🤖 AI 组
 
 #### 💬 AI 对话 (`/chat`)
-- RAG 多轮对话，引用来源，加入错题本，Markdown 渲染；技能运行宿主（?skill= 启动 / 斜杠菜单 / 运行徽标 + 结束技能）
+- RAG 多轮对话，引用来源，加入错题本，Markdown 渲染；技能运行宿主（?skill= 启动 / 斜杠菜单 / 运行徽标 + 结束技能）；等待安抚气泡（分阶段文案 + 预估秒数 + 可取消）
 
 #### ⚡ 技能 (`/skills`) — 🆕 2026-08-13
 - **用户自定义工作流层**：页面覆盖通用需求，技能让用户自组"数据快照 + 提问 + AI 指令 + 档案 + 收尾"的完整流程
@@ -247,6 +247,13 @@ src/
 - **AI 主动提议**：`matchSkillSuggestion`（拉用户技能，triggerKeywords + 技能名命中，技能运行/启动语不提议）→ chat 路由响应注入 `suggestedSkill` → 回复下方建议芯片（`skill-suggestion.tsx`，一键运行 + 可关闭）
 - 测试：distill 400/404 + 建议芯片渲染/关闭，100 全绿
 
+### 第 13 轮 — AI 等待安抚状态机（2026-08-14）
+- **`src/hooks/use-ai-task.ts`**：前端时间驱动的等待状态机（非流式第一层）——**分阶段文案轮播**（0-2.5s 连接 / 2.5-8s 理解 / 8-16s 思考 / 16-30s 生成 / 30s+ 超时）+ **已等待时长/预估秒数**（越等越坦诚）+ **可取消**（AbortController，可逆性减半焦虑）
+- **`src/components/ai-waiting.tsx`**：`bubble`（对话气泡）/ `inline`（按钮旁行内）两版渲染，统一「知道在等什么 + 知道要等多久 + 知道能随时离开」
+- **对话面接入**：/chat 与浮窗的等待气泡从三色点换成 AiWaiting（分阶段 + 预估 + 取消）；`AbortError` 安静收场不追加错误消息；技能运行取消则放弃该次运行
+- **页面级生成按钮接入**：周计划（生成/评审）、学习路径、学习周报、错题变式题的静态「生成中...」换成阶段文案 + 已等待秒数 + 取消
+- 测试：`e2e/ai-waiting.spec.ts` 2 用例（拦截 `/api/ai/chat` / `generate-feedback` 延迟响应，断言阶段轮播 + 预估 + 取消），102 全绿
+
 ### 第 10 轮 — 对话→任务落地（事务边界）（2026-08-13）
 - **schema**：Task `proposalId/chatId` + `@@index([userId, proposalId])`；Chat `pendingProposal Json?`
 - **propose_tasks 工具**（writes:false 草稿不落库）：批量建议挂到对话 pendingProposal；`create_task` description 引导勿批量直写；chat 路由读 body.chatId → 提案时无对话则先建 → 返回 `chatId + proposal`
@@ -264,6 +271,7 @@ src/
 | P3 | SWR 缓存（显式降级 backlog：不引入第三种数据获取模式；统一方向为 React Query + `useApi` hook，见 UI_AUDIT §五-H） |
 | P3 | 学习圈：点赞/互关/动态等更深社交（当前仅排行榜） |
 | P3 | **AI 技能系统 V1 已完整落地**（架页 + 运行引擎 + 蒸馏 + 提议）。后续：可视化工坊（拖拽编排 steps）、定时触发、技能分享/社区 |
+| P3 | **AI 等待安抚状态机已落地**（useAiTask 分阶段 + 预估 + 可取消）。后续：流式思考（第二层，先用展开率数据决策是否值得投）；/chat 蒸馏加载也可换用等待气泡 |
 
 ## 部署记录
 
@@ -276,6 +284,7 @@ src/
 ## 最近提交 (最新→最旧)
 
 ```
+4d2e20f feat: 等待安抚状态机 — useAiTask 分阶段等待(文案轮播+预估秒数+可取消) + AiWaiting 组件
 d61c208 docs: 项目状态补 Round C — 蒸馏 + 提议 + 100 用例
 a0d8029 feat: AI 技能系统 Round C — 对话蒸馏 + AI 主动提议
 4f42485 docs: 更新项目状态日志至 2026-08-13 — AI 技能系统 Round A+B（架页+运行引擎）
@@ -307,6 +316,6 @@ c87ba50 refactor: Apple HIG UI 全面优化
 
 ## 测试
 
-- Playwright 100 用例全绿（authenticated + unauthenticated 双项目，per-project testMatch）
-- 覆盖：全部模块页面 + 认证重定向 + PWA 资源 + 权限（admin/suggestions/profile 403/重定向）+ 导出下载 + 头像上传 + 排行榜点击进公开页
+- Playwright 102 用例全绿（authenticated + unauthenticated 双项目，per-project testMatch）
+- 覆盖：全部模块页面 + 认证重定向 + PWA 资源 + 权限（admin/suggestions/profile 403/重定向）+ 导出下载 + 头像上传 + 排行榜点击进公开页 + 技能系统（9）+ 等待安抚气泡（2，路由拦截模拟慢 AI）
 - 注意：`e2e/.auth/user.json` 为测试账号存储态；E2E 运行在独立测试库 `neondb_test`（`playwright.config.ts` 自动建库 + schema push + 独立端口 3100），不再污染 dev 库

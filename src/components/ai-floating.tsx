@@ -3,8 +3,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { ChatMarkdown } from '@/components/chat-markdown'
+import { AiWaiting } from '@/components/ai-waiting'
 import type { Proposal } from '@/components/proposal-card'
 import { cn } from '@/lib/utils'
+import { useAiTask } from '@/hooks/use-ai-task'
 
 interface ActionCard {
   type: "task_created" | "task_completed" | "checkin_created" | "reminder_updated"
@@ -29,6 +31,7 @@ export function AiFloating() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const { phase: waitPhase, estimate: waitEstimate, start: waitStart, stop: waitStop, cancel: waitCancel } = useAiTask()
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -112,12 +115,14 @@ export function AiFloating() {
     setMessages(newMessages)
     setInput('')
     setLoading(true)
+    const controller = waitStart()
 
     try {
       const res = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: newMessages, chatId: savedChatIdRef.current, floating: true }),
+        signal: controller.signal,
       })
 
       if (!res.ok) throw new Error('AI 服务暂不可用')
@@ -153,13 +158,16 @@ export function AiFloating() {
       } catch { /* save silently */ }
 
       persistChat(finalMessages, savedChatIdRef.current)
-    } catch {
+    } catch (err: unknown) {
+      // 用户主动取消：安静收场，不追加错误消息
+      if ((err as { name?: string })?.name === 'AbortError') return
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: '抱歉，AI 服务暂时不可用，请稍后再试。',
       }])
     } finally {
+      waitStop()
       setLoading(false)
     }
   }
@@ -318,15 +326,7 @@ export function AiFloating() {
           ))}
 
           {loading && (
-            <div className="flex justify-start">
-              <div className="bg-muted border border-border/50 px-4 py-2.5 rounded-xl">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-2 h-2 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-2 h-2 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                </div>
-              </div>
-            </div>
+            <AiWaiting phase={waitPhase} estimate={waitEstimate} onCancel={waitCancel} />
           )}
 
           <div ref={messagesEndRef} />

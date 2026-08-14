@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Modal } from "@/components/ui/modal";
 import { ModuleLinks } from "@/components/ui/module-links";
 import { useGoal } from "@/hooks/use-goal";
+import { useAiTask } from "@/hooks/use-ai-task";
 import { WeeklyPlanner } from "./_components/weekly-planner";
 import { getWeekStart, toDateString } from "@/lib/date-utils";
 
@@ -65,6 +66,8 @@ export default function TasksPage() {
   const [weekTasks, setWeekTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const { phase: genPhase, estimate: genEstimate, start: genStart, stop: genStop, cancel: genCancel } = useAiTask();
+  const { phase: judgePhase, estimate: judgeEstimate, start: judgeStart, stop: judgeStop, cancel: judgeCancel } = useAiTask();
 
   // Progress editing
   const [editProgress, setEditProgress] = useState<Record<string, ProgressEntry>>({...savedProgress});
@@ -157,6 +160,7 @@ export default function TasksPage() {
 
   const handleGenerate = async () => {
     setGenerating(true);
+    const controller = genStart();
     try {
       const res = await fetch("/api/ai/generate-plan", {
         method: "POST",
@@ -165,9 +169,10 @@ export default function TasksPage() {
           weekStartDate: weekStart.toISOString(),
           progress: editProgress,
         }),
+        signal: controller.signal,
       });
       if (res.ok) await loadWeekTasks();
-    } catch { /* ignore */ } finally { setGenerating(false); }
+    } catch { /* ignore：含用户取消 */ } finally { genStop(); setGenerating(false); }
   };
 
   // ── ?generate=1 自动生成（周计划到期提醒跳转而来）──
@@ -185,6 +190,7 @@ export default function TasksPage() {
 
   const handleRegenerateDay = async (dateStr: string) => {
     setGenerating(true);
+    const controller = genStart();
     try {
       const res = await fetch("/api/ai/generate-plan", {
         method: "POST",
@@ -194,26 +200,30 @@ export default function TasksPage() {
           progress: editProgress,
           regenerateDay: dateStr,
         }),
+        signal: controller.signal,
       });
       if (res.ok) await loadWeekTasks();
-    } catch { /* ignore */ } finally { setGenerating(false); }
+    } catch { /* ignore：含用户取消 */ } finally { genStop(); setGenerating(false); }
   };
 
   const handleJudge = async () => {
     setJudging(true);
+    const controller = judgeStart();
     try {
       const res = await fetch("/api/ai/judge-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tasks: weekTasks, examDate, subjects }),
+        signal: controller.signal,
       });
       const data = await res.json();
       if (res.ok) setJudgeResult(data as JudgeResult);
-    } catch { /* ignore */ } finally { setJudging(false); }
+    } catch { /* ignore：含用户取消 */ } finally { judgeStop(); setJudging(false); }
   };
 
   const handleRegenerateWithFeedback = async (feedback: string) => {
     setGenerating(true);
+    const controller = genStart();
     try {
       await fetch("/api/ai/generate-plan", {
         method: "POST",
@@ -223,10 +233,11 @@ export default function TasksPage() {
           progress: editProgress,
           judgeFeedback: feedback,
         }),
+        signal: controller.signal,
       });
       await loadWeekTasks();
       setJudgeResult(null);
-    } catch { /* ignore */ } finally { setGenerating(false); }
+    } catch { /* ignore：含用户取消 */ } finally { genStop(); setGenerating(false); }
   };
 
   const handleToggleComplete = async (task: Task) => {
@@ -419,6 +430,8 @@ export default function TasksPage() {
             onJudge={handleJudge}
             onRegenerateWithFeedback={handleRegenerateWithFeedback}
             judgeResult={judgeResult} judging={judging}
+            generatingPhase={genPhase} generatingEstimate={genEstimate} onCancelGenerate={genCancel}
+            judgingPhase={judgePhase} judgingEstimate={judgeEstimate} onCancelJudge={judgeCancel}
           />
         </div>
 

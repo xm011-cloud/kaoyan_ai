@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
 import { ModuleLinks } from '@/components/ui/module-links'
+import { AiWaiting } from '@/components/ai-waiting'
+import { useAiTask } from '@/hooks/use-ai-task'
 
 interface Feedback {
   id: string
@@ -88,6 +90,7 @@ export default function FeedbackPage() {
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState('')
+  const { phase: waitPhase, estimate: waitEstimate, start: waitStart, stop: waitStop, cancel: waitCancel } = useAiTask()
 
   const loadFeedbacks = useCallback(async () => {
     try {
@@ -109,8 +112,9 @@ export default function FeedbackPage() {
   const handleGenerate = async () => {
     setGenerating(true)
     setGenError('')
+    const controller = waitStart()
     try {
-      const res = await fetch('/api/ai/generate-feedback', { method: 'POST' })
+      const res = await fetch('/api/ai/generate-feedback', { method: 'POST', signal: controller.signal })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || '生成失败')
 
@@ -120,8 +124,11 @@ export default function FeedbackPage() {
         setFeedbacks(prev => [data.feedback, ...prev])
       }
     } catch (err: unknown) {
+      // 用户主动取消：安静收场
+      if ((err as { name?: string })?.name === 'AbortError') return
       setGenError(err instanceof Error ? err.message : '生成失败')
     } finally {
+      waitStop()
       setGenerating(false)
     }
   }
@@ -146,9 +153,12 @@ export default function FeedbackPage() {
           title="学习周报"
           subtitle="AI 基于你的学习数据生成周报和建议"
           action={
-            <Button onClick={handleGenerate} disabled={generating}>
-              {generating ? 'AI 分析中...' : '生成本周反馈'}
-            </Button>
+            <div className="flex items-center gap-3">
+              {generating && <AiWaiting variant="inline" phase={waitPhase} estimate={waitEstimate} onCancel={waitCancel} />}
+              <Button onClick={handleGenerate} disabled={generating}>
+                {generating ? 'AI 分析中...' : '生成本周反馈'}
+              </Button>
+            </div>
           }
         />
 

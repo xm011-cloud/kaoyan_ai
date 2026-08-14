@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import { AiWaiting } from "@/components/ai-waiting";
+import { useAiTask } from "@/hooks/use-ai-task";
 
 interface Question {
   id: string;
@@ -42,21 +44,25 @@ interface DetailModalProps {
 export function DetailModal({ question, onClose, onDelete }: DetailModalProps) {
   const [similarQuestions, setSimilarQuestions] = useState<SimilarQuestion[]>([]);
   const [generatingSimilar, setGeneratingSimilar] = useState(false);
+  const { phase: waitPhase, estimate: waitEstimate, start: waitStart, stop: waitStop, cancel: waitCancel } = useAiTask();
 
   const handleGenerateSimilar = async () => {
     setGeneratingSimilar(true);
     setSimilarQuestions([]);
+    const controller = waitStart();
     try {
       const res = await fetch("/api/ai/generate-similar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ wrongQuestionId: question.id, count: 3 }),
+        signal: controller.signal,
       });
       const data = await res.json();
       setSimilarQuestions(data.questions || []);
     } catch {
-      // ignore
+      // 用户主动取消：安静收场
     } finally {
+      waitStop();
       setGeneratingSimilar(false);
     }
   };
@@ -114,14 +120,17 @@ export function DetailModal({ question, onClose, onDelete }: DetailModalProps) {
           <div className="border-t border-border/50 pt-4">
             <div className="flex items-center justify-between mb-3">
               <h4 className="font-medium">AI 出类似题</h4>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleGenerateSimilar}
-                disabled={generatingSimilar}
-              >
-                {generatingSimilar ? "生成中..." : similarQuestions.length > 0 ? "重新生成" : "生成练习题"}
-              </Button>
+              <div className="flex items-center gap-3">
+                {generatingSimilar && <AiWaiting variant="inline" phase={waitPhase} estimate={waitEstimate} onCancel={waitCancel} />}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleGenerateSimilar}
+                  disabled={generatingSimilar}
+                >
+                  {generatingSimilar ? "生成中..." : similarQuestions.length > 0 ? "重新生成" : "生成练习题"}
+                </Button>
+              </div>
             </div>
             {similarQuestions.length > 0 && (
               <div className="space-y-3">

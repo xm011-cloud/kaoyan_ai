@@ -5,7 +5,9 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { ModuleLinks } from "@/components/ui/module-links";
+import { AiWaiting } from "@/components/ai-waiting";
 import { cn } from "@/lib/utils";
+import { useAiTask } from "@/hooks/use-ai-task";
 
 interface Milestone {
   id: string;
@@ -56,6 +58,7 @@ export default function StudyPathPage() {
   const [message, setMessage] = useState("");
   const [expandedPhase, setExpandedPhase] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const { phase: waitPhase, estimate: waitEstimate, start: waitStart, stop: waitStop, cancel: waitCancel } = useAiTask();
 
   const loadPath = useCallback(async () => {
     setLoading(true);
@@ -80,8 +83,9 @@ export default function StudyPathPage() {
   const handleGenerate = async () => {
     setGenerating(true);
     setMessage("");
+    const controller = waitStart();
     try {
-      const res = await fetch("/api/study-path", { method: "POST" });
+      const res = await fetch("/api/study-path", { method: "POST", signal: controller.signal });
       const d = await res.json();
       if (res.ok) {
         setData(d);
@@ -90,9 +94,12 @@ export default function StudyPathPage() {
       } else {
         setMessage(`❌ ${d.error || "生成失败"}`);
       }
-    } catch {
+    } catch (err: unknown) {
+      // 用户主动取消：安静收场
+      if ((err as { name?: string })?.name === "AbortError") return;
       setMessage("生成失败");
     } finally {
+      waitStop();
       setGenerating(false);
     }
   };
@@ -174,9 +181,12 @@ export default function StudyPathPage() {
               <li>已配置 AI Key（可选，不配置则用本地模板）</li>
             </ul>
           </div>
-          <Button onClick={handleGenerate} disabled={generating} size="lg">
-            {generating ? "AI 生成中..." : "🤖 AI 生成学习路径"}
-          </Button>
+          <div className="flex flex-col items-center gap-2">
+            <Button onClick={handleGenerate} disabled={generating} size="lg">
+              {generating ? "AI 生成中..." : "🤖 AI 生成学习路径"}
+            </Button>
+            {generating && <AiWaiting variant="inline" phase={waitPhase} estimate={waitEstimate} onCancel={waitCancel} />}
+          </div>
           {message && <p className="text-sm">{message}</p>}
         </div>
       </div>
@@ -190,9 +200,12 @@ export default function StudyPathPage() {
           title="🗺️ 学习路径"
           subtitle={data.path.description}
           action={
-            <Button variant="outline" onClick={handleGenerate} disabled={generating}>
-              {generating ? "生成中..." : "🔄 重新生成"}
-            </Button>
+            <div className="flex items-center gap-3">
+              {generating && <AiWaiting variant="inline" phase={waitPhase} estimate={waitEstimate} onCancel={waitCancel} />}
+              <Button variant="outline" onClick={handleGenerate} disabled={generating}>
+                {generating ? "生成中..." : "🔄 重新生成"}
+              </Button>
+            </div>
           }
         />
 

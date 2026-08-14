@@ -11,6 +11,8 @@ import { SkillSuggestionChip } from '@/components/skill-suggestion'
 import type { SkillSuggestionData } from '@/components/skill-suggestion'
 import type { SkillStep } from '@/lib/skill-templates'
 import { useGoal } from '@/hooks/use-goal'
+import { useAiTask } from '@/hooks/use-ai-task'
+import { AiWaiting } from '@/components/ai-waiting'
 
 interface Source {
   id: string;
@@ -116,6 +118,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const { phase: waitPhase, estimate: waitEstimate, start: waitStart, stop: waitStop, cancel: waitCancel } = useAiTask()
   const [chatId, setChatId] = useState<string | null>(null)
   const [histories, setHistories] = useState<ChatHistory[]>([])
   const [showHistory, setShowHistory] = useState(false)
@@ -346,6 +349,7 @@ export default function ChatPage() {
     setMessages(newMessages)
     setInput('')
     setLoading(true)
+    const controller = waitStart()
 
     try {
       const body: Record<string, unknown> = { messages: newMessages, chatId }
@@ -357,6 +361,7 @@ export default function ChatPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        signal: controller.signal,
       })
 
       if (!res.ok) throw new Error('AI 服务暂不可用')
@@ -388,13 +393,16 @@ export default function ChatPage() {
       const finalMessages = [...newMessages, assistantMessage]
       setMessages(finalMessages)
       saveChat(finalMessages, resolvedChatId)
-    } catch {
+    } catch (err: unknown) {
+      // 用户主动取消：安静收场，不追加错误消息
+      if ((err as { name?: string })?.name === 'AbortError') return
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: '抱歉，AI 服务暂时不可用，请稍后再试。',
       }])
     } finally {
+      waitStop()
       setLoading(false)
     }
   }
@@ -418,12 +426,14 @@ export default function ChatPage() {
     setInput('')
     setLoading(true)
     setRunningSkill({ id: skill.id, name: skill.name, icon: skill.icon, completed: false })
+    const controller = waitStart()
 
     try {
       const res = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: newMessages, skillId: skill.id }),
+        signal: controller.signal,
       })
       if (!res.ok) throw new Error('AI 服务暂不可用')
       const data = await res.json()
@@ -452,7 +462,12 @@ export default function ChatPage() {
         router.replace(`${pathname}?chat=${data.chatId}`, { scroll: false })
         saveChat(finalMessages, data.chatId)
       }
-    } catch {
+    } catch (err: unknown) {
+      // 用户主动取消：放弃这次技能运行，不追加错误消息
+      if ((err as { name?: string })?.name === 'AbortError') {
+        setRunningSkill(null)
+        return
+      }
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
@@ -460,9 +475,10 @@ export default function ChatPage() {
       }])
       setRunningSkill((prev) => (prev ? { ...prev, completed: true } : prev))
     } finally {
+      waitStop()
       setLoading(false)
     }
-  }, [loading, pathname, router, saveChat])
+  }, [loading, pathname, router, saveChat, waitStart, waitStop])
 
   // ?skill=<id> 启动：等用户技能列表就绪后自动跑一次
   useEffect(() => {
@@ -733,15 +749,7 @@ export default function ChatPage() {
         })}
 
         {loading && (
-          <div className="flex justify-start">
-            <div className="bg-card border border-border/50 px-4 py-3 rounded-xl">
-              <div className="flex items-center gap-1">
-                <span className="w-2 h-2 bg-foreground/30 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-2 h-2 bg-foreground/30 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-2 h-2 bg-foreground/30 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-              </div>
-            </div>
-          </div>
+          <AiWaiting phase={waitPhase} estimate={waitEstimate} onCancel={waitCancel} />
         )}
 
         <div ref={messagesEndRef} />

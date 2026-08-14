@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { AiWaiting } from "@/components/ai-waiting";
+import type { AiWaitPhase } from "@/hooks/use-ai-task";
 
 interface WeekTask {
   id: string;
@@ -43,6 +45,12 @@ interface WeeklyPlannerProps {
   onRegenerateWithFeedback: (feedback: string) => void;
   judgeResult: JudgeResult | null;
   judging: boolean;
+  generatingPhase: AiWaitPhase;
+  generatingEstimate: string;
+  onCancelGenerate: () => void;
+  judgingPhase: AiWaitPhase;
+  judgingEstimate: string;
+  onCancelJudge: () => void;
 }
 
 const DAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
@@ -56,6 +64,8 @@ export function WeeklyPlanner({
   onWeekChange, onGenerate, onRegenerateDay, onToggleComplete,
   onEditTask, onDeleteTask, onAddTask, onJudge, onRegenerateWithFeedback,
   judgeResult, judging,
+  generatingPhase, generatingEstimate, onCancelGenerate,
+  judgingPhase, judgingEstimate, onCancelJudge,
 }: WeeklyPlannerProps) {
   const [showJudge, setShowJudge] = useState(false);
 
@@ -95,15 +105,17 @@ export function WeeklyPlanner({
       </div>
 
       {/* Action buttons */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 items-center">
         <Button onClick={onGenerate} disabled={generating}>
           {generating ? "生成中..." : hasGenerated ? "🤖 重新生成周计划" : "🤖 生成周计划"}
         </Button>
+        {generating && <AiWaiting variant="inline" phase={generatingPhase} estimate={generatingEstimate} onCancel={onCancelGenerate} />}
         {hasGenerated && (
           <>
             <Button variant="outline" onClick={() => { setShowJudge(!showJudge); if (!judgeResult && !showJudge) onJudge(); }} disabled={judging}>
               {judging ? "评审中..." : "🔍 评审周计划"}
             </Button>
+            {judging && <AiWaiting variant="inline" phase={judgingPhase} estimate={judgingEstimate} onCancel={onCancelJudge} />}
           </>
         )}
       </div>

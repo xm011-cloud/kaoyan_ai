@@ -2,7 +2,7 @@
 
 > 面向考研学生的 AI 全栈备考平台 —— 目标规划、周计划、每日打卡、错题复习、真题练习、院校情报、AI 对话与自定义技能，一站式备考。
 
-**在线体验：https://c6-orcin.vercel.app** · [Apache-2.0](./LICENSE) · 单作者业余开发，完全免费
+**在线体验：https://c6-orcin.vercel.app**（部署于海外，国内访问可能不稳定）· [Apache-2.0](./LICENSE) · 单作者业余开发，完全免费
 
 ---
 
@@ -55,7 +55,7 @@ AI 自备 Key 模式（MiMo/DeepSeek/通义等 OpenAI 兼容）、驾驶模式�
 | 搜索 | Tavily API（院校情报联网搜索） |
 | 图表 | Recharts · D3 子模块 (tree-shaking) |
 | 状态 | zustand (persist) · @tanstack/react-query |
-| 测试 | Playwright 114 E2E 用例（独立测试库） |
+| 测试 | Playwright 117 E2E 用例（独立测试库） |
 
 ---
 
@@ -73,7 +73,7 @@ AI 自备 Key 模式（MiMo/DeepSeek/通义等 OpenAI 兼容）、驾驶模式�
 
 ## 🧪 质量
 
-- **Playwright 114 个 E2E 用例全绿**（独立测试库 `neondb_test`，不污染开发数据）
+- **Playwright 117 个 E2E 用例全绿**（独立测试库 `neondb_test`，不污染开发数据）
 - 覆盖全部 19 模块页面、认证重定向、权限、社区反馈、技能系统、AI 配置引导等
 
 ---
@@ -83,6 +83,7 @@ AI 自备 Key 模式（MiMo/DeepSeek/通义等 OpenAI 兼容）、驾驶模式�
 ### 在线体验
 
 无需安装，浏览器直接访问 **https://c6-orcin.vercel.app**（注册即用；AI 功能需自配 API Key）。
+> ⚠️ 线上服务部署于海外（Vercel），**国内访问可能不稳定**；开发者可本地 `npm run dev` 体验，国内部署方案见 [docs/edgeone-deploy.md](./docs/edgeone-deploy.md)。
 
 ### 本地开发
 
@@ -93,7 +94,7 @@ npx prisma db push # 初始化数据库
 npm run dev        # http://localhost:3000
 ```
 
-详细部署（Vercel / EdgeOne）见下方开发者文档。
+详细部署（Vercel）见下方开发者文档；国内部署（暂缓中，方案见 [docs/edgeone-deploy.md](./docs/edgeone-deploy.md)）。
 
 ---
 
@@ -118,7 +119,6 @@ npm run dev        # http://localhost:3000
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase 项目 URL | [Supabase](https://supabase.com) |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 匿名 Key | 同上 |
 | `SUPABASE_SERVICE_ROLE_KEY` | 服务 Key | 同上 |
-| `REGISTER_INVITE_CODE` | 注册邀请码（未配置则关闭注册） | 自定 |
 | `ADMIN_EMAIL` | 作者后台邮箱（fail closed） | 自定 |
 | `TAVILY_API_KEY` | 院校联网搜索（免费 1000 次/月） | [Tavily](https://app.tavily.com) |
 
@@ -131,7 +131,7 @@ npm run dev        # http://localhost:3000
 npx vercel --prod
 ```
 
-**EdgeOne Pages（国内）：** 详见 [docs/edgeone-deploy.md](./docs/edgeone-deploy.md)
+**EdgeOne Pages（国内）：** 已尝试部署但 Cloud SSR 函数包超 128MiB 限制，**暂缓**。备选方案（轻量服务器 Docker 等）见 [docs/edgeone-deploy.md](./docs/edgeone-deploy.md)。
 
 ### 数据库
 

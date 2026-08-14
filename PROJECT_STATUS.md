@@ -311,7 +311,7 @@ src/
 - **README 展示版**：在线体验 + 19 模块亮点 + 技术栈 + 架构 + 114 用例 + 合规链接 + 开源说明（开发文档折叠保留）；**LICENSE**（Apache-2.0）
 - 测试：`e2e/compliance.spec.ts` 3 用例（隐私/协议页渲染 + 设置页注销入口），117 全绿
 
-### 第 21 轮 — 开放注册（2026-08-14，待部署）
+### 第 21 轮 — 开放注册（2026-08-14，已部署）
 - **移除邀请码门槛**：register API 删除邀请码校验（保留蜜罐 + 限流 5/min/IP + 邮箱/密码格式校验）；登录页移除邀请码输入框；`REGISTER_INVITE_CODE` env 不再使用
 - **文案同步**：README/PROJECT_STATUS 概述"封闭邀请制" → "开放注册"；changelog 新增「开放注册」条目（dashboard 告示会提示）
 - **安全评估**：开放注册垃圾成本低（数据量小 + AI 成本用户自理 BYOK），蜜罐 + 限流已挡机器人灌号
@@ -339,6 +339,7 @@ src/
 
 | 日期 | 范围 | 内容 |
 |------|------|------|
+| 2026-08-14 | `95c81ee..cdb5e92` → 生产 | **开放注册**（移除邀请码门槛，保留蜜罐+限流；文案同步 + changelog 新条目），117 用例全绿；`c6-orcin.vercel.app` |
 | 2026-08-14 | `0a06573..d672307` → 生产 | **合规与作品面**（隐私政策/用户协议页 + 注册勾选 + 请求注销 + admin 注销 Tab + README 展示版 + Apache-2.0 LICENSE，schema：DeletionRequest），117 用例全绿；`c6-orcin.vercel.app` |
 | 2026-08-14 | `7770317..cafa83c` → 生产 | **真题链路打通**（真题练习模式直接抽题 + 错题本真题 Tab 导入/管理 + `/api/questions`），114 用例全绿；`c6-orcin.vercel.app` |
 | 2026-08-14 | `cf3108d..21702c9` → 生产 | **院校数据获取三路线**（Tavily API 接入 `TAVILY_API_KEY` + 核心词相关性排序 + AI `search_web` 工具 + 种子数据初稿 `docs/seed-data-draft.json`），113 用例全绿；`c6-orcin.vercel.app` |

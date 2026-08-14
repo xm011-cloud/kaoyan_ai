@@ -48,3 +48,6 @@ e2e/.auth/
 
 # 本地截图
 screenshots/
+
+# 开发用 Claude 本地命令（不入库）
+/.claude/

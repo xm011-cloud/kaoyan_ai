@@ -296,6 +296,13 @@ src/
 - **AI 联网调研工具**：`ai-tools` 新增 `search_web` 工具（对话里用户问院校分数线/科目等 → AI 自行联网搜索带来源回答，对应开源社区 kaoyan-navigator 形态）
 - **数据积累策略**：放弃人工种子数据（核对成本高），**库数据由每次搜索自动落库积累** —— Tavily 搜索 → AI 提取 → 落库全局共享，越搜越全（对应第 17 轮机制）
 
+### 第 19 轮 — 真题链路打通（2026-08-14，待部署）
+- **断头路修复**：`ImportedQuestion` 从"只有写入 + 导出"变为完整消费链路（导入 → 管理 → 练习）
+- **真题练习模式**：`practice-generator` 新增 `exam_questions` 模式（**直接从真题库抽题，无需 AI**，Fisher-Yates 洗牌）；practice route 支持 + 空真题友好提示 404；练习页新增「📚 真题练习」模式（session-creator + ui-store PracticeMode 扩展）
+- **真题管理**：错题本新增「📚 真题」Tab（`ExamQuestionsTab`：联网导入入口（科目/年份/关键词）+ 科目计数筛选 + 列表/来源/删除/去练习）；新 API `GET/DELETE /api/questions`
+- **修复**：真题 Tab 按钮被错误包进 filters 条件（exam 模式下无法切回其他 Tab）—— Tab 按钮区独立始终显示
+- 测试：`e2e/exam-questions.spec.ts` 1 用例（直插真题 → Tab 展示 + 练习 API 抽题 + 空科目 404），114 全绿
+
 ### 第 10 轮 — 对话→任务落地（事务边界）（2026-08-13）
 - **schema**：Task `proposalId/chatId` + `@@index([userId, proposalId])`；Chat `pendingProposal Json?`
 - **propose_tasks 工具**（writes:false 草稿不落库）：批量建议挂到对话 pendingProposal；`create_task` description 引导勿批量直写；chat 路由读 body.chatId → 提案时无对话则先建 → 返回 `chatId + proposal`

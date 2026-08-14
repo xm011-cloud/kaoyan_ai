@@ -317,6 +317,13 @@ src/
 - **安全评估**：开放注册垃圾成本低（数据量小 + AI 成本用户自理 BYOK），蜜罐 + 限流已挡机器人灌号
 - 测试：全量 117 用例（login 相关用例兼容无邀请码表单）
 
+### 第 22 轮 — 新用户引导（2026-08-14，待部署）
+- **首次引导弹窗 `OnboardingModal`**：新用户首次进 dashboard 弹出 —— 4 分组 19 功能导览 + **AI 使用说明（重点）**（自带 Key、设置路径、不配置不影响非 AI 功能）；「去配置 AI / 先逛逛」两按钮，关闭后不再弹（ui-store `onboardingSeen`，v5→v6）
+- **常驻引导卡 `OnboardingCard`**：dashboard 顶部 3 步清单 —— ① 配置 AI Key（状态同步 aiConfigured）② 设置考研目标（hasGoal 勾选）③ 探索功能（打卡/错题/院校/技能直达链接）；全部完成自动收起，可手动关闭
+- **新用户判定**：server 端 `!goal && 无任务 && 无打卡`；老用户（有学习数据）完全不显示
+- **目标后置**（按用户要求）：功能导览 + AI 使用优先，设目标放在引导卡第 2 步
+- 测试：`e2e/onboarding.spec.ts` 1 用例（开放注册真实新账号 → 登录 → 弹窗出现 → 关闭 → 引导卡 3 步可见），118 全绿
+
 ### 第 10 轮 — 对话→任务落地（事务边界）（2026-08-13）
 - **schema**：Task `proposalId/chatId` + `@@index([userId, proposalId])`；Chat `pendingProposal Json?`
 - **propose_tasks 工具**（writes:false 草稿不落库）：批量建议挂到对话 pendingProposal；`create_task` description 引导勿批量直写；chat 路由读 body.chatId → 提案时无对话则先建 → 返回 `chatId + proposal`

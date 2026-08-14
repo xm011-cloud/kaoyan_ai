@@ -283,7 +283,7 @@ src/
 - **更新告示**：dashboard 顶部 `ChangelogBanner`（client 组件嵌入 server 页），ui-store v4→v5 加 `lastSeenChangelog`，只在有新版本时出现、可关闭、已读持久化
 - 测试：`e2e/changelog.spec.ts` 5 用例（页渲染/导航入口/告示显示与关闭/已读持久化/产品教练模板补播），113 全绿
 
-### 第 17 轮 — 院校情报社区知识库 + 信任机制（2026-08-14，待部署）
+### 第 17 轮 — 院校情报社区知识库 + 信任机制（2026-08-14，已部署）
 - **知识库型重构**：搜索路由改为**库优先**（`AdmissionInfo` userId=null 全局行，无需 AI Key 秒回）→ 未命中才百度搜索 + AI 提取 → 成功**自动落库全局共享**（标注来源 + unverified）→ 空结果不落库；未配 AI 时查库可用、未命中给配置引导；**移除 AdmissionSearchCache 缓存逻辑**（落库替代缓存）
 - **多来源并存**：去 `@@unique([university,major,year,category])`，同校同专业同年允许多条（各自来源），前端按信任度排序展示 + 状态徽标（✅已验证 / ⚪未验证 / ⚠️待核实 / ✗存疑）
 - **社区信任机制**：`AdmissionFeedback` 表（👍 vouch / ⚠️ dispute，一人一条可改投，质疑必填原因）；质疑 → 数据标 `disputed` → **admin 新增「院校质疑」Tab**（确认错误→`rejected` / 驳回→回 unverified）
@@ -312,6 +312,7 @@ src/
 
 | 日期 | 范围 | 内容 |
 |------|------|------|
+| 2026-08-14 | `e756fb0..a51c6a8` → 生产 | **院校情报社区知识库**（搜索落库全局共享 + 多来源并存 + 认同/质疑信任机制 + admin 审核，schema：AdmissionInfo 去唯一键 + AdmissionFeedback 表），113 用例全绿；`c6-orcin.vercel.app` |
 | 2026-08-14 | `b689d66..71ac7c5` → 生产 | **AI 产品教练 + 更新日志**（PRODUCT_GUIDE 注入对话 + 产品教练技能模板 + `/changelog` 页 + dashboard 更新告示），113 用例全绿；`c6-orcin.vercel.app` |
 | 2026-08-14 | `df6114a..b689d66` → 生产 | **AI 用户自带 Key 模式**（移除生产 `OPENAI_API_KEY`，AI 由用户自配；配置状态卡 + 测试连接 + chat/浮窗未配置引导），108 用例全绿；`c6-orcin.vercel.app` |
 | 2026-08-14 | `df55d06..007adc4` → 生产 | **院校情报启用 + 加固**（24h 全局搜索缓存 + 生产限流 + 数据反馈入口），104 用例全绿；`c6-orcin.vercel.app` |

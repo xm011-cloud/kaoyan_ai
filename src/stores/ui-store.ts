@@ -44,6 +44,9 @@ export interface UIState {
   // AI 显示偏好
   showAiThinking: boolean // 是否展示 AI 思考过程折叠层（默认开）
 
+  // 更新告示
+  lastSeenChangelog: string | null // 已读的最新更新条目 id（null = 未读）
+
   // Actions
   setNavGroups: (groups: NavGroup[]) => void
   toggleGroup: (groupId: string) => void
@@ -52,6 +55,7 @@ export interface UIState {
   setWorkspaceCards: (cards: string[]) => void
   setPracticeDefaults: (defaults: Partial<PracticeDefaults>) => void
   setShowAiThinking: (show: boolean) => void
+  setLastSeenChangelog: (id: string | null) => void
   resetNavToDefaults: () => void
   resetWorkspaceToDefaults: () => void
   resetPracticeToDefaults: () => void
@@ -115,6 +119,7 @@ export const DEFAULT_NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/settings', visible: true },
       { href: '/profile', visible: true },
+      { href: '/changelog', visible: true },
     ],
   },
 ]
@@ -151,6 +156,7 @@ export const useUIStore = create<UIState>()(
       workspaceCards: DEFAULT_WORKSPACE_CARDS,
       practiceDefaults: DEFAULT_PRACTICE_DEFAULTS,
       showAiThinking: DEFAULT_SHOW_AI_THINKING,
+      lastSeenChangelog: null,
 
       setNavGroups: (groups) => set({ navGroups: groups }),
 
@@ -186,13 +192,15 @@ export const useUIStore = create<UIState>()(
 
       setShowAiThinking: (show) => set({ showAiThinking: show }),
 
+      setLastSeenChangelog: (id) => set({ lastSeenChangelog: id }),
+
       resetNavToDefaults: () => set({ navGroups: DEFAULT_NAV_GROUPS }),
       resetWorkspaceToDefaults: () => set({ workspaceCards: DEFAULT_WORKSPACE_CARDS }),
       resetPracticeToDefaults: () => set({ practiceDefaults: DEFAULT_PRACTICE_DEFAULTS }),
     }),
     {
       name: 'ui-store',
-      version: 4,
+      version: 5,
       // 保留老存储里已有的偏好，只补新字段，避免升级清空用户的自定义
       migrate: (persistedState) => {
         const p = (persistedState ?? {}) as Partial<UIState>
@@ -220,6 +228,7 @@ export const useUIStore = create<UIState>()(
           workspaceCards: p.workspaceCards || DEFAULT_WORKSPACE_CARDS,
           practiceDefaults: p.practiceDefaults || DEFAULT_PRACTICE_DEFAULTS,
           showAiThinking: p.showAiThinking ?? DEFAULT_SHOW_AI_THINKING,
+          lastSeenChangelog: p.lastSeenChangelog ?? null,
         }
       },
     }

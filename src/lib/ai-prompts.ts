@@ -5,6 +5,8 @@
  * 后续驾驶模式三档的策略注入也在此扩展（见 buildChatSystemPrompt 的 drivingMode 参数）。
  */
 
+import { PRODUCT_GUIDE } from "@/lib/product-guide";
+
 // ── 心路成长表达规范（红绿线）──
 // 先承认感受 → 正常化 → 不可能失败的小步骤 → 基于具体事实的肯定
 export const EXPRESSION_GUARDRAILS = `## 表达规范（心路成长）
@@ -50,6 +52,9 @@ export function buildChatSystemPrompt({
   parts.push(`${SYSTEM_CORE}${selectedLabel}`);
   parts.push(EXPRESSION_GUARDRAILS);
   parts.push(SLACK_LIMITS);
+
+  // 产品使用指引（第 16 轮）：用户问"XX 怎么用"时 AI 基于真实功能信息回答
+  parts.push(PRODUCT_GUIDE);
 
   if (drivingMode) {
     parts.push(drivingModePrompt(drivingMode));

@@ -11,11 +11,20 @@ import { startOfDay, endOfDay, getWeekStart, getWeekEnd, toDateString, daysAgo }
 
 // ── 模板播种（首次访问 /skills 或首次对话时惰性播种为用户自己的行）──
 
+/**
+ * 确保内置模板已播种。按模板名补缺：已有任一模板技能的用户（老用户）在新增模板后
+ * 也会自动获得新模板（如「产品教练」）；与现有「删光技能会复活」的模板语义一致。
+ */
 export async function ensureTemplatesSeeded(userId: string): Promise<void> {
-  const count = await prisma.skill.count({ where: { userId } });
-  if (count > 0) return;
+  const existing = await prisma.skill.findMany({
+    where: { userId, source: "template" },
+    select: { name: true },
+  });
+  const have = new Set(existing.map((s) => s.name));
+  const missing = SKILL_TEMPLATES.filter((t) => !have.has(t.name));
+  if (missing.length === 0) return;
   await prisma.skill.createMany({
-    data: SKILL_TEMPLATES.map((t) => ({
+    data: missing.map((t) => ({
       userId,
       name: t.name,
       description: t.description,

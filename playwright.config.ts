@@ -85,6 +85,7 @@ export default defineConfig({
         "skills.spec.ts",
         "ai-waiting.spec.ts",
         "ai-config.spec.ts",
+        "changelog.spec.ts",
       ],
     },
     // Unauthenticated tests (no storage state)

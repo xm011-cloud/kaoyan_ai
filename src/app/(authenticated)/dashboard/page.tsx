@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { WorkbenchGrid } from "@/components/workbench/workbench-grid"
+import { ChangelogBanner } from "@/components/changelog-banner"
 import { startOfDay, endOfDay, toDateString, getWeekStart, getWeekEnd, daysAgo } from "@/lib/date-utils"
 import { getDueCount } from "@/lib/sm2"
 
@@ -214,6 +215,9 @@ export default async function DashboardPage() {
 
   return (
     <div className="p-4 lg:p-6 max-w-6xl mx-auto space-y-6">
+      {/* ── 更新告示（有新版本时出现，可关闭）── */}
+      <ChangelogBanner />
+
       {/* ── 今日状态 Banner ── */}
       <div className="rounded-2xl bg-card border border-border/50 shadow-sm overflow-hidden">
         <div className="bg-gradient-to-r from-brand/8 to-brand/3 px-5 py-4 lg:px-6 lg:py-5">

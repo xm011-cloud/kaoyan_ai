@@ -38,6 +38,7 @@ export const navItems: NavItem[] = [
   { href: '/admission',  label: '院校',     icon: '🏫', shortLabel: '院校' },
   { href: '/settings',   label: '偏好',     icon: '⚙️',  shortLabel: '设置' },
   { href: '/profile',    label: '个人资料', icon: '👤', shortLabel: '资料' },
+  { href: '/changelog',  label: '更新日志', icon: '📣', shortLabel: '更新' },
 ]
 
 // ── 分组导航（Header tabs + MobileNav + Sidebar 共用）──
@@ -92,6 +93,7 @@ export const defaultNavGroups: NavGroup[] = [
     items: [
       { href: '/settings', label: '偏好', icon: '⚙️', shortLabel: '设置' },
       { href: '/profile', label: '个人资料', icon: '👤', shortLabel: '资料' },
+      { href: '/changelog', label: '更新日志', icon: '📣', shortLabel: '更新' },
     ],
   },
 ]

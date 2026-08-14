@@ -82,10 +82,11 @@
 #### 🧠 知识图谱 (`/knowledge-graph`)
 - D3 力导向图（5 模块 tree-shaking ~3.8MB），知识点 + 关联边，AI 构建
 
-#### 🏫 院校情报 (`/admission`) — 🆕 启用 2026-08-14
-- 搜索 / 对比 / 收藏 / 导入 4 Tab；百度搜索（免费无 Key）→ AI 提取，AI 知识库兜底（红字标注可能过时）
-- **24h 全局缓存**（`AdmissionSearchCache`，相同查询共享，命中免爬取 + 免 AI）+ 生产限流 5/min/IP
-- 结果页缓存时间戳展示 +「数据有误？反馈」直通建议页（`?content=` 预填上下文）
+#### 🏫 院校情报 (`/admission`) — 🆕 社区知识库 2026-08-14
+- 搜索 / 对比 / 收藏 / 导入 4 Tab；**社区知识库型**：搜索先查库（无需 AI Key）→ 未命中才百度搜索 + AI 提取 → 成功自动落库全局共享（userId=null，标注来源 + unverified）
+- **多来源并存**（同校同专业同年允许多条，信任度排序展示）+ 状态徽标（✅已验证 / ⚪未验证 / ⚠️待核实 / ✗存疑）
+- **社区反馈**：👍 认同 / ⚠️ 质疑（一人一条可改投，质疑需原因）→ 质疑进作者后台审核（确认错误→存疑 / 驳回）
+- 空结果不落库；未配 AI 时查库可用、未命中给配置引导；生产限流 5/min/IP
 
 ### ⚙️ 设置组
 
@@ -185,6 +186,8 @@ src/
 | **Skill** | 🆕 用户技能：`userId/name/description/icon/triggerKeywords/steps Json/note Json/usageCount/source/lastRunAt` + `@@unique([userId,name])` | 2026-08-13 |
 | **Chat** | 🆕 `skillId String?` + `@@index([skillId])`（技能运行 = 带 skillId 的对话） | 2026-08-13 |
 | **AdmissionSearchCache** | 🆕 院校搜索全局缓存：`queryKey @unique` + `payload Json` + `updatedAt`（24h TTL，相同查询所有人共享） | 2026-08-14 |
+| **AdmissionInfo** | 🔄 去 `@@unique([university,major,year,category])`（**允许多来源并存**）；`verified Boolean` → `verifyStatus String`（unverified/verified/disputed/rejected） | 2026-08-14 |
+| **AdmissionFeedback** | 🆕 社区反馈（认同 👍/质疑 ⚠️）：`admissionInfoId + userId @@unique`（一人一条可改投）+ `reason`（质疑必填）+ `status`（pending/accepted/rejected） | 2026-08-14 |
 
 ## 近期迭代记录 (2026-08)
 
@@ -279,6 +282,13 @@ src/
 - **更新日志**：`/changelog` 页（静态数据源 `src/lib/changelog.ts`，用户向文案 7 条）；导航设置组新增「📣 更新日志」
 - **更新告示**：dashboard 顶部 `ChangelogBanner`（client 组件嵌入 server 页），ui-store v4→v5 加 `lastSeenChangelog`，只在有新版本时出现、可关闭、已读持久化
 - 测试：`e2e/changelog.spec.ts` 5 用例（页渲染/导航入口/告示显示与关闭/已读持久化/产品教练模板补播），113 全绿
+
+### 第 17 轮 — 院校情报社区知识库 + 信任机制（2026-08-14，待部署）
+- **知识库型重构**：搜索路由改为**库优先**（`AdmissionInfo` userId=null 全局行，无需 AI Key 秒回）→ 未命中才百度搜索 + AI 提取 → 成功**自动落库全局共享**（标注来源 + unverified）→ 空结果不落库；未配 AI 时查库可用、未命中给配置引导；**移除 AdmissionSearchCache 缓存逻辑**（落库替代缓存）
+- **多来源并存**：去 `@@unique([university,major,year,category])`，同校同专业同年允许多条（各自来源），前端按信任度排序展示 + 状态徽标（✅已验证 / ⚪未验证 / ⚠️待核实 / ✗存疑）
+- **社区信任机制**：`AdmissionFeedback` 表（👍 vouch / ⚠️ dispute，一人一条可改投，质疑必填原因）；质疑 → 数据标 `disputed` → **admin 新增「院校质疑」Tab**（确认错误→`rejected` / 驳回→回 unverified）
+- **前端**：结果区改造（库命中横幅 + 重新搜索最新 + 新入库提示 + needAI 引导 + 反馈按钮计数）；「数据有误？反馈」直通建议页保留
+- 测试：admission 缓存用例 → **共享库 + 反馈用例**（直插测试库全局数据验证查库/认同/质疑全链路，E2E 网络受限不依赖真实爬取），113 全绿
 
 ### 第 10 轮 — 对话→任务落地（事务边界）（2026-08-13）
 - **schema**：Task `proposalId/chatId` + `@@index([userId, proposalId])`；Chat `pendingProposal Json?`

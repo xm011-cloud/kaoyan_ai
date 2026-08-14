@@ -1,7 +1,7 @@
 # 部署到腾讯云 EdgeOne Pages（国内访问入口）
 
-> 更新：2026-08-14 — 增加 TAVILY_API_KEY、开放注册说明、双部署策略。
-> 目的：Vercel 的 `*.vercel.app` 域名国内访问不稳定，EdgeOne Pages 作为**国内用户访问入口**（双线部署）。
+> 更新：2026-08-14 — ⚠️ **已尝试，Cloud SSR 函数包超 128MiB 限制（143MiB），暂缓**。备选见文末。
+> 目的：Vercel 的 `*.vercel.app` 域名国内访问不稳定，EdgeOne Pages 曾作为国内用户访问入口候选。
 
 ## 架构（双部署）
 
@@ -65,3 +65,20 @@
 5. **每次推送自动部署**：push 到 dev 分支后自动触发重新部署（与 Vercel 双线各自独立部署）。
 
 6. **一致性**：两个平台共享同一数据库与认证，用户数据互通；只是访问入口不同。
+
+## ⚠️ 已知问题（2026-08-14 实测）
+
+- **Cloud SSR Node functions package size 超 128MiB 限制（143MiB）**：全栈 Next.js（App Router + API 路由）+ Prisma driver adapter + mermaid 等重型依赖，函数包过大。
+- 已尝试：移除未使用依赖（lucide-react -29MB）、`externalNodeModules` 扩充（mermaid/recharts/@base-ui）—— **仍未解决**（EdgeOne Pages 对 Next.js 全栈的打包机制限制）。
+- **结论：EdgeOne Pages 不适合当前全栈架构，暂缓。**
+
+## 备选方案（国内访问入口）
+
+### A. 腾讯云轻量应用服务器 + Docker（推荐）
+- 2C2G ~¥60/月，**无函数包限制**（容器化部署 Next.js standalone）
+- 步骤：买服务器 → 装 Docker → 拉代码 → 配 env（同 Vercel）→ `docker build` + 起容器 → nginx 反代
+- 绑域名需 ICP 备案（1-2 周）；**IP 直访（http://公网IP）无需备案，可先用**
+- 数据/认证复用现有 Neon + Supabase，用户数据自动互通
+
+### B. 腾讯云 CloudBase 云托管 / 阿里云 SAE
+- 函数包限制更宽，但需验证 Next.js 16 支持度，配置复杂

@@ -19,7 +19,7 @@
 | AI | MiMo v2.5-pro (OpenAI-compatible API) | — |
 | 图表 | Recharts + D3 子模块 (知识图谱) | ^3.9.2 / 7.x |
 | 状态 | zustand (persist) + @tanstack/react-query | ^5.0.14 / ^5.101.4 |
-| 测试 | Playwright 108 用例 · 独立测试库 `neondb_test` | ^1.61.1 |
+| 测试 | Playwright 113 用例 · 独立测试库 `neondb_test` | ^1.61.1 |
 | 部署 | Vercel (c6-orcin.vercel.app) | — |
 
 ## 模块清单 (19 个)
@@ -273,6 +273,13 @@ src/
 - **公开文案**：落地页/about 同步「产品免费，AI 功能需自备 API Key 计费」
 - 测试：`e2e/ai-config.spec.ts` 4 用例（未配置状态卡/测试连接成功/chat 引导条禁用/needConfig 联动，全部 route mock 稳定可复现），108 全绿
 
+### 第 16 轮 — AI 产品教练 + 更新日志（2026-08-14，待部署）
+- **AI 产品教练**：新增 `src/lib/product-guide.ts`（19 模块真实功能知识：用途/入口/使用要点）注入 `buildChatSystemPrompt`，配置好 AI 的用户在任何对话问"XX 怎么用"都能得到准确回答；技能系统新增第 4 个内置模板「产品教练 🧭」（问功能 → AI 按指引讲解 → 记入档案）
+- **模板补播**：`ensureTemplatesSeeded` 从"count>0 不播"改为**按模板名补缺**，老用户自动获得新增模板
+- **更新日志**：`/changelog` 页（静态数据源 `src/lib/changelog.ts`，用户向文案 7 条）；导航设置组新增「📣 更新日志」
+- **更新告示**：dashboard 顶部 `ChangelogBanner`（client 组件嵌入 server 页），ui-store v4→v5 加 `lastSeenChangelog`，只在有新版本时出现、可关闭、已读持久化
+- 测试：`e2e/changelog.spec.ts` 5 用例（页渲染/导航入口/告示显示与关闭/已读持久化/产品教练模板补播），113 全绿
+
 ### 第 10 轮 — 对话→任务落地（事务边界）（2026-08-13）
 - **schema**：Task `proposalId/chatId` + `@@index([userId, proposalId])`；Chat `pendingProposal Json?`
 - **propose_tasks 工具**（writes:false 草稿不落库）：批量建议挂到对话 pendingProposal；`create_task` description 引导勿批量直写；chat 路由读 body.chatId → 提案时无对话则先建 → 返回 `chatId + proposal`
@@ -336,6 +343,6 @@ c87ba50 refactor: Apple HIG UI 全面优化
 
 ## 测试
 
-- Playwright 108 用例全绿（authenticated + unauthenticated 双项目，per-project testMatch）
-- 覆盖：全部模块页面 + 认证重定向 + PWA 资源 + 权限（admin/suggestions/profile 403/重定向）+ 导出下载 + 头像上传 + 排行榜点击进公开页 + 技能系统（9）+ 等待安抚气泡（2，路由拦截模拟慢 AI）+ 院校导航可见 + 搜索缓存命中（2，真实搜索验证 24h TTL）+ AI 配置引导（4，状态卡/测试连接/chat 引导条/needConfig 联动，route mock）
+- Playwright 113 用例全绿（authenticated + unauthenticated 双项目，per-project testMatch）
+- 覆盖：全部模块页面 + 认证重定向 + PWA 资源 + 权限（admin/suggestions/profile 403/重定向）+ 导出下载 + 头像上传 + 排行榜点击进公开页 + 技能系统（9）+ 等待安抚气泡（2，路由拦截模拟慢 AI）+ 院校导航可见 + 搜索缓存命中（2，真实搜索验证 24h TTL）+ AI 配置引导（4，状态卡/测试连接/chat 引导条/needConfig 联动，route mock）+ 更新日志与告示（5，页渲染/导航入口/告示显示关闭/已读持久化/产品教练补播）
 - 注意：`e2e/.auth/user.json` 为测试账号存储态；E2E 运行在独立测试库 `neondb_test`（`playwright.config.ts` 自动建库 + schema push + 独立端口 3100），不再污染 dev 库

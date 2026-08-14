@@ -16,6 +16,8 @@ interface SearchResult {
   sources: string[];
   disclaimer: string;
   fromAIKnowledge?: boolean;
+  cacheHit?: boolean;
+  cachedAt?: string;
 }
 
 interface SavedRecord {
@@ -44,6 +46,14 @@ interface CompareSchool {
   scores: Record<string, number>;
   enrollmentQuota?: number;
   subjects?: string[];
+}
+
+// 缓存时间的人类可读描述
+function formatTimeAgo(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  if (diffMs < 60 * 1000) return "刚刚";
+  if (diffMs < 60 * 60 * 1000) return `${Math.floor(diffMs / 60000)} 分钟前`;
+  return `${Math.floor(diffMs / 3600000)} 小时前`;
 }
 
 export default function AdmissionPage() {
@@ -404,6 +414,24 @@ export default function AdmissionPage() {
                   <span className="text-red-600 dark:text-red-400 font-medium">⚠️ 联网搜索未获取到结果，以下数据来自 AI 模型训练知识库，可能已过时。<br/></span>
                 )}
                 {searchResult.disclaimer}
+              </p>
+
+              {searchResult.cacheHit && searchResult.cachedAt && (
+                <p className="text-xs text-gray-400">
+                  ⚡ 命中缓存：数据抓取于{" "}
+                  {formatTimeAgo(searchResult.cachedAt)}（缓存有效期 24 小时，内容未实时刷新）
+                </p>
+              )}
+
+              <p className="text-xs">
+                <a
+                  href={`/suggestions?content=${encodeURIComponent(
+                    `院校数据有误：${searchResult.university}${searchResult.major ? " " + searchResult.major : ""}`
+                  )}`}
+                  className="text-blue-600 hover:text-blue-700 hover:underline"
+                >
+                  🙏 数据有误？反馈给作者
+                </a>
               </p>
             </div>
           )}

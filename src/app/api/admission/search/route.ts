@@ -1,13 +1,29 @@
 import { NextRequest } from "next/server";
+import { Prisma } from "@prisma/client";
 import { jsonNoStore } from "@/lib/api-utils";
 import { getAuthUser } from "@/lib/api-auth";
 import { getUserAiConfig, callAI, extractJson } from "@/lib/ai-config";
 import { searchWeb, fetchPageContent } from "@/lib/search";
+import { isRateLimited } from "@/lib/rate-limit";
+import { prisma } from "@/lib/prisma";
 
-// POST: 搜索院校录取信息（联网 + AI 提取）
+// 搜索结果全局缓存 TTL：24h（考研数据一年一更，24h 足够新且显著省 AI 成本）
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+// 规范化查询键：university|major|year（相同查询所有人共享一条缓存）
+function buildQueryKey(university: string, major: string, year: number | undefined): string {
+  return [university.trim(), major.trim(), year ? String(year) : ""].join("|");
+}
+
+// POST: 搜索院校录取信息（联网 + AI 提取），带 24h 全局缓存 + 限流
 export async function POST(request: NextRequest) {
   const { user, error } = await getAuthUser(request);
   if (error) return error;
+
+  // 生产限流：5 次/分/IP（缓存命中免费，未命中烧 AI + 爬取，需防滥用）
+  if (isRateLimited(request, { feature: "admission-search", max: 5 })) {
+    return jsonNoStore({ error: "操作太频繁，请稍后再试" }, { status: 429 });
+  }
 
   try {
     const body = await request.json();
@@ -15,6 +31,20 @@ export async function POST(request: NextRequest) {
 
     if (!university) {
       return jsonNoStore({ error: "请输入院校名称" }, { status: 400 });
+    }
+
+    const queryKey = buildQueryKey(university, major, year);
+
+    // 缓存命中（24h 内）：直接返回，不爬取、不调 AI
+    const cached = await prisma.admissionSearchCache.findUnique({
+      where: { queryKey },
+    });
+    if (cached && Date.now() - new Date(cached.updatedAt).getTime() < CACHE_TTL_MS) {
+      return jsonNoStore({
+        ...(cached.payload as Record<string, unknown>),
+        cacheHit: true,
+        cachedAt: cached.updatedAt.toISOString(),
+      });
     }
 
     const yearStr = year ? `${year}年` : "";
@@ -165,7 +195,7 @@ ${webContext.slice(0, 8000)}
         ? String((structuredData as Record<string, unknown>).aiDisclaimer)
         : "";
 
-    return jsonNoStore({
+    const payload = {
       university,
       major,
       year: year || null,
@@ -178,7 +208,20 @@ ${webContext.slice(0, 8000)}
       disclaimer:
         aiDisclaimer ||
         "数据来源于公开网络搜索，仅供参考。请以中国研究生招生信息网（yz.chsi.com.cn）和各校研究生院官网公布的信息为准。",
-    });
+    };
+
+    // 写入缓存（best-effort：写失败不影响本次返回）
+    try {
+      await prisma.admissionSearchCache.upsert({
+        where: { queryKey },
+        update: { payload: payload as unknown as Prisma.InputJsonValue },
+        create: { queryKey, payload: payload as unknown as Prisma.InputJsonValue },
+      });
+    } catch (cacheErr) {
+      console.error("Admission cache write failed:", cacheErr);
+    }
+
+    return jsonNoStore({ ...payload, cacheHit: false });
   } catch (err) {
     console.error("Admission search error:", err);
     return jsonNoStore({ error: "搜索失败，请稍后重试" }, { status: 500 });

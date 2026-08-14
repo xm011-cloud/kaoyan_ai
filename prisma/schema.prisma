@@ -275,6 +275,17 @@ model AdmissionInfo {
   @@index([university, major])
 }
 
+// 院校搜索缓存（全局共享：相同查询所有人共用一条，24h TTL，省 AI 调用 + 降爬取频率）
+model AdmissionSearchCache {
+  id        String   @id @default(cuid())
+  queryKey  String   @unique // 规范化查询键 university|major|year
+  payload   Json     // 完整响应载荷（含 data/rawResults/sources/disclaimer）
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([updatedAt])
+}
+
 // 联网导入的真题
 model ImportedQuestion {
   id              String   @id @default(uuid())

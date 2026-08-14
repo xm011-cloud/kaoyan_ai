@@ -104,7 +104,7 @@ export const DEFAULT_NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/materials', visible: true },
       { href: '/knowledge-graph', visible: true },
-      { href: '/admission', visible: false },
+      { href: '/admission', visible: true },
     ],
   },
   {
@@ -192,7 +192,7 @@ export const useUIStore = create<UIState>()(
     }),
     {
       name: 'ui-store',
-      version: 3,
+      version: 4,
       // 保留老存储里已有的偏好，只补新字段，避免升级清空用户的自定义
       migrate: (persistedState) => {
         const p = (persistedState ?? {}) as Partial<UIState>
@@ -207,6 +207,13 @@ export const useUIStore = create<UIState>()(
             items: [...existing.items, ...dg.items.filter((di) => !hrefs.has(di.href))],
           }
         })
+        // v4：院校情报正式启用 —— 强制老用户导航里也显示（仅在本次迁移生效，之后用户仍可自行隐藏）
+        const knowledge = navGroups.find((g) => g.id === 'knowledge')
+        if (knowledge) {
+          knowledge.items = knowledge.items.map((i) =>
+            i.href === '/admission' ? { ...i, visible: true } : i
+          )
+        }
         return {
           navGroups,
           sidebarCollapsed: p.sidebarCollapsed ?? false,

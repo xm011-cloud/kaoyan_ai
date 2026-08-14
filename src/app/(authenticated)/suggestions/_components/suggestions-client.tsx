@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 
 // 手写星级：5 个按钮，渲染确定性（初始 value=0），无 hydration 错配
@@ -28,8 +29,10 @@ function StarRating({ value, onChange }: { value: number; onChange: (v: number) 
 }
 
 export default function SuggestionsClient() {
+  const searchParams = useSearchParams()
+  // 支持 ?content= 预填（如院校页"数据有误？反馈"带上下文跳转）
   const [rating, setRating] = useState(0)
-  const [content, setContent] = useState('')
+  const [content, setContent] = useState(() => searchParams.get('content') || '')
   const [anonymous, setAnonymous] = useState(false)
   const [honeypot, setHoneypot] = useState('')
   const [submitting, setSubmitting] = useState(false)

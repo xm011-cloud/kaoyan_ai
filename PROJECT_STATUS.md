@@ -296,7 +296,7 @@ src/
 - **AI 联网调研工具**：`ai-tools` 新增 `search_web` 工具（对话里用户问院校分数线/科目等 → AI 自行联网搜索带来源回答，对应开源社区 kaoyan-navigator 形态）
 - **数据积累策略**：放弃人工种子数据（核对成本高），**库数据由每次搜索自动落库积累** —— Tavily 搜索 → AI 提取 → 落库全局共享，越搜越全（对应第 17 轮机制）
 
-### 第 19 轮 — 真题链路打通（2026-08-14，待部署）
+### 第 19 轮 — 真题链路打通（2026-08-14，已部署）
 - **断头路修复**：`ImportedQuestion` 从"只有写入 + 导出"变为完整消费链路（导入 → 管理 → 练习）
 - **真题练习模式**：`practice-generator` 新增 `exam_questions` 模式（**直接从真题库抽题，无需 AI**，Fisher-Yates 洗牌）；practice route 支持 + 空真题友好提示 404；练习页新增「📚 真题练习」模式（session-creator + ui-store PracticeMode 扩展）
 - **真题管理**：错题本新增「📚 真题」Tab（`ExamQuestionsTab`：联网导入入口（科目/年份/关键词）+ 科目计数筛选 + 列表/来源/删除/去练习）；新 API `GET/DELETE /api/questions`
@@ -325,6 +325,7 @@ src/
 
 | 日期 | 范围 | 内容 |
 |------|------|------|
+| 2026-08-14 | `7770317..cafa83c` → 生产 | **真题链路打通**（真题练习模式直接抽题 + 错题本真题 Tab 导入/管理 + `/api/questions`），114 用例全绿；`c6-orcin.vercel.app` |
 | 2026-08-14 | `cf3108d..21702c9` → 生产 | **院校数据获取三路线**（Tavily API 接入 `TAVILY_API_KEY` + 核心词相关性排序 + AI `search_web` 工具 + 种子数据初稿 `docs/seed-data-draft.json`），113 用例全绿；`c6-orcin.vercel.app` |
 | 2026-08-14 | `e756fb0..a51c6a8` → 生产 | **院校情报社区知识库**（搜索落库全局共享 + 多来源并存 + 认同/质疑信任机制 + admin 审核，schema：AdmissionInfo 去唯一键 + AdmissionFeedback 表），113 用例全绿；`c6-orcin.vercel.app` |
 | 2026-08-14 | `b689d66..71ac7c5` → 生产 | **AI 产品教练 + 更新日志**（PRODUCT_GUIDE 注入对话 + 产品教练技能模板 + `/changelog` 页 + dashboard 更新告示），113 用例全绿；`c6-orcin.vercel.app` |

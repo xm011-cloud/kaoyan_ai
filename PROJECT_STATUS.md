@@ -82,8 +82,10 @@
 #### 🧠 知识图谱 (`/knowledge-graph`)
 - D3 力导向图（5 模块 tree-shaking ~3.8MB），知识点 + 关联边，AI 构建
 
-#### 🏫 院校情报 (`/admission`)
-- 后端完成（search/analyze/saved/import），前端默认隐藏，待启用
+#### 🏫 院校情报 (`/admission`) — 🆕 启用 2026-08-14
+- 搜索 / 对比 / 收藏 / 导入 4 Tab；百度搜索（免费无 Key）→ AI 提取，AI 知识库兜底（红字标注可能过时）
+- **24h 全局缓存**（`AdmissionSearchCache`，相同查询共享，命中免爬取 + 免 AI）+ 生产限流 5/min/IP
+- 结果页缓存时间戳展示 +「数据有误？反馈」直通建议页（`?content=` 预填上下文）
 
 ### ⚙️ 设置组
 
@@ -182,6 +184,7 @@ src/
 | **Chat** | 🆕 `pendingProposal Json?`（待确认的任务提案草稿） | 2026-08-13 |
 | **Skill** | 🆕 用户技能：`userId/name/description/icon/triggerKeywords/steps Json/note Json/usageCount/source/lastRunAt` + `@@unique([userId,name])` | 2026-08-13 |
 | **Chat** | 🆕 `skillId String?` + `@@index([skillId])`（技能运行 = 带 skillId 的对话） | 2026-08-13 |
+| **AdmissionSearchCache** | 🆕 院校搜索全局缓存：`queryKey @unique` + `payload Json` + `updatedAt`（24h TTL，相同查询所有人共享） | 2026-08-14 |
 
 ## 近期迭代记录 (2026-08)
 
@@ -254,6 +257,13 @@ src/
 - **页面级生成按钮接入**：周计划（生成/评审）、学习路径、学习周报、错题变式题的静态「生成中...」换成阶段文案 + 已等待秒数 + 取消
 - 测试：`e2e/ai-waiting.spec.ts` 2 用例（拦截 `/api/ai/chat` / `generate-feedback` 延迟响应，断言阶段轮播 + 预估 + 取消），102 全绿
 
+### 第 14 轮 — 院校情报启用 + 加固（2026-08-14，待部署）
+- **启用**：ui-store v3→v4，`/admission` 默认可见 + migrate 强制老用户导航显示（仅迁移生效一次，之后仍可自行隐藏）
+- **搜索缓存**：新增 `AdmissionSearchCache`（全局共享 `queryKey=university|major|year`、24h TTL、payload 快照）；命中 = 免百度爬取 + 免 AI 提取，秒回 +「⚡ 命中缓存：抓取于 X 小时前」；写失败 best-effort 不影响返回
+- **限流**：search route 复用 `rate-limit.ts`，生产 5/min/IP（缓存命中免费，未命中烧 AI + 爬取需防滥用）
+- **反馈闭环**：结果页「🙏 数据有误？反馈给作者」→ `/suggestions?content=` 预填上下文（suggestions-client 新增 URL 预填）
+- 测试：admission 新增导航可见 + 缓存命中 2 用例（真实搜索 1.4m 慢但稳），104 全绿
+
 ### 第 10 轮 — 对话→任务落地（事务边界）（2026-08-13）
 - **schema**：Task `proposalId/chatId` + `@@index([userId, proposalId])`；Chat `pendingProposal Json?`
 - **propose_tasks 工具**（writes:false 草稿不落库）：批量建议挂到对话 pendingProposal；`create_task` description 引导勿批量直写；chat 路由读 body.chatId → 提案时无对话则先建 → 返回 `chatId + proposal`
@@ -265,8 +275,7 @@ src/
 
 | 优先级 | 任务 |
 |--------|------|
-| P1 | 院校情报 (`/admission`) 前端启用（**用户已决定保持隐藏**；SerpAPI 付费 + 反爬风险。前端已整改完，启用只需 ui-store `visible:false`→true） |
-| P1 | 数据库迁移到生产环境（当前 Neon 免费档） |
+| P1 | 数据库迁移到生产环境（当前 Neon 免费档；**已决定暂缓** —— 先定时 warm-up 缓解冷启动，等部署地域决策（留 Vercel / 迁 EdgeOne / 全迁国内）确定后与部署一起迁） |
 | P2 | PWA 离线策略优化（导航网络优先，仅 offline.html 兜底，未缓存 API 数据） |
 | P3 | SWR 缓存（显式降级 backlog：不引入第三种数据获取模式；统一方向为 React Query + `useApi` hook，见 UI_AUDIT §五-H） |
 | P3 | 学习圈：点赞/互关/动态等更深社交（当前仅排行榜） |
@@ -317,6 +326,6 @@ c87ba50 refactor: Apple HIG UI 全面优化
 
 ## 测试
 
-- Playwright 102 用例全绿（authenticated + unauthenticated 双项目，per-project testMatch）
-- 覆盖：全部模块页面 + 认证重定向 + PWA 资源 + 权限（admin/suggestions/profile 403/重定向）+ 导出下载 + 头像上传 + 排行榜点击进公开页 + 技能系统（9）+ 等待安抚气泡（2，路由拦截模拟慢 AI）
+- Playwright 104 用例全绿（authenticated + unauthenticated 双项目，per-project testMatch）
+- 覆盖：全部模块页面 + 认证重定向 + PWA 资源 + 权限（admin/suggestions/profile 403/重定向）+ 导出下载 + 头像上传 + 排行榜点击进公开页 + 技能系统（9）+ 等待安抚气泡（2，路由拦截模拟慢 AI）+ 院校导航可见 + 搜索缓存命中（2，真实搜索验证 24h TTL）
 - 注意：`e2e/.auth/user.json` 为测试账号存储态；E2E 运行在独立测试库 `neondb_test`（`playwright.config.ts` 自动建库 + schema push + 独立端口 3100），不再污染 dev 库

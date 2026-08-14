@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/button'
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [inviteCode, setInviteCode] = useState('')
   const [honeypot, setHoneypot] = useState('')
   const [isSignUp, setIsSignUp] = useState(false)
   const [agreeTerms, setAgreeTerms] = useState(false)
@@ -38,11 +37,11 @@ export default function LoginPage() {
           setError('请先阅读并同意《用户协议》和《隐私政策》')
           return
         }
-        // 注册：服务端校验邀请码 + admin.createUser 建号（email_confirm=true）
+        // 注册：服务端校验 + admin.createUser 建号（email_confirm=true）
         const res = await fetch('/api/auth/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password, inviteCode, honeypot }),
+          body: JSON.stringify({ email, password, honeypot }),
         })
         const data = await res.json()
         if (!res.ok || !data.ok) throw new Error(data.error || '注册失败')
@@ -124,24 +123,6 @@ export default function LoginPage() {
                 忘记密码?
               </Link>
             </p>
-          )}
-
-          {isSignUp && (
-            <div>
-              <label htmlFor="inviteCode" className="block text-sm font-medium mb-1">
-                邀请码
-              </label>
-              <input
-                id="inviteCode"
-                type="text"
-                value={inviteCode}
-                onChange={(e) => setInviteCode(e.target.value)}
-                placeholder="向管理员获取邀请码"
-                required
-                autoComplete="off"
-                className="w-full h-10 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
-              />
-            </div>
           )}
 
           {isSignUp && (

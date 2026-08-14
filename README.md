@@ -82,7 +82,7 @@ AI 自备 Key 模式（MiMo/DeepSeek/通义等 OpenAI 兼容）、驾驶模式�
 
 ### 在线体验
 
-无需安装，浏览器直接访问 **https://c6-orcin.vercel.app**（邀请注册制，AI 功能需自配 API Key）。
+无需安装，浏览器直接访问 **https://c6-orcin.vercel.app**（注册即用；AI 功能需自配 API Key）。
 
 ### 本地开发
 

@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    id: "2026-08-14-open-register",
+    date: "2026-08-14",
+    title: "开放注册",
+    items: [
+      "注册不再需要邀请码，邮箱注册即用（蜜罐 + 限流防垃圾注册）",
+      "新增《用户协议》与《隐私政策》，注册前需阅读同意（含数据存储于海外告知）",
+      "设置页新增账号注销入口，可随时导出或删除数据",
+    ],
+  },
+  {
     id: "2026-08-14-ai-key",
     date: "2026-08-14",
     title: "AI 改为自备 Key 模式",
@@ -78,7 +88,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: "2026-08-02",
     title: "开放注册与体验优化",
     items: [
-      "支持邀请码注册，注册即用",
+      "开放注册，注册即用",
       "忘记密码支持邮箱重置与管理员重置链接",
       "番茄钟反漂移引擎与后台自动保存",
       "全新 Apple 风格界面与导航分组",

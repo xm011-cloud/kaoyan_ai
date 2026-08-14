@@ -32,7 +32,7 @@ export default async function Home() {
             <Button variant="outline" size="lg" className="px-10 text-base">了解更多</Button>
           </Link>
         </div>
-        <p className="text-xs text-gray-400 mt-4">无需下载 · 浏览器即用 · 完全免费</p>
+        <p className="text-xs text-gray-400 mt-4">无需下载 · 浏览器即用 · 产品免费（AI 功能需自配 API Key）</p>
       </section>
 
       {/* Features */}
@@ -100,7 +100,7 @@ export default async function Home() {
             { value: "AI 驱动", label: "智能规划引擎" },
             { value: "168 天", label: "最长覆盖周期" },
             { value: "30+", label: "AI 生成任务数" },
-            { value: "完全免费", label: "无隐藏收费" },
+            { value: "产品免费", label: "AI 按你自配的 Key 计费" },
           ].map((s) => (
             <div key={s.label}>
               <div className="text-2xl lg:text-3xl font-bold text-blue-600">{s.value}</div>
@@ -115,6 +115,7 @@ export default async function Home() {
         <div className="max-w-2xl mx-auto">
           <h2 className="text-2xl lg:text-3xl font-bold mb-3">准备好高效备考了吗？</h2>
           <p className="text-white/80 mb-8">加入 AI 考研助手，让 AI 成为你的专属学习伙伴</p>
+          <p className="text-white/60 text-xs mb-6">产品完全免费；AI 功能需自备 OpenAI 兼容 API Key（支持 MiMo / DeepSeek / 通义千问等），AI 用量按你自己的 Key 计费</p>
           <Link href="/login">
             <Button size="lg" className="px-12 py-3 text-base bg-white text-blue-600 hover:bg-gray-100 border-0">
               立即开始 →

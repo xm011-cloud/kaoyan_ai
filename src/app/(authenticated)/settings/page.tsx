@@ -46,9 +46,12 @@ export default function SettingsPage() {
   const [aiTaskCount, setAiTaskCount] = useState(0)
   const [saved, setSaved] = useState(false)
   const [hasKey, setHasKey] = useState(false)
+  const [aiConfigured, setAiConfigured] = useState(false)
   const [keyHint, setKeyHint] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null)
   const [error, setError] = useState('')
   const [showKey, setShowKey] = useState(false)
 
@@ -89,6 +92,7 @@ export default function SettingsPage() {
   useEffect(() => {
     fetch('/api/user/settings').then(r => r.json()).then(d => {
       setHasKey(d.hasKey)
+      setAiConfigured(d.aiConfigured ?? false)
       setAiUrl(d.aiUrl || '')
       setAiModel(d.aiModel || '')
       setDrivingMode(d.drivingMode === 'auto' || d.drivingMode === 'manual' ? d.drivingMode : 'assisted')
@@ -109,22 +113,44 @@ export default function SettingsPage() {
 
   // ── AI save ──
   const handleSaveAI = async () => {
-    setSaving(true); setError('')
+    setSaving(true); setError(''); setTestResult(null)
     try {
       const res = await fetch('/api/user/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ aiKey, aiUrl, aiModel }) })
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || '保存失败') }
-      setSaved(true); setHasKey(true); setShowKey(false)
+      setSaved(true); setHasKey(true); setAiConfigured(true); setShowKey(false)
       setTimeout(() => setSaved(false), 3000)
     } catch (e: unknown) { setError(e instanceof Error ? e.message : '保存失败') }
     finally { setSaving(false) }
   }
 
   const handleDeleteAI = async () => {
-    setSaving(true)
+    setSaving(true); setTestResult(null)
     await fetch('/api/user/settings', { method: 'DELETE' })
     setAiKey(''); setHasKey(false); setSaved(true); setShowKey(false)
+    // 删除后重新查询：开发/测试环境可能有全局 key 兜底（仍显示"已配置"）
+    try {
+      const d = await (await fetch('/api/user/settings')).json()
+      setAiConfigured(d.aiConfigured ?? false)
+    } catch { setAiConfigured(false) }
     setTimeout(() => setSaved(false), 3000)
     setSaving(false)
+  }
+
+  // ── AI 配置测试 ──
+  const handleTestAI = async () => {
+    if (aiKey.trim() && !hasKey) {
+      setTestResult({ ok: false, message: '请先点击「保存 AI 配置」再测试' })
+      return
+    }
+    setTesting(true); setTestResult(null)
+    try {
+      const res = await fetch('/api/user/settings/test-ai', { method: 'POST' })
+      const d = await res.json()
+      if (d.ok) setTestResult({ ok: true, message: `✅ 连接成功（${d.model}，${d.latencyMs}ms）` })
+      else setTestResult({ ok: false, message: `❌ ${d.error || '连接失败'}` })
+    } catch {
+      setTestResult({ ok: false, message: '❌ 连接失败，请稍后再试' })
+    } finally { setTesting(false) }
   }
 
   // ── Reminder save ──
@@ -180,7 +206,27 @@ export default function SettingsPage() {
       {tab === 'ai' && !loading && (
         <div className="rounded-2xl bg-card border border-border/50 shadow-sm p-6 space-y-4">
           <h2 className="font-semibold">🤖 AI 大模型配置</h2>
-          <p className="text-sm text-muted-foreground">配置 AI 服务以使用 GPT/DeepSeek/MiMo 等大模型。不提供则使用系统默认。</p>
+
+          {/* 配置状态卡 */}
+          <div className={`rounded-xl border px-4 py-3 text-sm ${aiConfigured ? 'border-success/30 bg-success/10' : 'border-warning/30 bg-warning/10'}`}>
+            {aiConfigured ? (
+              <p className="flex items-center gap-2 font-medium">
+                <span>🟢</span>
+                {hasKey ? `AI 已启用（使用你的 Key：${keyHint || '已配置'}）` : 'AI 已启用（使用系统默认配置）'}
+              </p>
+            ) : (
+              <p className="flex items-center gap-2 font-medium">
+                <span>⚪</span> AI 未启用
+              </p>
+            )}
+            {!aiConfigured && (
+              <p className="text-xs text-muted-foreground mt-1">
+                配置下方 API Key 后启用 AI 对话、周报、计划生成等功能；不配置不影响打卡、番茄钟、错题本等其他功能
+              </p>
+            )}
+          </div>
+
+          <p className="text-sm text-muted-foreground">支持所有 OpenAI 兼容接口的服务：MiMo / DeepSeek / 通义千问 / OpenAI 等。AI 按你自己的 API 用量计费，与产品是否收费无关。</p>
 
           <div className="space-y-3">
             <div>
@@ -209,12 +255,27 @@ export default function SettingsPage() {
 
           {error && <p className="text-sm text-destructive">{error}</p>}
           {saved && <p className="text-sm text-success font-medium">✅ 已保存</p>}
+          {testResult && (
+            <p className={`text-sm font-medium ${testResult.ok ? 'text-success' : 'text-destructive'}`}>{testResult.message}</p>
+          )}
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button onClick={handleSaveAI} disabled={saving} className="rounded-full bg-brand hover:bg-brand/90 text-brand-foreground font-semibold h-11 px-6 active:scale-[0.98] transition-all">
               {saving ? '保存中...' : '保存 AI 配置'}
             </Button>
+            <Button onClick={handleTestAI} disabled={testing || !hasKey} variant="outline" className="rounded-full h-11 px-6 active:scale-[0.98] transition-all" title={hasKey ? '' : '保存配置后可测试'}>
+              {testing ? '测试中...' : '🔌 测试连接'}
+            </Button>
             {hasKey && <Button variant="outline" onClick={handleDeleteAI} disabled={saving} className="rounded-full h-11 px-6 active:scale-[0.98] transition-all">移除配置</Button>}
+          </div>
+
+          {/* 服务说明 */}
+          <div className="rounded-xl border border-border/50 bg-muted/30 p-4 text-xs text-muted-foreground space-y-2">
+            <p className="font-medium text-foreground">📖 如何获取 API Key</p>
+            <p>· <b>MiMo</b>：https://api.xiaomimimo.com — 模型如 <code className="text-[11px] bg-muted px-1 rounded">mimo-v2.5-pro</code>，Base URL 填 <code className="text-[11px] bg-muted px-1 rounded">https://api.xiaomimimo.com/v1</code></p>
+            <p>· <b>DeepSeek</b>：https://platform.deepseek.com — 模型如 <code className="text-[11px] bg-muted px-1 rounded">deepseek-chat</code>，Base URL 填 <code className="text-[11px] bg-muted px-1 rounded">https://api.deepseek.com/v1</code></p>
+            <p>· <b>通义千问</b>：https://dashscope.aliyun.com — 模型如 <code className="text-[11px] bg-muted px-1 rounded">qwen-plus</code>，Base URL 填 <code className="text-[11px] bg-muted px-1 rounded">https://dashscope.aliyuncs.com/compatible-mode/v1</code></p>
+            <p>· 保存后点「🔌 测试连接」验证 Key / 地址 / 模型名是否正确，验证通过即可在对话、周报、计划生成等功能中使用。</p>
           </div>
 
           <div className="bg-muted rounded-2xl p-4 text-sm space-y-1">

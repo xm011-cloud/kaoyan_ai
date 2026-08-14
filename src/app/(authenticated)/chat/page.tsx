@@ -12,7 +12,9 @@ import type { SkillSuggestionData } from '@/components/skill-suggestion'
 import type { SkillStep } from '@/lib/skill-templates'
 import { useGoal } from '@/hooks/use-goal'
 import { useAiTask } from '@/hooks/use-ai-task'
+import { useAiConfigStatus } from '@/hooks/use-ai-config-status'
 import { AiWaiting } from '@/components/ai-waiting'
+import { AiConfigBanner } from '@/components/ai-config-banner'
 
 interface Source {
   id: string;
@@ -119,6 +121,7 @@ export default function ChatPage() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const { phase: waitPhase, estimate: waitEstimate, start: waitStart, stop: waitStop, cancel: waitCancel } = useAiTask()
+  const { configured: aiConfigured, markUnconfigured } = useAiConfigStatus()
   const [chatId, setChatId] = useState<string | null>(null)
   const [histories, setHistories] = useState<ChatHistory[]>([])
   const [showHistory, setShowHistory] = useState(false)
@@ -367,6 +370,18 @@ export default function ChatPage() {
       if (!res.ok) throw new Error('AI 服务暂不可用')
 
       const data = await res.json()
+
+      // AI 未配置 / Key 失效 → 显示引导条，不追加普通回复
+      if (data.needConfig) {
+        markUnconfigured()
+        setMessages(prev => [...prev, {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: data.reply || '请先在设置页面配置 AI API Key 后再试。',
+        }])
+        return
+      }
+
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
@@ -437,6 +452,18 @@ export default function ChatPage() {
       })
       if (!res.ok) throw new Error('AI 服务暂不可用')
       const data = await res.json()
+
+      // AI 未配置 / Key 失效 → 显示引导条，放弃技能运行
+      if (data.needConfig) {
+        markUnconfigured()
+        setRunningSkill(null)
+        setMessages(prev => [...prev, {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: data.reply || '请先在设置页面配置 AI API Key 后再运行技能。',
+        }])
+        return
+      }
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -833,7 +860,8 @@ export default function ChatPage() {
           )}
 
           {/* 输入框 */}
-          <div className="relative">
+          <div className="relative space-y-2">
+            {!aiConfigured && <AiConfigBanner />}
             {showSkillMenu && (
               <div
                 ref={skillMenuRef}
@@ -876,9 +904,9 @@ export default function ChatPage() {
                       : "输入问题，AI 自动检索所有资料..."
                 }
                 className="flex-1 px-4 py-2.5 text-sm border border-border/50 rounded-xl bg-muted/50 focus:outline-none focus:ring-2 focus:ring-brand/20"
-                disabled={loading}
+                disabled={loading || !aiConfigured}
               />
-              <Button type="submit" disabled={loading || !input.trim()} className="px-5">
+              <Button type="submit" disabled={loading || !input.trim() || !aiConfigured} className="px-5">
                 发送
               </Button>
             </form>

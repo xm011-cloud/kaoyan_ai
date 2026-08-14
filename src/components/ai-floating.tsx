@@ -4,9 +4,11 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { ChatMarkdown } from '@/components/chat-markdown'
 import { AiWaiting } from '@/components/ai-waiting'
+import { AiConfigBanner } from '@/components/ai-config-banner'
 import type { Proposal } from '@/components/proposal-card'
 import { cn } from '@/lib/utils'
 import { useAiTask } from '@/hooks/use-ai-task'
+import { useAiConfigStatus } from '@/hooks/use-ai-config-status'
 
 interface ActionCard {
   type: "task_created" | "task_completed" | "checkin_created" | "reminder_updated"
@@ -32,6 +34,7 @@ export function AiFloating() {
   const [loading, setLoading] = useState(false)
   const [mounted, setMounted] = useState(false)
   const { phase: waitPhase, estimate: waitEstimate, start: waitStart, stop: waitStop, cancel: waitCancel } = useAiTask()
+  const { configured: aiConfigured, markUnconfigured } = useAiConfigStatus()
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -128,6 +131,18 @@ export function AiFloating() {
       if (!res.ok) throw new Error('AI 服务暂不可用')
 
       const data = await res.json()
+
+      // AI 未配置 / Key 失效 → 显示引导条，不追加普通回复
+      if (data.needConfig) {
+        markUnconfigured()
+        setMessages(prev => [...prev, {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: data.reply || '请先在设置页面配置 AI API Key 后再试。',
+        }])
+        return
+      }
+
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
@@ -256,7 +271,12 @@ export function AiFloating() {
 
         {/* 消息区 */}
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-          {messages.length === 0 && (
+          {!aiConfigured && messages.length === 0 && (
+            <div className="flex flex-col justify-center h-full">
+              <AiConfigBanner compact />
+            </div>
+          )}
+          {messages.length === 0 && aiConfigured && (
             <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground px-4">
               <span className="text-4xl mb-3">🤖</span>
               <p className="font-medium text-sm">AI 学习助手</p>
@@ -342,13 +362,13 @@ export function AiFloating() {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="输入指令，AI 帮你执行..."
+            placeholder={aiConfigured ? "输入指令，AI 帮你执行..." : "配置 AI 后开启对话..."}
             className="flex-1 px-3 py-2 text-sm rounded-xl border border-border bg-muted/50 focus:outline-none focus:ring-2 focus:ring-brand/20"
-            disabled={loading}
+            disabled={loading || !aiConfigured}
           />
           <button
             type="submit"
-            disabled={loading || !input.trim()}
+            disabled={loading || !input.trim() || !aiConfigured}
             className="shrink-0 px-4 py-2 text-sm font-medium bg-brand text-white rounded-xl hover:bg-brand/90 disabled:opacity-50 transition-colors"
           >
             发送

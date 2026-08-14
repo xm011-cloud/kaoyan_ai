@@ -27,8 +27,12 @@ export async function GET(request: NextRequest) {
         where: { userId: user!.id, source: { not: "manual" } },
       }),
     ]);
+    // AI 配置状态（供前端引导）：用户自配 key，或部署方配置了全局 key（开发/测试环境）
+    const globalKey = process.env.OPENAI_API_KEY;
+    const globalKeyValid = !!globalKey && !globalKey.startsWith("your_");
     return jsonNoStore({
       hasKey: !!dbUser?.aiKey,
+      aiConfigured: !!dbUser?.aiKey || globalKeyValid,
       aiUrl: dbUser?.aiUrl || "",
       aiModel: dbUser?.aiModel || "",
       drivingMode: dbUser?.drivingMode || "assisted",

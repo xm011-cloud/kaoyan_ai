@@ -48,7 +48,8 @@ export default function AboutPage() {
               缺乏客观反馈等问题。AI 考研助手希望用技术解决这些痛点，让 AI 成为每个考研人的专属学习教练。
             </p>
             <p>
-              我们相信，<b className="text-gray-900 dark:text-white">好的工具能让努力更有效</b>。AI 考研助手免费开放给所有考研学子使用。
+              我们相信，<b className="text-gray-900 dark:text-white">好的工具能让努力更有效</b>。AI 考研助手免费开放给所有考研学子使用；
+              AI 功能需自备 OpenAI 兼容 API Key（支持 MiMo / DeepSeek / 通义千问等），AI 用量按你自己的 Key 计费。
             </p>
           </div>
         </div>
@@ -128,7 +129,7 @@ export default function AboutPage() {
         <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl p-8 text-white space-y-4">
           <h2 className="text-2xl font-bold">开始你的备考之旅</h2>
           <p className="text-white/80 max-w-md mx-auto">
-            完全免费，无需下载，浏览器即用。让 AI 成为你的专属学习教练。
+            产品完全免费，无需下载，浏览器即用。AI 功能需自备 API Key（OpenAI 兼容）。
           </p>
           <Link href="/login">
             <Button size="lg" className="bg-white text-blue-600 hover:bg-gray-100 border-0 px-10">

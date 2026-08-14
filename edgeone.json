@@ -17,7 +17,10 @@
         "postgres-bytea",
         "postgres-date",
         "postgres-interval",
-        "postgres-range"
+        "postgres-range",
+        "mermaid",
+        "recharts",
+        "@base-ui/react"
       ]
     }
   }

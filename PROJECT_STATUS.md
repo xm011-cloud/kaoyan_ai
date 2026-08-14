@@ -303,6 +303,14 @@ src/
 - **修复**：真题 Tab 按钮被错误包进 filters 条件（exam 模式下无法切回其他 Tab）—— Tab 按钮区独立始终显示
 - 测试：`e2e/exam-questions.spec.ts` 1 用例（直插真题 → Tab 展示 + 练习 API 抽题 + 空科目 404），114 全绿
 
+### 第 20 轮 — 合规与作品面（2026-08-14，待部署）
+- **隐私政策页 `/privacy`**：数据收集清单 + **数据出境告知**（当前部署于海外服务商 + "条件成熟将评估迁回国内、数据随迁"）+ 用户权利（导出/注销/更正）+ 第三方服务说明 + 未成年人保护
+- **用户协议页 `/terms`**：AI 自带 Key 模式说明 + 内容不保证准确 + **版权声明**（真题个人学习用途不共享、院校数据标来源、Apache-2.0 开源）+ 用户行为规范 + 免责声明
+- **注册勾选**：注册表单加"同意《用户协议》与《隐私政策》"勾选（未勾选不能注册）；落地页/about footer 加隐私/协议链接；设置页加隐私入口
+- **请求注销**：`DeletionRequest` 模型（userId unique + email 快照 + pending/done）+ `POST/GET/DELETE /api/user/deletion-request`（幂等/可取消）+ 设置页"请求注销账号"（确认弹窗 + 状态 + 取消）+ admin「🗑️ 注销请求」Tab（处理步骤指引 + 标记完成）
+- **README 展示版**：在线体验 + 19 模块亮点 + 技术栈 + 架构 + 114 用例 + 合规链接 + 开源说明（开发文档折叠保留）；**LICENSE**（Apache-2.0）
+- 测试：`e2e/compliance.spec.ts` 3 用例（隐私/协议页渲染 + 设置页注销入口），117 全绿
+
 ### 第 10 轮 — 对话→任务落地（事务边界）（2026-08-13）
 - **schema**：Task `proposalId/chatId` + `@@index([userId, proposalId])`；Chat `pendingProposal Json?`
 - **propose_tasks 工具**（writes:false 草稿不落库）：批量建议挂到对话 pendingProposal；`create_task` description 引导勿批量直写；chat 路由读 body.chatId → 提案时无对话则先建 → 返回 `chatId + proposal`

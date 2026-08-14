@@ -43,6 +43,20 @@ AI 自备 Key 模式（MiMo/DeepSeek/通义等 OpenAI 兼容）、驾驶模式�
 
 ---
 
+## 📸 截图一览
+
+| 学习概览（Dashboard） | 院校情报（社区库 + 搜索结果） |
+|---|---|
+| ![Dashboard](screenshots/dashboard.png) | ![院校情报](screenshots/admission-result.png) |
+
+| AI 技能架 | 移动端 |
+|---|---|
+| ![技能](screenshots/skills.png) | ![移动端](screenshots/08-mobile-dashboard.png) |
+
+更多：练习 · 错题本 · AI 对话 · 打卡（见 `screenshots/`）
+
+---
+
 ## 🛠️ 技术栈
 
 | 层 | 技术 |

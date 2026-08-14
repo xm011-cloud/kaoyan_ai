@@ -47,6 +47,9 @@ export interface UIState {
   // 更新告示
   lastSeenChangelog: string | null // 已读的最新更新条目 id（null = 未读）
 
+  // 新用户引导
+  onboardingSeen: boolean // 首次引导弹窗是否已看（关闭后不再弹，卡片仍可显示）
+
   // Actions
   setNavGroups: (groups: NavGroup[]) => void
   toggleGroup: (groupId: string) => void
@@ -56,6 +59,7 @@ export interface UIState {
   setPracticeDefaults: (defaults: Partial<PracticeDefaults>) => void
   setShowAiThinking: (show: boolean) => void
   setLastSeenChangelog: (id: string | null) => void
+  setOnboardingSeen: (seen: boolean) => void
   resetNavToDefaults: () => void
   resetWorkspaceToDefaults: () => void
   resetPracticeToDefaults: () => void
@@ -157,6 +161,7 @@ export const useUIStore = create<UIState>()(
       practiceDefaults: DEFAULT_PRACTICE_DEFAULTS,
       showAiThinking: DEFAULT_SHOW_AI_THINKING,
       lastSeenChangelog: null,
+      onboardingSeen: false,
 
       setNavGroups: (groups) => set({ navGroups: groups }),
 
@@ -194,13 +199,15 @@ export const useUIStore = create<UIState>()(
 
       setLastSeenChangelog: (id) => set({ lastSeenChangelog: id }),
 
+      setOnboardingSeen: (seen) => set({ onboardingSeen: seen }),
+
       resetNavToDefaults: () => set({ navGroups: DEFAULT_NAV_GROUPS }),
       resetWorkspaceToDefaults: () => set({ workspaceCards: DEFAULT_WORKSPACE_CARDS }),
       resetPracticeToDefaults: () => set({ practiceDefaults: DEFAULT_PRACTICE_DEFAULTS }),
     }),
     {
       name: 'ui-store',
-      version: 5,
+      version: 6,
       // 保留老存储里已有的偏好，只补新字段，避免升级清空用户的自定义
       migrate: (persistedState) => {
         const p = (persistedState ?? {}) as Partial<UIState>
@@ -229,6 +236,7 @@ export const useUIStore = create<UIState>()(
           practiceDefaults: p.practiceDefaults || DEFAULT_PRACTICE_DEFAULTS,
           showAiThinking: p.showAiThinking ?? DEFAULT_SHOW_AI_THINKING,
           lastSeenChangelog: p.lastSeenChangelog ?? null,
+          onboardingSeen: p.onboardingSeen ?? false,
         }
       },
     }

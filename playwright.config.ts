@@ -88,6 +88,7 @@ export default defineConfig({
         "changelog.spec.ts",
         "exam-questions.spec.ts",
         "compliance.spec.ts",
+        "onboarding.spec.ts",
       ],
     },
     // Unauthenticated tests (no storage state)

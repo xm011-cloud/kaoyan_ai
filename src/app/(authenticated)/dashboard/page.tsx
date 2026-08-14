@@ -3,6 +3,8 @@ import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { WorkbenchGrid } from "@/components/workbench/workbench-grid"
 import { ChangelogBanner } from "@/components/changelog-banner"
+import { OnboardingModal } from "@/components/onboarding-modal"
+import { OnboardingCard } from "@/components/onboarding-card"
 import { startOfDay, endOfDay, toDateString, getWeekStart, getWeekEnd, daysAgo } from "@/lib/date-utils"
 import { getDueCount } from "@/lib/sm2"
 
@@ -213,8 +215,15 @@ export default async function DashboardPage() {
     reentry: { show: showReentry, daysSinceLastCheckin },
   }
 
+  // 新用户判定：无目标 + 无任务 + 无打卡（用于引导弹窗/卡片）
+  const isNewUser = !goal && todayTasks.length === 0 && recentChecks.length === 0
+
   return (
     <div className="p-4 lg:p-6 max-w-6xl mx-auto space-y-6">
+      {/* ── 新用户引导（首次弹窗 + 常驻卡片）── */}
+      <OnboardingModal isNewUser={isNewUser} />
+      {isNewUser && <OnboardingCard isNewUser hasGoal={!!goal} />}
+
       {/* ── 更新告示（有新版本时出现，可关闭）── */}
       <ChangelogBanner />
 

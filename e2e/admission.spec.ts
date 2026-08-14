@@ -1,4 +1,16 @@
 import { test, expect } from "@playwright/test";
+import pg from "pg";
+
+// E2E 环境网络受限（百度搜索拿不到结果），共享链路用"直插测试库全局数据"验证：
+// 查库优先（无需 AI）+ 认同/质疑反馈 + 状态流转
+
+function testDbUrl(): string {
+  const url = process.env.DATABASE_URL || process.env.MEMFIRE_DATABASE_URL;
+  const qIdx = url!.indexOf("?");
+  const base = qIdx === -1 ? url! : url!.slice(0, qIdx);
+  const slash = base.lastIndexOf("/");
+  return `${base.slice(0, slash + 1)}${base.slice(slash + 1)}_test${qIdx === -1 ? "" : url!.slice(qIdx)}`;
+}
 
 test.describe("Admission", () => {
   test.beforeEach(async ({ page }) => {
@@ -37,23 +49,52 @@ test.describe("Admission", () => {
     await expect(page).toHaveURL(/\/admission/);
   });
 
-  test("search API caches identical queries within 24h TTL", async ({ page }) => {
-    test.setTimeout(180_000);
-    // 唯一院校名避免命中既有缓存；真实搜索较慢（百度 ×3 + AI 提取），放宽超时
-    const university = `缓存测试院校${Date.now() % 1000000}`;
-    const body = { university, major: "测试专业", year: 2025 };
+  test("shared library: pre-seeded global data is queryable; vouch/dispute feedback works", async ({ page }) => {
+    const uni = `共享库${Date.now() % 1000000}`;
+    const pool = new pg.Pool({ connectionString: testDbUrl() });
+    let id = "";
+    try {
+      const { rows } = await pool.query(
+        `INSERT INTO "AdmissionInfo" ("id","userId","university","major","year","category","data","source","verifyStatus","createdAt")
+         VALUES (gen_random_uuid(), NULL, $1, $2, $3, 'score_line', $4, 'https://example.com/e2e', 'unverified', now()) RETURNING "id"`,
+        [uni, "测试专业", 2025, JSON.stringify({ scores: { 总分: 350, 政治: 60 } })]
+      );
+      id = rows[0].id;
+    } finally {
+      await pool.end();
+    }
+    expect(id).toBeTruthy();
 
-    const first = await page.request.post("/api/admission/search", { data: body });
-    expect(first.status()).toBe(200);
-    const firstJson = await first.json();
-    expect(firstJson.cacheHit).toBe(false);
+    // 查库命中（无需 AI，秒回）
+    const res = await page.request.post("/api/admission/search", { data: { university: uni } });
+    expect(res.status()).toBe(200);
+    const json = await res.json();
+    expect(json.library).toBe(true);
+    const entry = json.entries.find((e: { id: string }) => e.id === id);
+    expect(entry).toBeTruthy();
+    expect(entry.verifyStatus).toBe("unverified");
 
-    // 第二次同查询应命中缓存：不重复爬取/AI，秒回
-    const second = await page.request.post("/api/admission/search", { data: body });
-    expect(second.status()).toBe(200);
-    const secondJson = await second.json();
-    expect(secondJson.cacheHit).toBe(true);
-    expect(secondJson.cachedAt).toBeTruthy();
-    expect(secondJson.university).toBe(university);
+    // 认同
+    const v = await page.request.post("/api/admission/feedback", {
+      data: { admissionInfoId: id, type: "vouch" },
+    });
+    const vJson = await v.json();
+    expect(vJson.counts.vouch).toBe(1);
+
+    // 质疑（需原因）
+    const d = await page.request.post("/api/admission/feedback", {
+      data: { admissionInfoId: id, type: "dispute", reason: "e2e 质疑：疑似数据有误" },
+    });
+    const dJson = await d.json();
+    expect(dJson.counts.dispute).toBe(1);
+    expect(dJson.counts.vouch).toBe(0);
+
+    // 再查库：状态流转 disputed + 计数 + 我的反馈标记
+    const res2 = await page.request.post("/api/admission/search", { data: { university: uni } });
+    const json2 = await res2.json();
+    const updated = json2.entries.find((e: { id: string }) => e.id === id);
+    expect(updated.verifyStatus).toBe("disputed");
+    expect(updated.disputeCount).toBe(1);
+    expect(updated.myFeedback).toBe("dispute");
   });
 });

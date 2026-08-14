@@ -7,9 +7,9 @@ test.describe("Settings", () => {
 
   test("page loads with AI key field", async ({ page }) => {
     await expect(page.locator("text=设置").first()).toBeVisible({ timeout: 10000 });
-    // AI Key input should exist
+    // AI Key input should exist（AI Tab 依赖 GET settings 完成，Neon 冷启动下放宽超时）
     const keyInput = page.locator('input[placeholder*="sk-"]').or(page.locator('input[type="password"]')).or(page.locator('input[placeholder*="Key"]'));
-    await expect(keyInput.first()).toBeVisible({ timeout: 5000 });
+    await expect(keyInput.first()).toBeVisible({ timeout: 15000 });
   });
 
   test("learning reminder section is visible", async ({ page }) => {

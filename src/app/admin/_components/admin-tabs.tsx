@@ -3,21 +3,25 @@
 import { useState } from 'react'
 import FeedbackList, { type FeedbackItem } from './feedback-list'
 import SupportList, { type SupporterItem } from './support-list'
+import AdmissionDisputes, { type DisputeItem } from './admission-disputes'
 import UserReset from './user-reset'
 
-type Tab = 'feedback' | 'support' | 'reset'
+type Tab = 'feedback' | 'support' | 'dispute' | 'reset'
 
 export default function AdminTabs({
   initialFeedbacks,
   initialSupporters,
+  initialDisputes,
 }: {
   initialFeedbacks: FeedbackItem[]
   initialSupporters: SupporterItem[]
+  initialDisputes: DisputeItem[]
 }) {
   const [tab, setTab] = useState<Tab>('feedback')
   const tabs = [
     { id: 'feedback' as const, icon: '💬', label: '意见反馈' },
     { id: 'support' as const, icon: '☕', label: '支持留言' },
+    { id: 'dispute' as const, icon: '🏫', label: '院校质疑' },
     { id: 'reset' as const, icon: '🔑', label: '重置密码' },
   ]
 
@@ -39,6 +43,7 @@ export default function AdminTabs({
 
       {tab === 'feedback' && <FeedbackList initial={initialFeedbacks} />}
       {tab === 'support' && <SupportList initial={initialSupporters} />}
+      {tab === 'dispute' && <AdmissionDisputes initial={initialDisputes} />}
       {tab === 'reset' && <UserReset />}
     </>
   )

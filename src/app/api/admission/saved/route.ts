@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
   });
 }
 
-// POST: 保存录取数据
+// POST: 保存录取数据（用户自己的收藏；同 key 同来源已存在则更新）
 export async function POST(request: NextRequest) {
   const { user, error } = await getAuthUser(request);
   if (error) return error;
@@ -64,29 +64,33 @@ export async function POST(request: NextRequest) {
     return jsonNoStore({ error: "年份无效" }, { status: 400 });
   }
 
-  const record = await prisma.admissionInfo.upsert({
+  const existing = await prisma.admissionInfo.findFirst({
     where: {
-      university_major_year_category: {
-        university,
-        major,
-        year,
-        category,
-      },
-    },
-    create: {
       userId: user!.id,
       university,
       major,
       year,
       category,
-      data: data || {},
-      source: source || "",
-    },
-    update: {
-      data: data || {},
       source: source || "",
     },
   });
+
+  const record = existing
+    ? await prisma.admissionInfo.update({
+        where: { id: existing.id },
+        data: { data: data || {}, source: source || "" },
+      })
+    : await prisma.admissionInfo.create({
+        data: {
+          userId: user!.id,
+          university,
+          major,
+          year,
+          category,
+          data: data || {},
+          source: source || "",
+        },
+      });
 
   return jsonNoStore({ record });
 }

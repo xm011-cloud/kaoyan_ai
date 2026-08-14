@@ -3,21 +3,36 @@
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "@/stores/toast-store";
 import { confirmDialog } from "@/stores/confirm-store";
+import { Modal } from "@/components/ui/modal";
 import { PageHeader } from "@/components/ui/page-header";
 import { AdmissionCompare } from "@/components/admission-compare";
 import { ImportTab } from "./_components/import-tab";
+
+interface AdmissionEntry {
+  id: string;
+  university: string;
+  major: string;
+  year: number;
+  category: string;
+  data: Record<string, unknown>;
+  source: string;
+  verifyStatus: string; // unverified | verified | disputed | rejected
+  vouchCount: number;
+  disputeCount: number;
+  myFeedback: "vouch" | "dispute" | null;
+}
 
 interface SearchResult {
   university: string;
   major: string;
   year: number | null;
-  data: Record<string, unknown> | null;
+  entries: AdmissionEntry[];
   rawResults: { title: string; url: string; snippet: string; query: string }[];
   sources: string[];
   disclaimer: string;
-  fromAIKnowledge?: boolean;
-  cacheHit?: boolean;
-  cachedAt?: string;
+  library?: boolean; // 命中社区知识库
+  needAI?: boolean; // 未配 AI 且无库数据
+  savedNew?: Record<string, number>; // 本次新入库分类计数
 }
 
 interface SavedRecord {
@@ -48,13 +63,21 @@ interface CompareSchool {
   subjects?: string[];
 }
 
-// 缓存时间的人类可读描述
-function formatTimeAgo(iso: string): string {
-  const diffMs = Date.now() - new Date(iso).getTime();
-  if (diffMs < 60 * 1000) return "刚刚";
-  if (diffMs < 60 * 60 * 1000) return `${Math.floor(diffMs / 60000)} 分钟前`;
-  return `${Math.floor(diffMs / 3600000)} 小时前`;
-}
+// 验证状态徽标
+const STATUS_META: Record<string, { label: string; cls: string }> = {
+  verified: { label: "✅ 已验证", cls: "text-success border-success/30 bg-success/10" },
+  unverified: { label: "⚪ 未验证", cls: "text-muted-foreground border-border bg-muted/40" },
+  disputed: { label: "⚠️ 待核实", cls: "text-warning border-warning/30 bg-warning/10" },
+  rejected: { label: "✗ 存疑", cls: "text-destructive border-destructive/30 bg-destructive/10" },
+};
+
+const CATEGORY_LABEL: Record<string, string> = {
+  score_line: "📈 分数线",
+  enrollment: "👥 招生人数",
+  subjects: "📚 考试科目",
+  tuition: "💰 学费",
+  notes: "📝 其他信息",
+};
 
 export default function AdmissionPage() {
   const [tab, setTab] = useState<"search" | "compare" | "saved" | "import">("search");
@@ -80,7 +103,7 @@ export default function AdmissionPage() {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
 
   // ── Search ──
-  const handleSearch = async () => {
+  const handleSearch = async (refresh = false) => {
     if (!searchUni.trim()) return;
     setSearching(true);
     setSearchError("");
@@ -94,6 +117,7 @@ export default function AdmissionPage() {
           university: searchUni.trim(),
           major: searchMajor.trim(),
           year: searchYear ? parseInt(searchYear) : undefined,
+          refresh,
         }),
       });
 
@@ -110,10 +134,71 @@ export default function AdmissionPage() {
     }
   };
 
+  // ── 认同 / 质疑 ──
+  const [disputeEntry, setDisputeEntry] = useState<AdmissionEntry | null>(null);
+  const [disputeReason, setDisputeReason] = useState("");
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
+
+  const handleFeedback = async (entry: AdmissionEntry, type: "vouch" | "dispute") => {
+    if (submittingFeedback) return;
+    setSubmittingFeedback(true);
+    try {
+      const res = await fetch("/api/admission/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          admissionInfoId: entry.id,
+          type,
+          reason: type === "dispute" ? disputeReason.trim() : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "操作失败");
+      // 更新本地展示
+      setSearchResult((prev) =>
+        prev
+          ? {
+              ...prev,
+              entries: prev.entries.map((e) =>
+                e.id === entry.id
+                  ? {
+                      ...e,
+                      vouchCount: data.counts?.vouch ?? e.vouchCount,
+                      disputeCount: data.counts?.dispute ?? e.disputeCount,
+                      myFeedback:
+                        data.action === "removed"
+                          ? null
+                          : (type as "vouch" | "dispute"),
+                      verifyStatus:
+                        type === "dispute"
+                          ? "disputed"
+                          : data.action === "removed" && e.verifyStatus === "disputed"
+                            ? "unverified"
+                            : e.verifyStatus,
+                    }
+                  : e
+              ),
+            }
+          : prev
+      );
+      if (type === "dispute") {
+        setDisputeEntry(null);
+        setDisputeReason("");
+        toast.success(data.action === "removed" ? "已取消质疑" : "已提交质疑，等待核实");
+      } else {
+        toast.success(data.action === "removed" ? "已取消认同" : "已认同此数据");
+      }
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "操作失败");
+    } finally {
+      setSubmittingFeedback(false);
+    }
+  };
+
   // ── Save ──
-  const handleSave = async (entry: Record<string, unknown>) => {
-    const year = entry.year as number;
-    const category = entry.category as string;
+  const handleSave = async (entry: AdmissionEntry) => {
+    const year = entry.year;
+    const category = entry.category;
     if (!year || !category || !searchResult) return;
 
     try {
@@ -122,11 +207,11 @@ export default function AdmissionPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           university: searchResult.university,
-          major: searchResult.major || "",
+          major: entry.major || searchResult.major || "",
           year,
           category,
-          data: entry,
-          source: (entry.source as string) || searchResult.sources[0] || "",
+          data: entry.data,
+          source: entry.source || searchResult.sources[0] || "",
         }),
       });
       toast.success("已保存");
@@ -215,64 +300,130 @@ export default function AdmissionPage() {
     }
   };
 
-  // ── Helper: render AI-extracted entries ──
-  const renderEntries = (sData: Record<string, unknown>) => {
-    const entries = sData.entries as Record<string, unknown>[] | undefined;
+  // ── Helper: render library entries（社区知识库数据）──
+  const renderEntries = (entries: AdmissionEntry[]) => {
     if (!entries || entries.length === 0) {
       return (
         <p className="text-sm text-gray-500">
-          AI 未能提取到结构化数据，请查看下方的原始搜索结果。
+          知识库中暂无该院校数据，点击下方「联网搜索并入库」获取。
         </p>
       );
     }
-    return entries.map((entry: Record<string, unknown>, i: number) => (
-      <div key={i} className="border border-border/50 rounded-xl p-4">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium">
-            {entry.year ? `${entry.year}年` : "年份未知"}{" "}
-            {entry.category === "score_line"
-              ? "📈 分数线"
-              : entry.category === "enrollment"
-                ? "👥 招生人数"
-                : entry.category === "subjects"
-                  ? "📚 考试科目"
-                  : "📝 其他信息"}
-          </span>
-          <span className="text-xs text-gray-400">
-            来源: {(entry.source as string)?.slice(0, 50) || "未知"}
-          </span>
-        </div>
+    // 按信任度排序（认同 - 质疑），存疑/待核实置后
+    const sorted = [...entries].sort((a, b) => {
+      const trustA = a.vouchCount - a.disputeCount;
+      const trustB = b.vouchCount - b.disputeCount;
+      if (a.verifyStatus === "rejected" || a.verifyStatus === "disputed") return 1;
+      if (b.verifyStatus === "rejected" || b.verifyStatus === "disputed") return -1;
+      return trustB - trustA;
+    });
+    return sorted.map((entry) => {
+      const status = STATUS_META[entry.verifyStatus] || STATUS_META.unverified;
+      const d = entry.data || {};
+      return (
+        <div key={entry.id} className="border border-border/50 rounded-xl p-4">
+          <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-medium">
+                {entry.year ? `${entry.year}年` : "年份未知"}{" "}
+                {CATEGORY_LABEL[entry.category] || "📝 其他信息"}
+              </span>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full border ${status.cls}`}>
+                {status.label}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleFeedback(entry, "vouch")}
+                disabled={submittingFeedback}
+                className={`text-xs px-2 py-1 rounded-full border transition-colors ${
+                  entry.myFeedback === "vouch"
+                    ? "bg-success/15 border-success/40 text-success"
+                    : "border-border/60 text-muted-foreground hover:bg-muted"
+                }`}
+                title="认同此数据"
+              >
+                👍 {entry.vouchCount > 0 ? entry.vouchCount : ""}
+              </button>
+              <button
+                onClick={() => {
+                  setDisputeEntry(entry);
+                  setDisputeReason("");
+                }}
+                disabled={submittingFeedback}
+                className={`text-xs px-2 py-1 rounded-full border transition-colors ${
+                  entry.myFeedback === "dispute"
+                    ? "bg-warning/15 border-warning/40 text-warning"
+                    : "border-border/60 text-muted-foreground hover:bg-muted"
+                }`}
+                title="质疑此数据"
+              >
+                ⚠️ {entry.disputeCount > 0 ? entry.disputeCount : ""}
+              </button>
+            </div>
+          </div>
 
-        {(entry.category === "score_line" && entry.scores) ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {Object.entries(entry.scores as Record<string, number>).map(
-              ([k, v]) => (
-                <div
-                  key={k}
-                  className="bg-muted/50 rounded-lg px-3 py-2 text-center"
-                >
+          {entry.category === "score_line" && d.scores ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {Object.entries(d.scores as Record<string, number>).map(([k, v]) => (
+                <div key={k} className="bg-muted/50 rounded-lg px-3 py-2 text-center">
                   <div className="text-lg font-bold">{v}</div>
                   <div className="text-xs text-gray-500">{k}</div>
                 </div>
-              )
+              ))}
+            </div>
+          ) : entry.category === "enrollment" ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {d.enrollmentQuota ? (
+                <div className="bg-muted/50 rounded-lg px-3 py-2 text-center">
+                  <div className="text-lg font-bold">{d.enrollmentQuota as number}</div>
+                  <div className="text-xs text-gray-500">招生人数</div>
+                </div>
+              ) : null}
+              {d.applicants ? (
+                <div className="bg-muted/50 rounded-lg px-3 py-2 text-center">
+                  <div className="text-lg font-bold">{d.applicants as number}</div>
+                  <div className="text-xs text-gray-500">报考人数</div>
+                </div>
+              ) : null}
+            </div>
+          ) : entry.category === "subjects" && Array.isArray(d.subjects) ? (
+            <div className="flex flex-wrap gap-1.5">
+              {(d.subjects as string[]).map((s, i) => (
+                <span key={i} className="text-xs bg-muted/50 rounded-lg px-2 py-1">
+                  {s}
+                </span>
+              ))}
+            </div>
+          ) : null}
+
+          {d.notes ? (
+            <p className="text-xs text-gray-500 mt-2">{(d.notes as string).slice(0, 300)}</p>
+          ) : null}
+
+          <div className="flex items-center gap-3 mt-2 flex-wrap">
+            {entry.source && entry.source.startsWith("http") ? (
+              <a
+                href={entry.source}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-blue-600 hover:underline truncate max-w-[260px]"
+              >
+                🔗 {entry.source.slice(0, 60)}
+              </a>
+            ) : (
+              <span className="text-xs text-gray-400">来源：{entry.source || "未知"}</span>
             )}
+            <button
+              onClick={() => handleSave(entry)}
+              className="text-xs text-blue-600 hover:text-blue-700 shrink-0"
+            >
+              💾 收藏
+            </button>
           </div>
-        ) : null}
-
-        {entry.notes ? (
-          <p className="text-xs text-gray-500 mt-2">
-            {(entry.notes as string).slice(0, 300)}
-          </p>
-        ) : null}
-
-        <button
-          onClick={() => handleSave(entry)}
-          className="mt-2 text-xs text-blue-600 hover:text-blue-700"
-        >
-          💾 保存此数据
-        </button>
-      </div>
-    ));
+        </div>
+      );
+    });
   };
 
   // ── Render ──
@@ -352,7 +503,7 @@ export default function AdmissionPage() {
               </div>
             </div>
             <button
-              onClick={handleSearch}
+              onClick={() => handleSearch()}
               disabled={searching || !searchUni.trim()}
               className="w-full py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors text-sm font-medium"
             >
@@ -368,60 +519,94 @@ export default function AdmissionPage() {
 
           {searchResult && (
             <div className="space-y-4">
-              {/* AI Extracted Data */}
-              {searchResult.data && (
-                <div className="bg-card rounded-2xl border border-border/50 p-5 space-y-3">
+              {/* 社区知识库命中横幅 */}
+              {searchResult.library && (
+                <div className="bg-brand/5 border border-brand/20 rounded-xl px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+                  <p className="text-sm text-foreground">
+                    📚 来自社区知识库（{searchResult.entries.length} 条，多来源可对比）
+                  </p>
+                  <button
+                    onClick={() => handleSearch(true)}
+                    disabled={searching}
+                    className="text-xs rounded-full bg-brand px-3 py-1.5 font-medium text-brand-foreground hover:bg-brand/90 transition-colors"
+                  >
+                    🔍 重新搜索最新
+                  </button>
+                </div>
+              )}
+
+              {/* 本次新入库提示 */}
+              {searchResult.savedNew && Object.keys(searchResult.savedNew).length > 0 && (
+                <p className="text-xs text-success font-medium">
+                  ✅ 已提取并入库 {Object.values(searchResult.savedNew).reduce((a, b) => a + b, 0)} 条数据，与所有用户共享（来源已标注）
+                </p>
+              )}
+
+              {/* 未配 AI 提示 */}
+              {searchResult.needAI && (
+                <div className="bg-warning/10 border border-warning/30 rounded-xl px-4 py-3 text-sm">
+                  <p className="font-medium text-foreground">🤖 知识库暂无该院校数据，且未配置 AI</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    配置 AI 后搜索可自动提取结构化数据并入库共享；也可在「导入」Tab 手动导入。
+                    <a href="/settings" className="text-brand hover:underline ml-1">去配置 AI →</a>
+                  </p>
+                </div>
+              )}
+
+              {/* 结构化数据 */}
+              <div className="bg-card rounded-2xl border border-border/50 p-5 space-y-3">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
                   <h3 className="font-semibold">
                     📊 {searchResult.university}
                     {searchResult.major ? ` - ${searchResult.major}` : ""}
                   </h3>
-
-                  {renderEntries(searchResult.data as Record<string, unknown>)}
-
+                  {!searchResult.library && searchResult.entries.length === 0 && (
+                    <button
+                      onClick={() => handleSearch(true)}
+                      disabled={searching}
+                      className="text-xs rounded-full bg-brand px-3 py-1.5 font-medium text-brand-foreground hover:bg-brand/90 transition-colors"
+                    >
+                      {searching ? "搜索中..." : "🔍 联网搜索并入库"}
+                    </button>
+                  )}
                 </div>
-              )}
+
+                {renderEntries(searchResult.entries)}
+              </div>
 
               {/* Raw Results */}
-              <details className="bg-card rounded-2xl border border-border/50 p-5">
-                <summary className="cursor-pointer text-sm font-medium">
-                  🔗 原始搜索结果 ({searchResult.rawResults.length} 条)
-                </summary>
-                <div className="mt-3 space-y-2 max-h-80 overflow-y-auto">
-                  {searchResult.rawResults.map((r, i) => (
-                    <div
-                      key={i}
-                      className="border border-border/50 rounded-xl p-3"
-                    >
-                      <a
-                        href={r.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm font-medium text-blue-600 hover:underline"
+              {searchResult.rawResults.length > 0 && (
+                <details className="bg-card rounded-2xl border border-border/50 p-5">
+                  <summary className="cursor-pointer text-sm font-medium">
+                    🔗 原始搜索结果 ({searchResult.rawResults.length} 条)
+                  </summary>
+                  <div className="mt-3 space-y-2 max-h-80 overflow-y-auto">
+                    {searchResult.rawResults.map((r, i) => (
+                      <div
+                        key={i}
+                        className="border border-border/50 rounded-xl p-3"
                       >
-                        {r.title}
-                      </a>
-                      <p className="text-xs text-gray-500 mt-1">{r.snippet}</p>
-                      <p className="text-xs text-gray-400 mt-1">
-                        搜索词: {r.query}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </details>
+                        <a
+                          href={r.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm font-medium text-blue-600 hover:underline"
+                        >
+                          {r.title}
+                        </a>
+                        <p className="text-xs text-gray-500 mt-1">{r.snippet}</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          搜索词: {r.query}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
 
               <p className="text-xs text-gray-400">
-                {searchResult.fromAIKnowledge && (
-                  <span className="text-red-600 dark:text-red-400 font-medium">⚠️ 联网搜索未获取到结果，以下数据来自 AI 模型训练知识库，可能已过时。<br/></span>
-                )}
                 {searchResult.disclaimer}
               </p>
-
-              {searchResult.cacheHit && searchResult.cachedAt && (
-                <p className="text-xs text-gray-400">
-                  ⚡ 命中缓存：数据抓取于{" "}
-                  {formatTimeAgo(searchResult.cachedAt)}（缓存有效期 24 小时，内容未实时刷新）
-                </p>
-              )}
 
               <p className="text-xs">
                 <a
@@ -629,6 +814,48 @@ export default function AdmissionPage() {
         <div className="bg-card rounded-2xl border border-border/50 p-5">
           <ImportTab onImportComplete={loadSaved} />
         </div>
+      )}
+
+      {/* ── 质疑弹窗 ── */}
+      {disputeEntry && (
+        <Modal
+          open
+          onClose={() => setDisputeEntry(null)}
+          title="⚠️ 质疑此数据"
+          description={`${disputeEntry.university} ${disputeEntry.major} ${disputeEntry.year}年 ${CATEGORY_LABEL[disputeEntry.category] || ""}`}
+          footer={
+            <>
+              <button
+                onClick={() => setDisputeEntry(null)}
+                className="rounded-full h-11 px-6 text-sm font-medium border border-border/60 hover:bg-muted transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => handleFeedback(disputeEntry, "dispute")}
+                disabled={!disputeReason.trim() || submittingFeedback}
+                className="rounded-full h-11 px-6 text-sm font-medium bg-warning text-white hover:bg-warning/90 disabled:opacity-50 transition-colors"
+              >
+                提交质疑
+              </button>
+            </>
+          }
+        >
+          <p className="text-sm text-muted-foreground mb-2">
+            请说明你认为数据有误的原因（如分数不对、年份错误、来源不可信等），作者会核实后处理。
+          </p>
+          <textarea
+            value={disputeReason}
+            onChange={(e) => setDisputeReason(e.target.value)}
+            rows={4}
+            maxLength={500}
+            placeholder="例如：2025 年复试线实际是 350 而不是 320…"
+            className="w-full rounded-xl border border-border/50 bg-muted/50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 resize-none"
+          />
+          <p className="text-right text-xs text-muted-foreground mt-1">
+            {disputeReason.length}/500
+          </p>
+        </Modal>
       )}
     </div>
   );

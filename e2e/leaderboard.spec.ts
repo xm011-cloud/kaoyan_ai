@@ -37,5 +37,6 @@ test("clicking a member opens their public profile", async ({ page }) => {
   await page.locator('a[href^="/user/"]').first().waitFor({ timeout: 10000 });
   await page.locator('a[href^="/user/"]').first().click();
   await page.waitForURL(/\/user\//, { timeout: 10000 });
-  await expect(page.locator("text=累计打卡").first()).toBeVisible({ timeout: 10000 });
+  // 放宽超时：公开资料页查询在 Neon 冷启动/并发下可能较慢
+  await expect(page.locator("text=累计打卡").first()).toBeVisible({ timeout: 20000 });
 });

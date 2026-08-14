@@ -50,6 +50,7 @@ model User {
   practiceSessions  PracticeSession[]
   pomodoroSessions  PomodoroSession[]
   admissionInfos    AdmissionInfo[]
+  admissionFeedbacks AdmissionFeedback[]
   importedQuestions ImportedQuestion[]
   schoolComparisons SchoolComparison[]
   knowledgeNodes    KnowledgeNode[]
@@ -256,23 +257,41 @@ model PomodoroSession {
   @@index([userId, createdAt])
 }
 
-// 院校录取信息（按年份存储，数据可跨用户共享）
+// 院校录取信息（按年份存储，数据可跨用户共享；同一院校专业年份允许多来源并存）
 model AdmissionInfo {
-  id         String   @id @default(uuid())
-  userId     String?  // null = 系统全局数据
-  university String
-  major      String
-  year       Int      // 数据年份
-  category   String   // "score_line" | "enrollment" | "subjects" | "tuition" | "notes"
-  data       Json     // 结构化数据
-  source     String   // 来源 URL
-  verified   Boolean  @default(false)
-  createdAt  DateTime @default(now())
+  id           String   @id @default(uuid())
+  userId       String?  // null = 系统全局数据（搜索自动落库）
+  university   String
+  major        String
+  year         Int      // 数据年份
+  category     String   // "score_line" | "enrollment" | "subjects" | "tuition" | "notes"
+  data         Json     // 结构化数据
+  source       String   // 来源 URL
+  verifyStatus String   @default("unverified") // unverified | verified | disputed | rejected
+  createdAt    DateTime @default(now())
 
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user      User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  feedbacks AdmissionFeedback[]
 
-  @@unique([university, major, year, category])
+  @@index([university, major, year])
   @@index([university, major])
+}
+
+// 院校数据社区反馈（认同 👍 / 质疑 ⚠️）— 一人一条，可改投
+model AdmissionFeedback {
+  id              String   @id @default(cuid())
+  admissionInfoId String
+  userId          String
+  type            String   // "vouch" | "dispute"
+  reason          String?  // 质疑时必填
+  status          String   @default("pending") // 仅 dispute：pending | accepted（确认错误） | rejected（驳回）
+  createdAt       DateTime @default(now())
+
+  admissionInfo AdmissionInfo @relation(fields: [admissionInfoId], references: [id], onDelete: Cascade)
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([admissionInfoId, userId])
+  @@index([admissionInfoId, type])
 }
 
 // 院校搜索缓存（全局共享：相同查询所有人共用一条，24h TTL，省 AI 调用 + 降爬取频率）

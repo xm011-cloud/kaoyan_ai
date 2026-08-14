@@ -137,36 +137,44 @@ ${text.slice(0, 10000)}
   }));
 }
 
-// upsert 批量保存
+// upsert 批量保存（同 key 同来源已存在则更新，否则新建；允许多来源并存）
 async function upsertEntries(userId: string, entries: AdmissionEntry[]) {
   const saved: AdmissionEntry[] = [];
   for (const entry of entries) {
     try {
-      await prisma.admissionInfo.upsert({
+      const existing = await prisma.admissionInfo.findFirst({
         where: {
-          university_major_year_category: {
-            university: entry.university,
-            major: entry.major,
-            year: entry.year,
-            category: entry.category,
-          },
-        },
-        create: {
           userId,
           university: entry.university,
           major: entry.major,
           year: entry.year,
           category: entry.category,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          data: entry.data as any,
-          source: entry.source || "用户上传",
-        },
-        update: {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          data: entry.data as any,
           source: entry.source || "用户上传",
         },
       });
+      if (existing) {
+        await prisma.admissionInfo.update({
+          where: { id: existing.id },
+          data: {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            data: entry.data as any,
+            source: entry.source || "用户上传",
+          },
+        });
+      } else {
+        await prisma.admissionInfo.create({
+          data: {
+            userId,
+            university: entry.university,
+            major: entry.major,
+            year: entry.year,
+            category: entry.category,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            data: entry.data as any,
+            source: entry.source || "用户上传",
+          },
+        });
+      }
       saved.push(entry);
     } catch (e) {
       console.error("Upsert admission entry failed:", e);

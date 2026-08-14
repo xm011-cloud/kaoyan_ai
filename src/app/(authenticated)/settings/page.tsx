@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/stores/toast-store'
+import { confirmDialog } from '@/stores/confirm-store'
 import { PageHeader } from '@/components/ui/page-header'
 import {
   useUIStore, DEFAULT_NAV_GROUPS, DEFAULT_WORKSPACE_CARDS, DEFAULT_PRACTICE_DEFAULTS
@@ -87,6 +88,44 @@ export default function SettingsPage() {
     } finally {
       setExporting(false)
     }
+  }
+
+  // ── 注销请求 ──
+  const [deletionStatus, setDeletionStatus] = useState<'none' | 'pending' | 'done' | 'loading'>('loading')
+  const [deleting, setDeleting] = useState(false)
+  useEffect(() => {
+    fetch('/api/user/deletion-request').then(r => r.json()).then(d => {
+      if (d.requested) setDeletionStatus(d.status === 'done' ? 'done' : 'pending')
+      else setDeletionStatus('none')
+    }).catch(() => setDeletionStatus('none'))
+  }, [])
+
+  const handleRequestDeletion = async () => {
+    const ok = await confirmDialog({
+      title: '请求注销账号',
+      message: '提交后将删除你的账号与全部学习数据（7 个工作日内处理）。请先确认已通过「数据导出」备份重要内容。确定继续吗？',
+      confirmLabel: '确认注销',
+      danger: true,
+    })
+    if (!ok) return
+    setDeleting(true)
+    try {
+      const res = await fetch('/api/user/deletion-request', { method: 'POST' })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error || '提交失败')
+      setDeletionStatus('pending')
+      toast.success('已提交注销请求，7 个工作日内处理')
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : '提交失败')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const handleCancelDeletion = async () => {
+    await fetch('/api/user/deletion-request', { method: 'DELETE' })
+    setDeletionStatus('none')
+    toast.success('已取消注销请求')
   }
 
   useEffect(() => {
@@ -513,6 +552,30 @@ export default function SettingsPage() {
           <Button variant="outline" onClick={handleExport} disabled={exporting} className="rounded-full h-10 px-5 active:scale-[0.98] transition-all">
             {exporting ? '导出中...' : '💾 导出数据'}
           </Button>
+          <Link href="/privacy" target="_blank">
+            <Button variant="outline" className="rounded-full h-10 px-5 active:scale-[0.98] transition-all">🔒 隐私政策</Button>
+          </Link>
+        </div>
+
+        {/* 账号注销 */}
+        <div className="mt-4 pt-4 border-t border-border/40">
+          <p className="text-sm font-medium mb-1">🗑️ 账号注销</p>
+          <p className="text-xs text-muted-foreground mb-2">
+            {deletionStatus === 'pending'
+              ? '你的注销请求已提交，我们将在 7 个工作日内处理并删除账号与数据。'
+              : deletionStatus === 'done'
+                ? '你的注销请求已处理，账号数据已删除。'
+                : '注销将删除账号与全部学习数据（7 个工作日内处理）。处理前可随时取消。'}
+          </p>
+          {deletionStatus === 'pending' ? (
+            <Button variant="outline" onClick={handleCancelDeletion} disabled={deleting} className="rounded-full h-9 px-4 text-xs active:scale-[0.98] transition-all">
+              取消注销请求
+            </Button>
+          ) : deletionStatus === 'done' ? null : (
+            <Button variant="outline" onClick={handleRequestDeletion} disabled={deleting} className="rounded-full h-9 px-4 text-xs text-destructive hover:bg-destructive/10 active:scale-[0.98] transition-all">
+              {deleting ? '提交中...' : '请求注销账号'}
+            </Button>
+          )}
         </div>
       </div>
     </div>

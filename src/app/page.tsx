@@ -128,6 +128,8 @@ export default async function Home() {
       <footer className="py-8 text-center text-sm text-gray-400 border-t dark:border-gray-800">
         <div className="flex justify-center gap-6 mb-3">
           <Link href="/about" className="hover:text-blue-500 transition-colors">关于我们</Link>
+          <Link href="/privacy" className="hover:text-blue-500 transition-colors">隐私政策</Link>
+          <Link href="/terms" className="hover:text-blue-500 transition-colors">用户协议</Link>
           <Link href="/suggestions" className="hover:text-blue-500 transition-colors">意见反馈</Link>
           <Link href="/support" className="hover:text-orange-500 transition-colors">☕ 支持作者</Link>
         </div>

@@ -140,6 +140,11 @@ export default function AboutPage() {
       </section>
 
       <footer className="py-8 text-center text-sm text-gray-400 border-t dark:border-gray-800">
+        <div className="flex justify-center gap-6 mb-3">
+          <Link href="/privacy" className="hover:text-blue-500 transition-colors">隐私政策</Link>
+          <Link href="/terms" className="hover:text-blue-500 transition-colors">用户协议</Link>
+          <Link href="/" className="hover:text-blue-500 transition-colors">返回首页</Link>
+        </div>
         <p>© 2026 AI 考研助手 · 助你高效备考 · 上岸加油 🎓</p>
       </footer>
     </div>

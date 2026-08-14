@@ -87,6 +87,7 @@ export default defineConfig({
         "ai-config.spec.ts",
         "changelog.spec.ts",
         "exam-questions.spec.ts",
+        "compliance.spec.ts",
       ],
     },
     // Unauthenticated tests (no storage state)

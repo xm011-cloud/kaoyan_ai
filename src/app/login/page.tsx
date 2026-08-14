@@ -12,6 +12,7 @@ export default function LoginPage() {
   const [inviteCode, setInviteCode] = useState('')
   const [honeypot, setHoneypot] = useState('')
   const [isSignUp, setIsSignUp] = useState(false)
+  const [agreeTerms, setAgreeTerms] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [recoveryError, setRecoveryError] = useState(false)
@@ -33,6 +34,10 @@ export default function LoginPage() {
     try {
       const supabase = getSupabase()
       if (isSignUp) {
+        if (!agreeTerms) {
+          setError('请先阅读并同意《用户协议》和《隐私政策》')
+          return
+        }
         // 注册：服务端校验邀请码 + admin.createUser 建号（email_confirm=true）
         const res = await fetch('/api/auth/register', {
           method: 'POST',
@@ -137,6 +142,24 @@ export default function LoginPage() {
                 className="w-full h-10 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
               />
             </div>
+          )}
+
+          {isSignUp && (
+            <label className="flex items-start gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={agreeTerms}
+                onChange={(e) => setAgreeTerms(e.target.checked)}
+                className="mt-0.5 accent-brand"
+              />
+              <span>
+                我已阅读并同意
+                <Link href="/terms" target="_blank" className="text-brand hover:underline mx-0.5">《用户协议》</Link>
+                和
+                <Link href="/privacy" target="_blank" className="text-brand hover:underline mx-0.5">《隐私政策》</Link>
+                （含数据存储于海外的告知）
+              </span>
+            </label>
           )}
 
           {recoveryError && (

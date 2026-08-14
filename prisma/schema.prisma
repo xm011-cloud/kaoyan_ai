@@ -294,6 +294,16 @@ model AdmissionFeedback {
   @@index([admissionInfoId, type])
 }
 
+// 账号注销请求（轻量：用户申请 → 作者后台手动处理删除）
+model DeletionRequest {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  email     String   // 邮箱快照（处理后用户可能已被删除）
+  status    String   @default("pending") // pending | done
+  createdAt DateTime @default(now())
+  handledAt DateTime?
+}
+
 // 院校搜索缓存（全局共享：相同查询所有人共用一条，24h TTL，省 AI 调用 + 降爬取频率）
 model AdmissionSearchCache {
   id        String   @id @default(cuid())

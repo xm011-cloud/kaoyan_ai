@@ -24,7 +24,7 @@ export default async function AdminPage() {
     )
   }
 
-  const [feedbacks, supporters, disputes] = await Promise.all([
+  const [feedbacks, supporters, disputes, deletions] = await Promise.all([
     prisma.authorFeedback.findMany({
       orderBy: { createdAt: 'desc' },
       include: { user: { select: { email: true, name: true } } },
@@ -39,6 +39,9 @@ export default async function AdminPage() {
         admissionInfo: true,
         user: { select: { email: true } },
       },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.deletionRequest.findMany({
       orderBy: { createdAt: 'desc' },
     }),
   ])
@@ -78,10 +81,19 @@ export default async function AdminPage() {
       verifyStatus: d.admissionInfo.verifyStatus,
     },
   }))
+  const deletionItems = deletions.map((d) => ({
+    id: d.id,
+    userId: d.userId,
+    email: d.email,
+    status: d.status,
+    createdAt: d.createdAt.toISOString(),
+    handledAt: d.handledAt ? d.handledAt.toISOString() : null,
+  }))
 
   const pendingCount = supporterItems.filter((s) => !s.approved).length
   const newFeedbackCount = feedbackItems.filter((f) => f.status === 'new').length
   const disputeCount = disputeItems.length
+  const deletionCount = deletionItems.filter((d) => d.status === 'pending').length
 
   return (
     <div className="p-4 lg:p-6 max-w-3xl mx-auto space-y-6">
@@ -106,6 +118,11 @@ export default async function AdminPage() {
               院校质疑 {disputeCount}
             </span>
           )}
+          {deletionCount > 0 && (
+            <span className="px-2.5 py-1 rounded-full bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 font-medium">
+              注销请求 {deletionCount}
+            </span>
+          )}
         </div>
       </div>
 
@@ -113,6 +130,7 @@ export default async function AdminPage() {
         initialFeedbacks={feedbackItems}
         initialSupporters={supporterItems}
         initialDisputes={disputeItems}
+        initialDeletions={deletionItems}
       />
     </div>
   )

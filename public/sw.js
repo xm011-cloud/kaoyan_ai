@@ -1,5 +1,5 @@
 // Basic Service Worker for offline support + notification click handling
-const CACHE_NAME = 'c6-study-v3';
+const CACHE_NAME = 'c6-study-v4';
 
 // Assets to cache on install
 const PRECACHE_ASSETS = [
@@ -31,12 +31,22 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
+      // 有旧版缓存 = 真升级（非首次安装）：通知已打开的页面「有新版本」，由页面展示刷新提示。
+      // 不自动 navigate 刷新页面——避免打断用户正在进行的操作，也避免测试/工作流被中途重载。
+      const hadOldCache = keys.some((key) => key !== CACHE_NAME);
       return Promise.all(
         keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
-      );
+      )
+        .then(() => self.clients.claim())
+        .then(() => {
+          if (hadOldCache) {
+            return self.clients.matchAll({ type: 'window' }).then((clients) =>
+              clients.forEach((c) => c.postMessage({ type: 'app-updated' }))
+            );
+          }
+        });
     })
   );
-  self.clients.claim();
 });
 
 // Network-first strategy for navigation, cache-first for static assets.

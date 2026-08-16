@@ -314,18 +314,20 @@ export function ImportTab({ onImportComplete }: ImportTabProps) {
             }}
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
-            className={`block border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
+            className={`relative block border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
               dragOver
                 ? "border-blue-400 bg-blue-50 dark:bg-blue-900/20"
                 : "border-border/50 hover:border-brand/40"
             }`}
           >
+            {/* 文件框铺满整个拖放区：点击落点在 input 本体（原生手势打开选择器），iOS PWA standalone 最稳 */}
             <input
               ref={fileInputRef}
               type="file"
               accept=".txt,.pdf,.csv"
               onChange={handleFileChange}
-              className="sr-only"
+              aria-label="选择真题文件"
+              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
             />
             {file ? (
               <div className="space-y-1">

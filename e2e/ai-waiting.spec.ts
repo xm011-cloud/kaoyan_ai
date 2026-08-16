@@ -22,8 +22,10 @@ test("chat shows wait-soothing bubble with phases, estimate and cancel", async (
   await page.goto("/chat");
   await expect(page.locator("h1").filter({ hasText: "AI 对话" })).toBeVisible({ timeout: 20000 });
 
-  // 注意：页面右下角有浮动 AI 组件（自带输入框/发送按钮），用占位符精确锁定主对话输入框
-  const chatInput = page.getByPlaceholder(/输入你的问题/);
+  // 注意：页面右下角有浮动 AI 组件（自带输入框/发送按钮），用占位符精确锁定主对话输入框。
+  // 主输入框占位符随「是否有资料」变化（输入你的问题 / 输入问题，AI 自动检索 / 针对选中资料提问），
+  // 全部匹配；浮动组件是「输入指令/配置 AI」——不复用，排除掉。
+  const chatInput = page.getByPlaceholder(/输入你的问题|输入问题，AI 自动检索|针对选中资料提问/);
   await expect(chatInput).toBeVisible({ timeout: 20000 });
   const sendBtn = page.locator("form").filter({ has: chatInput }).getByRole("button", { name: "发送" });
 

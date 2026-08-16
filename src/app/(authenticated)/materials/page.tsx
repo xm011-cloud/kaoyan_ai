@@ -137,24 +137,24 @@ export default function MaterialsPage() {
           title="学习资料"
           subtitle="上传资料后可以在线查看，也可以让 AI 基于资料回答"
           action={
-            // 用 <label> 原生激活 hidden input，而非程序化 .click()——
-            // iOS PWA standalone 模式会屏蔽 display:none 文件框的程序化 click（头像上传即此法，可用）
+            // 文件框直接铺满按钮（absolute + opacity-0）——点击落点在 <input type=file> 本体，
+            // 走原生用户手势打开选择器，不依赖程序化 .click() 或 label→input 转发，
+            // iOS PWA standalone 下最稳（display:none + 程序化 click 会被 WebKit 屏蔽）。
             <label
-              htmlFor="file-upload"
               className={cn(
                 buttonVariants({ variant: 'default' }),
-                'cursor-pointer',
+                'relative cursor-pointer overflow-hidden',
                 uploading && 'pointer-events-none opacity-50'
               )}
             >
               {uploading ? '上传中...' : '上传资料'}
               <input
                 ref={fileInputRef}
-                id="file-upload"
                 type="file"
                 accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp,.txt"
                 onChange={handleUpload}
-                className="sr-only"
+                aria-label="上传资料"
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
               />
             </label>
           }

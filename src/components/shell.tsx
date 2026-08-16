@@ -6,6 +6,7 @@ import { MobileNav } from '@/components/mobile-nav'
 import { PomodoroEngine } from '@/components/pomodoro-engine'
 import { AiFloating } from '@/components/ai-floating'
 import { OfflineBanner } from '@/components/offline-banner'
+import { SwUpdateNotice } from '@/components/sw-update-notice'
 
 /**
  * OS 外壳布局 — Apple HIG compliant
@@ -32,6 +33,7 @@ export function Shell({
       <PomodoroEngine />
       <AiFloating />
       <OfflineBanner />
+      <SwUpdateNotice />
       <Header daysLeft={daysLeft} />
       <main className="flex-1 overflow-y-auto">
         {children}

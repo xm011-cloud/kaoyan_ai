@@ -5,6 +5,7 @@ import { ActivityBar } from '@/components/activity-bar'
 import { MobileNav } from '@/components/mobile-nav'
 import { PomodoroEngine } from '@/components/pomodoro-engine'
 import { AiFloating } from '@/components/ai-floating'
+import { OfflineBanner } from '@/components/offline-banner'
 
 /**
  * OS 外壳布局 — Apple HIG compliant
@@ -27,9 +28,10 @@ export function Shell({
   daysLeft: number
 }) {
   return (
-    <div className="h-dvh flex flex-col bg-background">
+    <div className="h-dvh flex flex-col bg-background pt-[env(safe-area-inset-top)]">
       <PomodoroEngine />
       <AiFloating />
+      <OfflineBanner />
       <Header daysLeft={daysLeft} />
       <main className="flex-1 overflow-y-auto">
         {children}

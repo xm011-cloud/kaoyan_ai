@@ -253,14 +253,14 @@ export function AiFloating() {
           <div className="flex items-center gap-1">
             <button
               onClick={handleNewChat}
-              className="text-xs px-2 py-1 rounded-md hover:bg-muted text-muted-foreground transition-colors"
+              className="min-h-11 flex items-center px-3 text-xs rounded-md hover:bg-muted text-muted-foreground transition-colors"
               title="新对话"
             >
               新对话
             </button>
             <button
               onClick={() => setOpen(false)}
-              className="text-xs px-2 py-1 rounded-md hover:bg-muted text-muted-foreground transition-colors"
+              className="min-h-11 flex items-center px-3 text-xs rounded-md hover:bg-muted text-muted-foreground transition-colors"
               title="关闭 (Esc)"
               aria-label="关闭"
             >

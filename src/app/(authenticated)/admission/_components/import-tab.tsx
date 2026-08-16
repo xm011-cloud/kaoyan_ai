@@ -306,15 +306,15 @@ export function ImportTab({ onImportComplete }: ImportTabProps) {
       {/* ── File Upload Mode ── */}
       {mode === "file" && (
         <div className="space-y-4">
-          <div
+          {/* label 原生激活 hidden input（而非程序化 .click()）—— iOS PWA standalone 屏蔽 display:none 文件框的程序化 click */}
+          <label
             onDragOver={(e) => {
               e.preventDefault();
               setDragOver(true);
             }}
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
-            className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
+            className={`block border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
               dragOver
                 ? "border-blue-400 bg-blue-50 dark:bg-blue-900/20"
                 : "border-border/50 hover:border-brand/40"
@@ -325,7 +325,7 @@ export function ImportTab({ onImportComplete }: ImportTabProps) {
               type="file"
               accept=".txt,.pdf,.csv"
               onChange={handleFileChange}
-              className="hidden"
+              className="sr-only"
             />
             {file ? (
               <div className="space-y-1">
@@ -349,7 +349,7 @@ export function ImportTab({ onImportComplete }: ImportTabProps) {
                 </p>
               </div>
             )}
-          </div>
+          </label>
 
           <button
             onClick={handleFileImport}

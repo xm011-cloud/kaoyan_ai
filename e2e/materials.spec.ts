@@ -17,9 +17,10 @@ test.describe("Materials", () => {
   });
 
   test("upload area is accessible", async ({ page }) => {
-    const uploadBtn = page.getByRole("button", { name: /上传/ });
+    // 上传触发改为 <label>（PWA standalone 下也可用），不再以 button role 定位
+    const uploadLabel = page.getByText("上传资料").first();
     const fileInput = page.locator('input[type="file"]');
-    const hasUpload = (await uploadBtn.isVisible({ timeout: 5000 }).catch(() => false)) ||
+    const hasUpload = (await uploadLabel.isVisible({ timeout: 5000 }).catch(() => false)) ||
                       (await fileInput.isVisible({ timeout: 3000 }).catch(() => false));
     expect(hasUpload).toBe(true);
   });

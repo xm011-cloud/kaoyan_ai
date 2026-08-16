@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
 import { Modal } from '@/components/ui/modal'
 import { confirmDialog } from '@/stores/confirm-store'
+import { cn } from '@/lib/utils'
 
 interface Material {
   id: string
@@ -136,19 +137,26 @@ export default function MaterialsPage() {
           title="学习资料"
           subtitle="上传资料后可以在线查看，也可以让 AI 基于资料回答"
           action={
-            <div>
+            // 用 <label> 原生激活 hidden input，而非程序化 .click()——
+            // iOS PWA standalone 模式会屏蔽 display:none 文件框的程序化 click（头像上传即此法，可用）
+            <label
+              htmlFor="file-upload"
+              className={cn(
+                buttonVariants({ variant: 'default' }),
+                'cursor-pointer',
+                uploading && 'pointer-events-none opacity-50'
+              )}
+            >
+              {uploading ? '上传中...' : '上传资料'}
               <input
                 ref={fileInputRef}
+                id="file-upload"
                 type="file"
                 accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp,.txt"
                 onChange={handleUpload}
-                className="hidden"
-                id="file-upload"
+                className="sr-only"
               />
-              <Button onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-                {uploading ? '上传中...' : '上传资料'}
-              </Button>
-            </div>
+            </label>
           }
         />
 

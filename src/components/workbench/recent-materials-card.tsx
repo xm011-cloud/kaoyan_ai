@@ -22,14 +22,14 @@ export function RecentMaterialsCard({ materials }: { materials: MaterialTrim[] }
     <div className="rounded-2xl bg-card border border-border/50 shadow-sm overflow-hidden">
       <div className="flex items-center justify-between px-5 py-3.5 border-b border-border/50">
         <h3 className="text-sm font-semibold">📚 最近资料</h3>
-        <Link href="/materials" className="text-xs text-brand font-medium hover:underline">全部 →</Link>
+        <Link href="/materials" className="inline-flex min-h-11 items-center -my-3 text-xs text-brand font-medium hover:underline">全部 →</Link>
       </div>
       <div className="p-2">
         {materials.length === 0 ? (
           <div className="text-center py-8">
             <span className="text-3xl">📁</span>
             <p className="text-sm text-muted-foreground mt-2">还没有上传资料</p>
-            <Link href="/materials" className="inline-block mt-2 text-xs text-brand font-medium hover:underline">
+            <Link href="/materials" className="inline-flex min-h-11 items-center mt-2 text-xs text-brand font-medium hover:underline">
               去上传 →
             </Link>
           </div>

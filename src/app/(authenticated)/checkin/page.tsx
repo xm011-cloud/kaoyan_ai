@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
 import { ModuleLinks } from '@/components/ui/module-links'
+import { enqueueWrite } from '@/lib/offline-queue'
 
 // 打卡状态元数据：三态表情/文案 + 成功态的安抚/肯定句（心路成长表达规范）
 const STATUS_META = {
@@ -42,6 +43,7 @@ export default function CheckInPage() {
   const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [offlineSaved, setOfflineSaved] = useState(false)
   const [milestone, setMilestone] = useState<Milestone | null>(null)
   const [todayCheckIn, setTodayCheckIn] = useState<{
     duration: number
@@ -73,17 +75,34 @@ export default function CheckInPage() {
     setLoading(true)
     setError('')
 
+    const body = JSON.stringify({
+      date: today,
+      duration,
+      status,
+      note: note || null,
+    })
+    const writeInit = (): RequestInit => ({
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    })
+    // 离线（含 fetch 网络失败）→ 入队补传 + 乐观置为已打卡
+    const queueAndSucceed = async () => {
+      await enqueueWrite('/api/checkin', writeInit(), { dedupeKey: `checkin:${today}` })
+      setSubmitted(true)
+      setTodayCheckIn({ duration: +duration || 0, status, note: note || null })
+      setOfflineSaved(true)
+    }
+
+    // 明确离线 → 直接入队，不发起注定失败的请求
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      await queueAndSucceed()
+      setLoading(false)
+      return
+    }
+
     try {
-      const res = await fetch('/api/checkin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: today,
-          duration,
-          status,
-          note: note || null,
-        }),
-      })
+      const res = await fetch('/api/checkin', writeInit())
 
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || '打卡失败')
@@ -92,7 +111,12 @@ export default function CheckInPage() {
       setTodayCheckIn(data.checkIn)
       setMilestone(data.milestone ?? null)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : '打卡失败')
+      if (err instanceof TypeError) {
+        // 网络层失败（刚断网 navigator.onLine 可能还没更新）→ 入队
+        await queueAndSucceed()
+      } else {
+        setError(err instanceof Error ? err.message : '打卡失败')
+      }
     } finally {
       setLoading(false)
     }
@@ -106,6 +130,11 @@ export default function CheckInPage() {
           <div className="bg-card p-6 rounded-2xl border border-border/50 text-center space-y-4">
             <div className="text-5xl">🎉</div>
             <h2 className="text-xl font-bold">今日已打卡！</h2>
+            {offlineSaved && (
+              <p className="text-xs text-warning font-medium">
+                📡 离线已保存，联网后自动同步
+              </p>
+            )}
             <div className="text-muted-foreground space-y-1">
               <p>学习时长：{todayCheckIn.duration} 分钟</p>
               <p>
@@ -141,6 +170,7 @@ export default function CheckInPage() {
                 setTodayCheckIn(null)
                 setDuration('')
                 setNote('')
+                setOfflineSaved(false)
               }}>
                 {todayCheckIn ? '修改打卡' : '再次打卡'}
               </Button>

@@ -175,7 +175,16 @@ export function Header({ daysLeft }: { daysLeft: number }) {
               ))}
 
               <hr />
-              <form action="/auth/signout" method="post">
+              <form
+                action="/auth/signout"
+                method="post"
+                onSubmit={() => {
+                  // 登出前清空 SW 的 API 缓存，避免下一位登录者读到本账号数据
+                  if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+                    navigator.serviceWorker.controller.postMessage({ type: "clear-api-cache" });
+                  }
+                }}
+              >
                 <button className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-destructive w-full rounded-lg hover:bg-muted transition-colors">
                   <span>🚪</span> 退出登录
                 </button>

@@ -263,6 +263,20 @@ export default function ChatPage() {
     inputRef.current?.focus()
   }, [loading])
 
+  // iOS 键盘遮挡：visualViewport 变化（键盘弹出/收起）时把聚焦的输入框滚回可视区
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const onVvResize = () => {
+      const el = inputRef.current
+      if (el && document.activeElement === el) {
+        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      }
+    }
+    vv.addEventListener('resize', onVvResize)
+    return () => vv.removeEventListener('resize', onVvResize)
+  }, [])
+
   const saveChat = useCallback(async (msgs: Message[], cId: string | null) => {
     try {
       const res = await fetch('/api/chat', {

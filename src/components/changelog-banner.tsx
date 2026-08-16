@@ -41,7 +41,7 @@ export function ChangelogBanner() {
         <button
           onClick={() => setLastSeenChangelog(LATEST_CHANGELOG_ID)}
           aria-label="关闭更新告示"
-          className="text-xs text-muted-foreground hover:text-foreground px-1.5 py-1 rounded-md hover:bg-muted transition-colors"
+          className="inline-flex min-h-11 min-w-11 items-center justify-center -my-3 text-xs text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors"
         >
           ✕
         </button>

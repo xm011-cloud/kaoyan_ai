@@ -153,3 +153,16 @@
     @apply font-sans;
   }
 }
+
+/*
+ * 移动端表单控件字号 ≥16px — 消灭 iOS Safari 聚焦自动缩放。
+ * iOS 规则：任何 font-size < 16px 的 input/textarea 聚焦时会整页 zoom。
+ * 用未分层 CSS 覆盖 Tailwind 的 text-sm/text-xs，仅影响触屏窄屏。
+ */
+@media (max-width: 767px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}

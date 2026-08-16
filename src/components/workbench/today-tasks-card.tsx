@@ -23,7 +23,7 @@ export function TodayTasksCard({ tasks, dateStr }: { tasks: TodayTask[]; dateStr
           <div className="text-center py-10">
             <span className="text-3xl">📝</span>
             <p className="text-sm text-muted-foreground mt-2">今天还没有任务</p>
-            <Link href="/tasks" className="inline-block mt-2 text-xs text-brand font-medium hover:underline">
+            <Link href="/tasks" className="inline-flex min-h-11 items-center mt-2 text-xs text-brand font-medium hover:underline">
               去添加 →
             </Link>
           </div>
@@ -48,7 +48,7 @@ export function TodayTasksCard({ tasks, dateStr }: { tasks: TodayTask[]; dateStr
       </div>
       {tasks.length > 5 && (
         <div className="px-5 py-2 border-t border-border/50">
-          <Link href="/tasks" className="text-xs text-brand font-medium hover:underline">
+          <Link href="/tasks" className="inline-flex min-h-11 items-center -my-3 text-xs text-brand font-medium hover:underline">
             查看全部 {tasks.length} 个任务 →
           </Link>
         </div>

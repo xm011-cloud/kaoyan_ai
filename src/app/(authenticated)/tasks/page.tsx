@@ -11,6 +11,7 @@ import { useGoal } from "@/hooks/use-goal";
 import { useAiTask } from "@/hooks/use-ai-task";
 import { WeeklyPlanner } from "./_components/weekly-planner";
 import { getWeekStart, toDateString } from "@/lib/date-utils";
+import { enqueueWrite } from "@/lib/offline-queue";
 
 interface Task {
   id: string;
@@ -241,14 +242,24 @@ export default function TasksPage() {
   };
 
   const handleToggleComplete = async (task: Task) => {
+    const next = !task.completed;
+    // 乐观更新 UI（原实现等请求完成才更新；改为立即更新，离线入队也不会让勾选丢失）
+    setWeekTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, completed: next } : t)));
+    const init = (): RequestInit => ({
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ completed: next }),
+    });
+    // 离线 → 入队（dedupeKey 归并同一任务最新状态）
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      await enqueueWrite(`/api/tasks/${task.id}`, init(), { dedupeKey: `task:${task.id}` });
+      return;
+    }
     try {
-      await fetch(`/api/tasks/${task.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ completed: !task.completed }),
-      });
-      setWeekTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, completed: !t.completed } : t)));
-    } catch { /* ignore */ }
+      await fetch(`/api/tasks/${task.id}`, init());
+    } catch {
+      await enqueueWrite(`/api/tasks/${task.id}`, init(), { dedupeKey: `task:${task.id}` });
+    }
   };
 
   const handleDeleteTask = async (id: string) => {

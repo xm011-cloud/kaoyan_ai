@@ -16,10 +16,11 @@ interface ModalProps {
 }
 
 const SIZE_STYLES: Record<NonNullable<ModalProps['size']>, string> = {
-  sm: 'max-w-[min(24rem,92vw)]',
-  md: 'max-w-[min(32rem,92vw)]',
-  lg: 'max-w-[min(48rem,92vw)]',
-  xl: 'max-w-[min(64rem,92vw)]',
+  // 移动端是底部抽屉（全宽），宽度上限只在 ≥sm 居中对话框时生效
+  sm: 'sm:max-w-[min(24rem,92vw)]',
+  md: 'sm:max-w-[min(32rem,92vw)]',
+  lg: 'sm:max-w-[min(48rem,92vw)]',
+  xl: 'sm:max-w-[min(64rem,92vw)]',
 }
 
 /** 统一模态框：base-ui Dialog 提供焦点圈闭、Esc 关闭、遮罩、ARIA 标注 */
@@ -44,9 +45,12 @@ export function Modal({
         <Dialog.Backdrop className="fixed inset-0 z-[80] bg-black/40" />
         <Dialog.Popup
           className={cn(
-            'fixed left-1/2 top-1/2 z-[81] flex w-[92vw] -translate-x-1/2 -translate-y-1/2 flex-col outline-none',
-            'rounded-2xl border border-border/50 bg-card shadow-xl',
-            'max-h-[90vh]',
+            // 移动端：底部抽屉（全宽、贴底、圆顶、预留 Home Indicator）
+            'fixed inset-x-0 bottom-0 z-[81] flex w-full flex-col outline-none',
+            'rounded-t-2xl border border-border/50 bg-card shadow-xl',
+            'max-h-[90dvh] pb-[env(safe-area-inset-bottom)]',
+            // ≥sm：居中对话框
+            'sm:inset-x-auto sm:left-1/2 sm:top-1/2 sm:w-[92vw] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:max-h-[90vh] sm:pb-0',
             SIZE_STYLES[size],
             className
           )}

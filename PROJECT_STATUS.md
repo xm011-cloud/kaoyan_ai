@@ -19,7 +19,7 @@
 | AI | MiMo v2.5-pro (OpenAI-compatible API) | — |
 | 图表 | Recharts + D3 子模块 (知识图谱) | ^3.9.2 / 7.x |
 | 状态 | zustand (persist) + @tanstack/react-query | ^5.0.14 / ^5.101.4 |
-| 测试 | Playwright 121 用例 · 独立测试库 `neondb_test` | ^1.61.1 |
+| 测试 | Playwright 122 用例 · 独立测试库 `neondb_test` | ^1.61.1 |
 | 部署 | Vercel (c6-orcin.vercel.app) | — |
 
 ## 模块清单 (19 个)
@@ -330,6 +330,13 @@ src/
 - **E2E 基建**：`global-setup` 预置 `weeklyPlanPrompted` 防打扰 key —— 修复**周日跑 E2E** 时「本周告一段落」周计划提醒弹窗（aria-modal）遮挡页面导致 skills 用例失败的 flake；`e2e/_testdb.txt`（含 Neon 数据库凭据）加入 `.gitignore`
 - 测试：121 用例全绿（新增 admission 搜索可取消 / 真题导入可取消 / 练习出题仅安抚 3 用例，均路由拦截模拟慢 AI）
 
+### 第 24 轮 — 移动端体验 + 离线能力 + PWA 上传修复（2026-08-16）
+- **移动端布局 P0-P2 全改**（iPhone 视口审计驱动）：① **P0 表单字号** —— 移动端 `input/textarea/select` 强制 16px（消灭 iOS Safari 聚焦自动缩放）；② **P1 触控目标** —— 科目选择器 chips/输入框、练习模式按钮、浮窗头部按钮、dashboard 卡片"查看全部"链接、更新告示/新手指引关闭按钮等全部 ≥44px（`min-h-11` + 负 margin 保证视觉不撑高）；③ **P2 弹窗/键盘** —— Modal 移动端底部抽屉化（`sm:` 桌面居中还原）+ 布局 `viewport-fit=cover` + safe-area 内边距 + chat 输入框 visualViewport resize 自动滚回视野
+- **离线读**：Service Worker v3 —— 导航网络优先 + 静态缓存优先 + **GET `/api/*` 网络优先缓存兜底**；登出清空 API 缓存
+- **离线写队列**：IndexedDB 写入队列（`src/lib/offline-queue.ts`）—— 打卡离线乐观成功 + 入队、任务完成切换离线入队（dedupeKey 合并）；联网自动补传（`useOfflineSync`）；离线横幅显示待同步数
+- **PWA 上传修复**（用户反馈：封装 PWA 不能上传资料）：资料上传/真题导入的隐藏 file input 从 `display:none` + 程序化 `.click()` 改为 `<label>` 原生激活 —— 修复 iOS standalone 下浏览器拦截程序化 click
+- 测试：122 用例全绿（新增 `offline.spec.ts` 离线横幅 + 打卡入队 + 联网补传 1 用例；materials 上传定位改 label）
+
 ### 第 10 轮 — 对话→任务落地（事务边界）（2026-08-13）
 - **schema**：Task `proposalId/chatId` + `@@index([userId, proposalId])`；Chat `pendingProposal Json?`
 - **propose_tasks 工具**（writes:false 草稿不落库）：批量建议挂到对话 pendingProposal；`create_task` description 引导勿批量直写；chat 路由读 body.chatId → 提案时无对话则先建 → 返回 `chatId + proposal`
@@ -343,7 +350,7 @@ src/
 |--------|------|
 | P1 | **国内访问入口**（推广前置条件）：`*.vercel.app` 国内不稳定。EdgeOne Pages 已尝试但 **Cloud SSR 函数包 128MiB 超限**（全栈 Next.js + Prisma + mermaid 太重，externalNodeModules 未生效）；备选：**腾讯云轻量服务器 Docker**（无包限制，~¥60/月，需备案绑域名，IP 直访可先用）。**已决定暂缓**（不投入），推广先面向技术圈/海外可达用户 |
 | P1 | 数据库迁移到生产环境（当前 Neon 免费档；**已决定暂缓** —— 先定时 warm-up 缓解冷启动，等部署地域决策确定后与部署一起迁） |
-| P2 | PWA 离线策略优化（导航网络优先，仅 offline.html 兜底，未缓存 API 数据） |
+| P2 | PWA 离线读+写队列已落地（2026-08-16：静态/GET API 缓存兜底 + IndexedDB 写入队列自动补传）。后续：离线包预缓存 / 会话与草稿落盘 |
 | P3 | SWR 缓存（显式降级 backlog：不引入第三种数据获取模式；统一方向为 React Query + `useApi` hook） |
 | P3 | 排行榜/学习圈：点赞/互关/动态等更深社交（当前仅排名） |
 | P3 | **AI 技能系统 V1 已完整落地**。后续：可视化工坊（拖拽编排 steps）、定时触发、技能分享/社区 |
@@ -403,7 +410,7 @@ c87ba50 refactor: Apple HIG UI 全面优化
 
 ## 测试
 
-- Playwright 121 用例全绿（authenticated + unauthenticated 双项目，per-project testMatch）
-- 覆盖：全部模块页面 + 认证重定向 + PWA 资源 + 权限（admin/suggestions/profile 403/重定向）+ 导出下载 + 头像上传 + 排行榜点击进公开页 + 技能系统（9）+ 等待安抚（5，路由拦截模拟慢 AI：chat 气泡/周报行内 + 新增院校搜索可取消/真题导入可取消/练习出题仅安抚）+ 院校导航可见 + 搜索缓存命中（2，真实搜索验证 24h TTL）+ AI 配置引导（4，状态卡/测试连接/chat 引导条/needConfig 联动，route mock）+ 更新日志与告示（5，页渲染/导航入口/告示显示关闭/已读持久化/产品教练补播）
+- Playwright 122 用例全绿（authenticated + unauthenticated 双项目，per-project testMatch）
+- 覆盖：全部模块页面 + 认证重定向 + PWA 资源 + 权限（admin/suggestions/profile 403/重定向）+ 导出下载 + 头像上传 + 排行榜点击进公开页 + 技能系统（9）+ 等待安抚（5，路由拦截模拟慢 AI：chat 气泡/周报行内 + 新增院校搜索可取消/真题导入可取消/练习出题仅安抚）+ 院校导航可见 + 搜索缓存命中（2，真实搜索验证 24h TTL）+ AI 配置引导（4，状态卡/测试连接/chat 引导条/needConfig 联动，route mock）+ 更新日志与告示（5，页渲染/导航入口/告示显示关闭/已读持久化/产品教练补播）+ 离线能力（1，离线横幅/打卡入队/联网补传）
 - 基建：global-setup 预置 `weeklyPlanPrompted` 防打扰 key（周日不弹周计划提醒，修复 E2E 周日 flake）
 - 注意：`e2e/.auth/user.json` 为测试账号存储态；E2E 运行在独立测试库 `neondb_test`（`playwright.config.ts` 自动建库 + schema push + 独立端口 3100），不再污染 dev 库

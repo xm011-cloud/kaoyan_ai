@@ -1,8 +1,16 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { ConfirmDialogHost } from "@/components/ui/confirm-dialog";
+
+export const viewport: Viewport = {
+  themeColor: "#3B82F6",
+  width: "device-width",
+  initialScale: 1,
+  // 允许内容延伸到刘海屏区域，配合 env(safe-area-inset-*) 处理安全区
+  viewportFit: "cover",
+};
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,7 +43,6 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <head>
-        <meta name="theme-color" content="#3B82F6" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="考研助手" />

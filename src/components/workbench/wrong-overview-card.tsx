@@ -9,7 +9,7 @@ export function WrongOverviewCard({ wrongQuestions, dueCount }: { wrongQuestions
     <div className="rounded-2xl bg-card border border-border/50 shadow-sm overflow-hidden">
       <div className="flex items-center justify-between px-5 py-3.5 border-b border-border/50">
         <h3 className="text-sm font-semibold">🔴 错题概览</h3>
-        <Link href="/wrong-questions" className="text-xs text-brand font-medium hover:underline">错题本 →</Link>
+        <Link href="/wrong-questions" className="inline-flex min-h-11 items-center -my-3 text-xs text-brand font-medium hover:underline">错题本 →</Link>
       </div>
       <div className="p-2">
         {wrongQuestions.length === 0 ? (

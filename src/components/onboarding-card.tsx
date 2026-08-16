@@ -24,7 +24,7 @@ export function OnboardingCard({ isNewUser, hasGoal }: { isNewUser: boolean; has
         <button
           onClick={() => setDismissed(true)}
           aria-label="关闭新手指引"
-          className="text-xs text-muted-foreground hover:text-foreground px-1.5 py-1 rounded-md hover:bg-muted transition-colors"
+          className="inline-flex min-h-11 min-w-11 items-center justify-center -my-3 text-xs text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors"
         >
           ✕
         </button>

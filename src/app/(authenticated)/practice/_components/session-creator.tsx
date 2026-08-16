@@ -33,14 +33,14 @@ export function SessionCreator(p: SessionCreatorProps) {
           <button
             key={m.mode}
             onClick={() => p.onModeChange(m.mode)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all active:scale-[0.97] ${
+            className={`flex items-center gap-1.5 px-3 min-h-11 rounded-xl text-xs font-medium whitespace-nowrap transition-all active:scale-[0.97] ${
               p.mode === m.mode
                 ? "bg-card text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
             <span>{m.icon}</span>
-            <span className="hidden sm:inline">{m.title}</span>
+            <span>{m.title}</span>
           </button>
         ))}
       </div>

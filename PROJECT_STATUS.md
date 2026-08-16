@@ -337,6 +337,12 @@ src/
 - **PWA 上传修复**（用户反馈：封装 PWA 不能上传资料）：资料上传/真题导入的隐藏 file input 从 `display:none` + 程序化 `.click()` 改为 `<label>` 原生激活 —— 修复 iOS standalone 下浏览器拦截程序化 click
 - 测试：122 用例全绿（新增 `offline.spec.ts` 离线横幅 + 打卡入队 + 联网补传 1 用例；materials 上传定位改 label）
 
+### 第 24 轮补充 — PWA 上传二修（2026-08-16，已部署）
+- **PWA 上传二修**（用户复测仍不能用）：资料上传/真题导入的 file input 从 `<label>` 二次转发改为**覆盖式 input**（`absolute inset-0 opacity-0 cursor-pointer` 直接铺满按钮/拖拽区）——点击落点在 `<input type=file>` 本体，走原生用户手势，iOS PWA standalone 下最稳
+- **SW 版本更新强制下发**：`CACHE_NAME` v3→v4；activate 发现旧缓存（真升级）→ 向已开页面 `postMessage('app-updated')` → 新组件 `sw-update-notice` 浮条「🔄 已更新到新版本，点击刷新」——已安装 PWA 不再永远跑旧 bundle（弃用自动 `navigate`：会打断用户操作与 E2E 中途重载）
+- **真实上传回归 E2E**：materials.spec 新增「上传→列表可见→删除清理」用例（确认弹窗定位与行删除按钮用 `aria-label` 区分）；`ai-waiting` chat 输入框占位符定位改为**兼容三种状态**（资料有无决定占位文案）——修掉测试库残留资料导致的 flake
+- 测试：123 用例全绿
+
 ### 第 10 轮 — 对话→任务落地（事务边界）（2026-08-13）
 - **schema**：Task `proposalId/chatId` + `@@index([userId, proposalId])`；Chat `pendingProposal Json?`
 - **propose_tasks 工具**（writes:false 草稿不落库）：批量建议挂到对话 pendingProposal；`create_task` description 引导勿批量直写；chat 路由读 body.chatId → 提案时无对话则先建 → 返回 `chatId + proposal`
@@ -360,6 +366,7 @@ src/
 
 | 日期 | 范围 | 内容 |
 |------|------|------|
+| 2026-08-16 | `b5fceed..fbf2448` → 生产 | **PWA 上传二修**（资料/真题 file input 改覆盖式铺满按钮——点击落点在 input 本体走原生手势；SW v4 真升级时 postMessage 刷新浮条强制下发新版，已安装 PWA 不再卡旧 bundle；materials 新增真实上传回归 E2E，ai-waiting 占位符定位兼容资料有无），123 用例全绿；`c6-orcin.vercel.app` |
 | 2026-08-16 | `4dc95f9..b5fceed` → 生产 | **移动端体验 + 离线能力 + PWA 上传修复**（P0 表单字号 ≥16px 灭 iOS 缩放 / P1 触控目标全 ≥44px / P2 Modal 底部抽屉+安全区+键盘滚回；SW v3 GET API 缓存兜底 + IndexedDB 写队列自动补传；上传改 label 修 standalone PWA；useOnlineStatus 改 useSyncExternalStore 灭 hydration mismatch），122 用例全绿；`c6-orcin.vercel.app` |
 | 2026-08-16 | `4c5029c..4dc95f9` → 生产 | **等待安抚扩展 + 导航文案统一**（院校搜索/真题导入可取消 + 练习出题仅安抚；学习圈→排行榜等词统一；global-setup 修周日 E2E 弹窗 flake），121 用例全绿；`c6-orcin.vercel.app` |
 | 2026-08-14 | `09d41e9..4c5029c` → 生产 | **新用户引导**（首次弹窗：功能导览 + AI 使用说明；常驻引导卡：AI 配置/设目标/探索功能），118 用例全绿；`c6-orcin.vercel.app` |
@@ -411,7 +418,7 @@ c87ba50 refactor: Apple HIG UI 全面优化
 
 ## 测试
 
-- Playwright 122 用例全绿（authenticated + unauthenticated 双项目，per-project testMatch）
-- 覆盖：全部模块页面 + 认证重定向 + PWA 资源 + 权限（admin/suggestions/profile 403/重定向）+ 导出下载 + 头像上传 + 排行榜点击进公开页 + 技能系统（9）+ 等待安抚（5，路由拦截模拟慢 AI：chat 气泡/周报行内 + 新增院校搜索可取消/真题导入可取消/练习出题仅安抚）+ 院校导航可见 + 搜索缓存命中（2，真实搜索验证 24h TTL）+ AI 配置引导（4，状态卡/测试连接/chat 引导条/needConfig 联动，route mock）+ 更新日志与告示（5，页渲染/导航入口/告示显示关闭/已读持久化/产品教练补播）+ 离线能力（1，离线横幅/打卡入队/联网补传）
+- Playwright 123 用例全绿（authenticated + unauthenticated 双项目，per-project testMatch）
+- 覆盖：全部模块页面 + 认证重定向 + PWA 资源 + 权限（admin/suggestions/profile 403/重定向）+ 导出下载 + 头像上传 + 排行榜点击进公开页 + 技能系统（9）+ 等待安抚（5，路由拦截模拟慢 AI：chat 气泡/周报行内 + 新增院校搜索可取消/真题导入可取消/练习出题仅安抚）+ 院校导航可见 + 搜索缓存命中（2，真实搜索验证 24h TTL）+ AI 配置引导（4，状态卡/测试连接/chat 引导条/needConfig 联动，route mock）+ 更新日志与告示（5，页渲染/导航入口/告示显示关闭/已读持久化/产品教练补播）+ 离线能力（1，离线横幅/打卡入队/联网补传）+ 资料真实上传（1，上传→列表可见→删除清理，回归覆盖式 input）
 - 基建：global-setup 预置 `weeklyPlanPrompted` 防打扰 key（周日不弹周计划提醒，修复 E2E 周日 flake）
 - 注意：`e2e/.auth/user.json` 为测试账号存储态；E2E 运行在独立测试库 `neondb_test`（`playwright.config.ts` 自动建库 + schema push + 独立端口 3100），不再污染 dev 库

@@ -360,6 +360,7 @@ src/
 
 | 日期 | 范围 | 内容 |
 |------|------|------|
+| 2026-08-16 | `4dc95f9..b5fceed` → 生产 | **移动端体验 + 离线能力 + PWA 上传修复**（P0 表单字号 ≥16px 灭 iOS 缩放 / P1 触控目标全 ≥44px / P2 Modal 底部抽屉+安全区+键盘滚回；SW v3 GET API 缓存兜底 + IndexedDB 写队列自动补传；上传改 label 修 standalone PWA；useOnlineStatus 改 useSyncExternalStore 灭 hydration mismatch），122 用例全绿；`c6-orcin.vercel.app` |
 | 2026-08-16 | `4c5029c..4dc95f9` → 生产 | **等待安抚扩展 + 导航文案统一**（院校搜索/真题导入可取消 + 练习出题仅安抚；学习圈→排行榜等词统一；global-setup 修周日 E2E 弹窗 flake），121 用例全绿；`c6-orcin.vercel.app` |
 | 2026-08-14 | `09d41e9..4c5029c` → 生产 | **新用户引导**（首次弹窗：功能导览 + AI 使用说明；常驻引导卡：AI 配置/设目标/探索功能），118 用例全绿；`c6-orcin.vercel.app` |
 | 2026-08-14 | `95c81ee..cdb5e92` → 生产 | **开放注册**（移除邀请码门槛，保留蜜罐+限流；文案同步 + changelog 新条目），117 用例全绿；`c6-orcin.vercel.app` |

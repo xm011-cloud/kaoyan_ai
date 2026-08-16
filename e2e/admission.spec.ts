@@ -18,7 +18,7 @@ test.describe("Admission", () => {
   });
 
   test("page loads with tabs", async ({ page }) => {
-    await expect(page.locator("text=院校").first()).toBeVisible({ timeout: 10000 });
+    await expect(page.locator("text=院校情报").first()).toBeVisible({ timeout: 10000 });
     // Should have tab navigation
     const tabs = page.locator('[role="tab"]').or(page.locator("button").filter({ hasText: /搜索|对比|收藏|导入/ }));
     await expect(tabs.first()).toBeVisible({ timeout: 5000 });
@@ -47,6 +47,36 @@ test.describe("Admission", () => {
     await expect(admissionLink).toBeVisible({ timeout: 5000 });
     await admissionLink.click();
     await expect(page).toHaveURL(/\/admission/);
+  });
+
+  test("search shows wait-soothing bubble and can cancel", async ({ page }) => {
+    // 拦截搜索接口：延迟 6s 响应，期间观察等待气泡（不依赖真实 AI/爬虫）
+    await page.route("**/api/admission/search", async (route) => {
+      await new Promise((r) => setTimeout(r, 6000));
+      try {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ library: false, entries: [] }),
+        });
+      } catch {
+        // 请求已被取消（点击了「取消」），丢弃本次响应
+      }
+    });
+
+    // 填院校并搜索
+    await page.getByPlaceholder("例如：北京大学").fill(`E2E 等待${Date.now() % 1000000}`);
+    await page.getByRole("button", { name: "🔍 搜索院校信息" }).click();
+
+    // 等待气泡：分阶段文案轮播（阶段 1 → 阶段 2）
+    await expect(page.getByText("正在连接 AI")).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText("正在理解你的情况")).toBeVisible({ timeout: 6000 });
+
+    // 取消：气泡消失 + 按钮恢复 + 安静收场（无「网络错误」）
+    await page.getByRole("button", { name: "取消本次生成" }).click();
+    await expect(page.getByText(/正在理解你的情况|正在连接 AI/)).toHaveCount(0, { timeout: 10000 });
+    await expect(page.getByRole("button", { name: "🔍 搜索院校信息" })).toBeEnabled({ timeout: 10000 });
+    await expect(page.getByText("网络错误")).toHaveCount(0);
   });
 
   test("shared library: pre-seeded global data is queryable; vouch/dispute feedback works", async ({ page }) => {

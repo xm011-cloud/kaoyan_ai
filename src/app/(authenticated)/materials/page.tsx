@@ -133,7 +133,7 @@ export default function MaterialsPage() {
     <div className="p-4 lg:p-6">
       <div className="max-w-3xl mx-auto space-y-6">
         <PageHeader
-          title="资料"
+          title="学习资料"
           subtitle="上传资料后可以在线查看，也可以让 AI 基于资料回答"
           action={
             <div>

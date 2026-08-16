@@ -71,7 +71,7 @@ export default function LeaderboardPage() {
   return (
     <div className="p-4 lg:p-6 max-w-3xl mx-auto space-y-6">
       <PageHeader
-        title="🏆 学习圈排行榜"
+        title="🏆 排行榜"
         action={
           <div className="flex gap-1 p-1 rounded-2xl bg-muted">
             {PERIOD_TABS.map((t) => (

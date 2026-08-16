@@ -24,6 +24,23 @@ function loadEnvLocal() {
 }
 
 /**
+ * 下周周一（本地 YYYY-MM-DD）— 与 WeeklyPlanReminder 的 nmNav 计算一致：
+ * getWeekStart(今天) 回到本地周一 → +7 天 → toLocalDate。
+ * 用来预置 localStorage 防打扰 key，保证 E2E 无论哪天跑都不弹周计划提醒。
+ */
+function nextMondayLocal(): string {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // startOfDay
+  const day = start.getDay();
+  const diff = day === 0 ? -6 : 1 - day; // 同 getWeekStart
+  start.setDate(start.getDate() + diff + 7); // 下周周一
+  const y = start.getFullYear();
+  const m = String(start.getMonth() + 1).padStart(2, "0");
+  const d = String(start.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/**
  * Global setup: logs in via the UI and saves storage state
  * so all authenticated tests can reuse the session.
  */
@@ -61,6 +78,14 @@ async function globalSetup(config: FullConfig) {
       await page.request.get(`${baseURL}/api/goal`);
     } catch {
       // 非致命 — 后续测试遇到真实 API 时也会触发
+    }
+
+    // 预置周计划提醒防打扰 key（与 WeeklyPlanReminder 的 STORAGE_KEY + 下周周一计算一致）。
+    // 避免周日跑 E2E 时「本周告一段落」弹窗（aria-modal）遮挡页面导致 UI 断言失败。
+    try {
+      await page.evaluate((nm) => localStorage.setItem("weeklyPlanPrompted", nm), nextMondayLocal());
+    } catch {
+      // 非致命 — 周日弹窗最多遮挡个别断言，不至于整体不可用
     }
 
     // Save storage state (cookies + localStorage)

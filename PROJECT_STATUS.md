@@ -1,10 +1,10 @@
 # AI 考研助手 — 项目状态
 
-> 最后更新: 2026-08-14 | 分支: `dev` | 维护者: Xm
+> 最后更新: 2026-08-16 | 分支: `dev` | 维护者: Xm
 
 ## 项目概述
 
-面向考研学生的 AI 全栈备考平台。覆盖从目标设定、计划生成、每日学习、刷题练习、错题管理、知识图谱、院校情报，到学习圈社交（排行榜 + 个人资料）、数据导出与作者激励的完整考研备考链路。开放注册（蜜罐 + 限流防滥用），单作者业余开发，所有功能免费。
+面向考研学生的 AI 全栈备考平台。覆盖从目标设定、计划生成、每日学习、刷题练习、错题管理、知识图谱、院校情报，到排行榜（打卡时长排名）、个人资料、数据导出与作者激励的完整考研备考链路。开放注册（蜜罐 + 限流防滥用），单作者业余开发，所有功能免费。
 
 ## 技术栈
 
@@ -19,7 +19,7 @@
 | AI | MiMo v2.5-pro (OpenAI-compatible API) | — |
 | 图表 | Recharts + D3 子模块 (知识图谱) | ^3.9.2 / 7.x |
 | 状态 | zustand (persist) + @tanstack/react-query | ^5.0.14 / ^5.101.4 |
-| 测试 | Playwright 113 用例 · 独立测试库 `neondb_test` | ^1.61.1 |
+| 测试 | Playwright 121 用例 · 独立测试库 `neondb_test` | ^1.61.1 |
 | 部署 | Vercel (c6-orcin.vercel.app) | — |
 
 ## 模块清单 (19 个)
@@ -35,7 +35,7 @@
 #### 🍅 番茄钟 (`/pomodoro`)
 - 25+5 番茄工作法，SVG 环形计时器，反漂移引擎，通知+音频，后台自动保存，ActivityBar 交互控制
 
-#### 🏆 学习圈 (`/leaderboard`) — 🆕 2026-08-10
+#### 🏆 排行榜 (`/leaderboard`) — 🆕 2026-08-10
 - 打卡累计时长排名（并列按时长天数），本周/本月/全部周期切换
 - 领奖台前三 + 列表 + 我的排名；成员点击进公开资料页
 - **API**: `api/leaderboard/route.ts`（groupBy 两步聚合 + User join，邮箱脱敏）
@@ -118,7 +118,7 @@
 ## 导航结构（Header 5 分组）
 
 ```
-📅 今日 → 🏠概览 / ✅打卡 / 🍅番茄钟 / 🏆学习圈
+📅 今日 → 🏠概览 / ✅打卡 / 🍅番茄钟 / 🏆排行榜
 📝 备考 → 🎯目标 / 📋计划 / ✏️练习 / 📕错题
 🤖 AI   → 💬对话 / 📊周报 / 🗺️路径 / ⚡技能
 📚 知识 → 📖资料 / 🧠图谱 / 🏫院校(默认隐藏)
@@ -324,6 +324,12 @@ src/
 - **目标后置**（按用户要求）：功能导览 + AI 使用优先，设目标放在引导卡第 2 步
 - 测试：`e2e/onboarding.spec.ts` 1 用例（开放注册真实新账号 → 登录 → 弹窗出现 → 关闭 → 引导卡 3 步可见），118 全绿
 
+### 第 23 轮 — 等待安抚扩展到重操作 + 导航文案统一（2026-08-16）
+- **等待安抚扩展**：`useAiTask` + `AiWaiting` 接入 3 处重操作 —— ① **院校搜索**（可取消，AbortController 静默收场）② **真题联网导入**（可取消）③ **练习 AI 出题**（inline 仅安抚，mutation 不可中断）
+- **导航/文案统一**：学习圈→排行榜、资料→学习资料、院校→院校情报、偏好→设置、真题→真题库、profile shortLabel→主页（`nav.ts` + PageHeader + PROJECT_STATUS + spec 断言同步）
+- **E2E 基建**：`global-setup` 预置 `weeklyPlanPrompted` 防打扰 key —— 修复**周日跑 E2E** 时「本周告一段落」周计划提醒弹窗（aria-modal）遮挡页面导致 skills 用例失败的 flake；`e2e/_testdb.txt`（含 Neon 数据库凭据）加入 `.gitignore`
+- 测试：121 用例全绿（新增 admission 搜索可取消 / 真题导入可取消 / 练习出题仅安抚 3 用例，均路由拦截模拟慢 AI）
+
 ### 第 10 轮 — 对话→任务落地（事务边界）（2026-08-13）
 - **schema**：Task `proposalId/chatId` + `@@index([userId, proposalId])`；Chat `pendingProposal Json?`
 - **propose_tasks 工具**（writes:false 草稿不落库）：批量建议挂到对话 pendingProposal；`create_task` description 引导勿批量直写；chat 路由读 body.chatId → 提案时无对话则先建 → 返回 `chatId + proposal`
@@ -339,9 +345,9 @@ src/
 | P1 | 数据库迁移到生产环境（当前 Neon 免费档；**已决定暂缓** —— 先定时 warm-up 缓解冷启动，等部署地域决策确定后与部署一起迁） |
 | P2 | PWA 离线策略优化（导航网络优先，仅 offline.html 兜底，未缓存 API 数据） |
 | P3 | SWR 缓存（显式降级 backlog：不引入第三种数据获取模式；统一方向为 React Query + `useApi` hook） |
-| P3 | 学习圈：点赞/互关/动态等更深社交（当前仅排行榜） |
+| P3 | 排行榜/学习圈：点赞/互关/动态等更深社交（当前仅排名） |
 | P3 | **AI 技能系统 V1 已完整落地**。后续：可视化工坊（拖拽编排 steps）、定时触发、技能分享/社区 |
-| P3 | **AI 等待安抚状态机已落地**。后续：流式思考（第二层，先用展开率数据决策是否值得投）；/chat 蒸馏加载也可换用等待气泡 |
+| P3 | **AI 等待安抚状态机已落地**（对话/浮窗/周计划/路径/周报/变式题 + 院校搜索/真题导入/出题）。后续：流式思考（第二层，先用展开率数据决策是否值得投）；/chat 蒸馏加载也可换用等待气泡 |
 
 ## 部署记录
 
@@ -396,6 +402,7 @@ c87ba50 refactor: Apple HIG UI 全面优化
 
 ## 测试
 
-- Playwright 113 用例全绿（authenticated + unauthenticated 双项目，per-project testMatch）
-- 覆盖：全部模块页面 + 认证重定向 + PWA 资源 + 权限（admin/suggestions/profile 403/重定向）+ 导出下载 + 头像上传 + 排行榜点击进公开页 + 技能系统（9）+ 等待安抚气泡（2，路由拦截模拟慢 AI）+ 院校导航可见 + 搜索缓存命中（2，真实搜索验证 24h TTL）+ AI 配置引导（4，状态卡/测试连接/chat 引导条/needConfig 联动，route mock）+ 更新日志与告示（5，页渲染/导航入口/告示显示关闭/已读持久化/产品教练补播）
+- Playwright 121 用例全绿（authenticated + unauthenticated 双项目，per-project testMatch）
+- 覆盖：全部模块页面 + 认证重定向 + PWA 资源 + 权限（admin/suggestions/profile 403/重定向）+ 导出下载 + 头像上传 + 排行榜点击进公开页 + 技能系统（9）+ 等待安抚（5，路由拦截模拟慢 AI：chat 气泡/周报行内 + 新增院校搜索可取消/真题导入可取消/练习出题仅安抚）+ 院校导航可见 + 搜索缓存命中（2，真实搜索验证 24h TTL）+ AI 配置引导（4，状态卡/测试连接/chat 引导条/needConfig 联动，route mock）+ 更新日志与告示（5，页渲染/导航入口/告示显示关闭/已读持久化/产品教练补播）
+- 基建：global-setup 预置 `weeklyPlanPrompted` 防打扰 key（周日不弹周计划提醒，修复 E2E 周日 flake）
 - 注意：`e2e/.auth/user.json` 为测试账号存储态；E2E 运行在独立测试库 `neondb_test`（`playwright.config.ts` 自动建库 + schema push + 独立端口 3100），不再污染 dev 库

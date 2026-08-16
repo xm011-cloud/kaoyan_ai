@@ -24,7 +24,7 @@ export const navItems: NavItem[] = [
   { href: '/dashboard',  label: '学习概览', icon: '🏠', shortLabel: '概览' },
   { href: '/checkin',    label: '打卡',     icon: '✅', shortLabel: '打卡' },
   { href: '/pomodoro',   label: '番茄钟',   icon: '🍅', shortLabel: '番茄' },
-  { href: '/leaderboard', label: '学习圈',  icon: '🏆', shortLabel: '学习圈' },
+  { href: '/leaderboard', label: '排行榜',  icon: '🏆', shortLabel: '排行' },
   { href: '/goal',       label: '目标',     icon: '🎯', shortLabel: '目标' },
   { href: '/tasks',      label: '计划',     icon: '📋', shortLabel: '计划' },
   { href: '/practice',   label: '练习',     icon: '✏️', shortLabel: '练习' },
@@ -33,11 +33,11 @@ export const navItems: NavItem[] = [
   { href: '/feedback',   label: '周报',     icon: '📊', shortLabel: '周报' },
   { href: '/study-path', label: '学习路径', icon: '🗺️', shortLabel: '路径' },
   { href: '/skills',     label: '技能',     icon: '⚡', shortLabel: '技能' },
-  { href: '/materials',  label: '资料',     icon: '📖', shortLabel: '资料' },
+  { href: '/materials',  label: '学习资料', icon: '📖', shortLabel: '资料' },
   { href: '/knowledge-graph', label: '知识图谱', icon: '🧠', shortLabel: '图谱' },
-  { href: '/admission',  label: '院校',     icon: '🏫', shortLabel: '院校' },
-  { href: '/settings',   label: '偏好',     icon: '⚙️',  shortLabel: '设置' },
-  { href: '/profile',    label: '个人资料', icon: '👤', shortLabel: '资料' },
+  { href: '/admission',  label: '院校情报', icon: '🏫', shortLabel: '院校' },
+  { href: '/settings',   label: '设置',     icon: '⚙️',  shortLabel: '设置' },
+  { href: '/profile',    label: '个人资料', icon: '👤', shortLabel: '主页' },
   { href: '/changelog',  label: '更新日志', icon: '📣', shortLabel: '更新' },
 ]
 
@@ -51,7 +51,7 @@ export const defaultNavGroups: NavGroup[] = [
       { href: '/dashboard', label: '学习概览', icon: '🏠', shortLabel: '概览' },
       { href: '/checkin', label: '打卡', icon: '✅', shortLabel: '打卡' },
       { href: '/pomodoro', label: '番茄钟', icon: '🍅', shortLabel: '番茄' },
-      { href: '/leaderboard', label: '学习圈', icon: '🏆', shortLabel: '学习圈' },
+      { href: '/leaderboard', label: '排行榜', icon: '🏆', shortLabel: '排行' },
     ],
   },
   {
@@ -81,9 +81,9 @@ export const defaultNavGroups: NavGroup[] = [
     label: '知识',
     icon: '📚',
     items: [
-      { href: '/materials', label: '资料', icon: '📖', shortLabel: '资料' },
+      { href: '/materials', label: '学习资料', icon: '📖', shortLabel: '资料' },
       { href: '/knowledge-graph', label: '知识图谱', icon: '🧠', shortLabel: '图谱' },
-      { href: '/admission', label: '院校', icon: '🏫', shortLabel: '院校' },
+      { href: '/admission', label: '院校情报', icon: '🏫', shortLabel: '院校' },
     ],
   },
   {
@@ -91,8 +91,8 @@ export const defaultNavGroups: NavGroup[] = [
     label: '设置',
     icon: '⚙️',
     items: [
-      { href: '/settings', label: '偏好', icon: '⚙️', shortLabel: '设置' },
-      { href: '/profile', label: '个人资料', icon: '👤', shortLabel: '资料' },
+      { href: '/settings', label: '设置', icon: '⚙️', shortLabel: '设置' },
+      { href: '/profile', label: '个人资料', icon: '👤', shortLabel: '主页' },
       { href: '/changelog', label: '更新日志', icon: '📣', shortLabel: '更新' },
     ],
   },

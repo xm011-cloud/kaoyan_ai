@@ -13,6 +13,8 @@ import { usePracticeStore } from "@/stores/practice-store";
 import { useUIStore } from "@/stores/ui-store";
 import { confirmDialog } from "@/stores/confirm-store";
 import { PageHeader } from "@/components/ui/page-header";
+import { AiWaiting } from "@/components/ai-waiting";
+import { useAiTask } from "@/hooks/use-ai-task";
 
 // ── sessionStorage helpers for answers ──
 const ANSWERS_KEY_PREFIX = "practice-answers-";
@@ -63,6 +65,7 @@ export default function PracticePage() {
   const submitSessionMut = useSubmitPracticeSession();
   const creating = createSessionMut.isPending;
   const submitting = submitSessionMut.isPending;
+  const genTask = useAiTask();
 
   // Active session
   const [session, setSession] = useState<PracticeSession | null>(null);
@@ -207,6 +210,8 @@ export default function PracticePage() {
   const handleCreate = () => {
     if (!createSubject) return;
 
+    genTask.start(); // 驱动生成等待的阶段文案/预估（mutation 本身不可中断，仅展示安抚）
+
     // Map mode to type
     const mappedType = createMode === "mock_exam" ? "mock" : "daily";
 
@@ -234,6 +239,7 @@ export default function PracticePage() {
             navigateToSession(s.id);
           }
         },
+        onSettled: () => genTask.stop(),
       }
     );
   };
@@ -344,6 +350,13 @@ export default function PracticePage() {
             onIncludeWeakPointsChange={setIncludeWeakPoints}
             onCreate={handleCreate}
           />
+
+          {/* AI 出题等待安抚：分阶段文案 + 预估（生成不可中断，仅安抚） */}
+          {creating && (
+            <div className="bg-card rounded-2xl border border-brand/20 bg-brand/5 px-4 py-3">
+              <AiWaiting phase={genTask.phase} estimate={genTask.estimate} variant="inline" />
+            </div>
+          )}
 
           {/* Material selection (shown for material_based mode or when materials exist) */}
           {materials.length > 0 && (

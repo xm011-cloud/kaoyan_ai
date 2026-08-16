@@ -45,9 +45,10 @@ next-env.d.ts
 .vercel
 test-results/
 e2e/.auth/
+# E2E 测试库连接串（含 Neon 数据库凭据，不入库）
+e2e/_testdb.txt
 
 # 本地截图
-screenshots/
 
 # 开发用 Claude 本地命令（不入库）
 /.claude/

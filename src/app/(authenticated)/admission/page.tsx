@@ -5,6 +5,8 @@ import { toast } from "@/stores/toast-store";
 import { confirmDialog } from "@/stores/confirm-store";
 import { Modal } from "@/components/ui/modal";
 import { PageHeader } from "@/components/ui/page-header";
+import { AiWaiting } from "@/components/ai-waiting";
+import { useAiTask } from "@/hooks/use-ai-task";
 import { AdmissionCompare } from "@/components/admission-compare";
 import { ImportTab } from "./_components/import-tab";
 
@@ -81,6 +83,7 @@ const CATEGORY_LABEL: Record<string, string> = {
 
 export default function AdmissionPage() {
   const [tab, setTab] = useState<"search" | "compare" | "saved" | "import">("search");
+  const searchTask = useAiTask();
 
   // Search state
   const [searchUni, setSearchUni] = useState("");
@@ -104,10 +107,11 @@ export default function AdmissionPage() {
 
   // ── Search ──
   const handleSearch = async (refresh = false) => {
-    if (!searchUni.trim()) return;
+    if (!searchUni.trim() || searching) return;
     setSearching(true);
     setSearchError("");
     setSearchResult(null);
+    const controller = searchTask.start();
 
     try {
       const res = await fetch("/api/admission/search", {
@@ -119,6 +123,7 @@ export default function AdmissionPage() {
           year: searchYear ? parseInt(searchYear) : undefined,
           refresh,
         }),
+        signal: controller.signal,
       });
 
       const data = await res.json();
@@ -127,9 +132,13 @@ export default function AdmissionPage() {
       } else {
         setSearchResult(data);
       }
-    } catch {
-      setSearchError("网络错误");
+    } catch (err) {
+      // 用户主动取消：安静收场
+      if ((err as { name?: string })?.name !== "AbortError") {
+        setSearchError("网络错误");
+      }
     } finally {
+      searchTask.stop();
       setSearching(false);
     }
   };
@@ -435,7 +444,7 @@ export default function AdmissionPage() {
         和各校研究生院官网公布的信息为准。所有数据标注了来源和年份。
       </div>
 
-      <PageHeader title="🏫 院校" />
+      <PageHeader title="🏫 院校情报" />
 
       {/* Tabs */}
       <div className="flex border-b border-border/50">
@@ -509,6 +518,17 @@ export default function AdmissionPage() {
             >
               {searching ? "搜索中..." : "🔍 搜索院校信息"}
             </button>
+
+            {/* 搜索等待安抚：分阶段文案 + 预估 + 可取消 */}
+            {searching && (
+              <div className="flex justify-center">
+                <AiWaiting
+                  phase={searchTask.phase}
+                  estimate={searchTask.estimate}
+                  onCancel={searchTask.cancel}
+                />
+              </div>
+            )}
           </div>
 
           {searchError && (

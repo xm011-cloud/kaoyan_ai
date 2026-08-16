@@ -229,7 +229,7 @@ export default function SettingsPage() {
 
   return (
     <div className="p-4 lg:p-6 max-w-3xl mx-auto space-y-6">
-      <PageHeader title="偏好设置" />
+      <PageHeader title="设置" />
 
       {/* Tab bar — segmented control */}
       <div className="flex gap-1 p-1 rounded-2xl bg-muted">

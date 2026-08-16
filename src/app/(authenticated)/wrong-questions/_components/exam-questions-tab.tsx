@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/stores/toast-store'
 import { confirmDialog } from '@/stores/confirm-store'
+import { AiWaiting } from '@/components/ai-waiting'
+import { useAiTask } from '@/hooks/use-ai-task'
 
 interface ExamItem {
   id: string
@@ -39,6 +41,7 @@ export function ExamQuestionsTab({ subjects }: { subjects: string[] }) {
   const [importKeywords, setImportKeywords] = useState('')
   const [importCount, setImportCount] = useState(5)
   const [importing, setImporting] = useState(false)
+  const importTask = useAiTask()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -62,8 +65,9 @@ export function ExamQuestionsTab({ subjects }: { subjects: string[] }) {
   }, [load])
 
   const handleImport = async () => {
-    if (!importSubject) return
+    if (!importSubject || importing) return
     setImporting(true)
+    const controller = importTask.start()
     try {
       const res = await fetch('/api/questions/import', {
         method: 'POST',
@@ -74,6 +78,7 @@ export function ExamQuestionsTab({ subjects }: { subjects: string[] }) {
           keywords: importKeywords.trim() || undefined,
           count: importCount,
         }),
+        signal: controller.signal,
       })
       const data = await res.json()
       if (!res.ok) {
@@ -83,9 +88,13 @@ export function ExamQuestionsTab({ subjects }: { subjects: string[] }) {
       toast.success(`✅ 导入 ${data.totalImported || 0} 道真题（来自 ${data.sources?.length || 0} 个来源）`)
       setImportKeywords('')
       load()
-    } catch {
-      toast.error('导入失败，请稍后再试')
+    } catch (err) {
+      // 用户主动取消：安静收场
+      if ((err as { name?: string })?.name !== 'AbortError') {
+        toast.error('导入失败，请稍后再试')
+      }
     } finally {
+      importTask.stop()
       setImporting(false)
     }
   }
@@ -148,13 +157,24 @@ export function ExamQuestionsTab({ subjects }: { subjects: string[] }) {
             {[3, 5, 8, 10].map((n) => <option key={n} value={n}>{n} 题</option>)}
           </select>
         </div>
-        <Button
-          onClick={handleImport}
-          disabled={importing || !importSubject || subjects.length === 0}
-          className="w-full rounded-full bg-brand hover:bg-brand/90 text-brand-foreground font-semibold h-11 active:scale-[0.98] transition-all"
-        >
-          {importing ? '联网搜题中（需 AI 提取，约 1 分钟）...' : '🔍 联网搜索并导入真题'}
-        </Button>
+        {importing ? (
+          <div className="w-full flex items-center justify-center rounded-full border border-brand/30 bg-brand/5 py-3">
+            <AiWaiting
+              phase={importTask.phase}
+              estimate={importTask.estimate}
+              onCancel={importTask.cancel}
+              variant="inline"
+            />
+          </div>
+        ) : (
+          <Button
+            onClick={handleImport}
+            disabled={!importSubject || subjects.length === 0}
+            className="w-full rounded-full bg-brand hover:bg-brand/90 text-brand-foreground font-semibold h-11 active:scale-[0.98] transition-all"
+          >
+            🔍 联网搜索并导入真题
+          </Button>
+        )}
         <p className="text-[11px] text-muted-foreground">
           需要已配置 AI（设置 → AI 配置）；搜索并提取题目后自动入库，可到练习页用「真题练习」模式刷题。题目来源于网络，请核对准确性。
         </p>

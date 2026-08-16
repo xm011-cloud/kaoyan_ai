@@ -198,7 +198,7 @@ export default function WrongQuestionsPage() {
             ["due", "今日到期"],
             ["unreviewed", "未复习"],
             ["reviewed", "已复习"],
-            ["exam", "📚 真题"],
+            ["exam", "📚 真题库"],
           ].map(([k, label]) => (
             <button
               key={k}

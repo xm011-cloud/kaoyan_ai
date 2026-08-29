@@ -133,7 +133,6 @@ export const DEFAULT_WORKSPACE_CARDS = [
   'study-trend',
   'recent-materials',
   'wrong-overview',
-  'shortcuts',
 ]
 
 export const DEFAULT_PRACTICE_DEFAULTS: PracticeDefaults = {

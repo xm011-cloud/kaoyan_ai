@@ -238,7 +238,7 @@ export default async function DashboardPage({
   const isNewUser = !goal && todayTasks.length === 0 && recentChecks.length === 0
 
   return (
-    <div className="p-4 lg:p-6 max-w-6xl mx-auto space-y-6">
+    <div className="p-4 lg:p-6 max-w-6xl mx-auto space-y-4">
       {/* ── 新用户引导（首次弹窗 + 常驻卡片；?tour=1 强制重放）── */}
       <OnboardingModal isNewUser={isNewUser} forceTour={forceTour} />
       {(isNewUser || forceTour) && <OnboardingCard isNewUser hasGoal={!!goal} forceTour={forceTour} />}
@@ -253,8 +253,20 @@ export default async function DashboardPage({
             <div>
               <h1 className="text-xl lg:text-2xl font-bold tracking-tight">学习概览</h1>
               <p className="text-sm text-muted-foreground mt-0.5">
-                📅 {todayStr} {weekDayNames[today.getDay()]} · {stage.hint}
+                {goal ? (
+                  <>🎯 {goal.university} · {goal.major} · 距考试 {daysLeft} 天 · {stage.hint}</>
+                ) : (
+                  <>📅 {todayStr} {weekDayNames[today.getDay()]} · {stage.hint}</>
+                )}
               </p>
+              {!goal && (
+                <a
+                  href="/goal"
+                  className="inline-block mt-2 px-3.5 py-1.5 rounded-full bg-brand text-white text-xs font-medium hover:bg-brand/90 transition-colors active:scale-[0.97]"
+                >
+                  🎯 去设置目标 →
+                </a>
+              )}
             </div>
             <div className="flex items-center gap-4 text-sm">
               <div className="flex items-center gap-1.5">
@@ -321,7 +333,7 @@ export default async function DashboardPage({
         </div>
       </div>
 
-      <WorkbenchGrid data={workbenchData} />
+      <WorkbenchGrid data={workbenchData} isExploration={!goal} />
     </div>
   )
 }

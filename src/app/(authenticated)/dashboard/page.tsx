@@ -246,76 +246,88 @@ export default async function DashboardPage({
       {/* ── 更新告示（有新版本时出现，可关闭）── */}
       <ChangelogBanner />
 
-      {/* ── 今日状态 Banner ── */}
-      <div className="rounded-2xl bg-card border border-border/50 shadow-sm overflow-hidden">
-        <div className="bg-gradient-to-r from-brand/8 to-brand/3 px-5 py-4 lg:px-6 lg:py-5">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <div>
-              <h1 className="text-xl lg:text-2xl font-bold tracking-tight">学习概览</h1>
-              <p className="text-sm text-muted-foreground mt-0.5">
-                {goal ? (
-                  <>🎯 {goal.university} · {goal.major} · 距考试 {daysLeft} 天 · {stage.hint}</>
-                ) : (
-                  <>📅 {todayStr} {weekDayNames[today.getDay()]} · {stage.hint}</>
-                )}
+      {/* ── 今日状态 Hero（渐变身份头：标题 → 目标/欢迎 → 阶段 → 数据 → 快速操作）── */}
+      <div className="rounded-2xl bg-gradient-to-br from-brand to-primary/80 text-white shadow-lg shadow-brand/20 overflow-hidden">
+        <div className="px-5 py-5 lg:px-6 lg:py-6">
+          <div className="flex items-baseline justify-between flex-wrap gap-x-3 gap-y-1">
+            <h1 className="text-xl lg:text-2xl font-bold tracking-tight">学习概览</h1>
+            <span className="text-xs text-white/60">📅 {todayStr} {weekDayNames[today.getDay()]}</span>
+          </div>
+
+          {/* 身份锚点 / 欢迎语（Hero 的灵魂：大字目标或欢迎） */}
+          {goal ? (
+            <div className="mt-3 flex items-center justify-between flex-wrap gap-3">
+              <p className="text-lg lg:text-xl font-semibold tracking-tight">
+                🎯 {goal.university} · {goal.major}
               </p>
-              {!goal && (
-                <a
-                  href="/goal"
-                  className="inline-block mt-2 px-3.5 py-1.5 rounded-full bg-brand text-white text-xs font-medium hover:bg-brand/90 transition-colors active:scale-[0.97]"
-                >
-                  🎯 去设置目标 →
-                </a>
-              )}
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/15 text-sm font-bold tabular-nums">
+                ⏳ 距考试 {daysLeft} 天
+              </span>
             </div>
-            <div className="flex items-center gap-4 text-sm">
-              <div className="flex items-center gap-1.5">
-                <span className="text-muted-foreground">今日</span>
-                <span className="font-semibold">{todayCompleted}/{todayTotal}</span>
-                <span className="text-muted-foreground text-xs">任务</span>
-              </div>
-              <div className="w-px h-5 bg-border" />
-              <div className="flex items-center gap-1.5">
-                <span className="text-muted-foreground">{weekDays}/7</span>
-                <span className="text-muted-foreground text-xs">天打卡</span>
-              </div>
-              <div className="w-px h-5 bg-border hidden sm:block" />
-              <div className="hidden sm:flex items-center gap-1.5">
-                <span className="text-muted-foreground">🔥</span>
-                <span className="font-semibold">{streak}</span>
-                <span className="text-muted-foreground text-xs">天连续</span>
-              </div>
+          ) : (
+            <div className="mt-3">
+              <p className="text-lg lg:text-xl font-semibold tracking-tight">🎓 欢迎来到考研助手</p>
+              <p className="mt-1 text-sm text-white/70">设个目标，AI 帮你生成专属备考计划</p>
+              <a
+                href="/goal"
+                className="inline-block mt-3 px-4 py-2 rounded-full bg-white text-brand text-sm font-semibold hover:bg-white/90 transition-colors active:scale-[0.97]"
+              >
+                🎯 去设置目标 →
+              </a>
+            </div>
+          )}
+
+          {/* 阶段提示 */}
+          <p className="mt-2 text-xs text-white/60">{stage.hint}</p>
+
+          {/* 内联统计（今日任务 / 打卡 / 连续） */}
+          <div className="mt-3 flex items-center gap-4 text-sm">
+            <div className="flex items-center gap-1.5">
+              <span className="text-white/60">今日</span>
+              <span className="font-bold tabular-nums">{todayCompleted}/{todayTotal}</span>
+              <span className="text-white/60 text-xs">任务</span>
+            </div>
+            <div className="w-px h-4 bg-white/20" />
+            <div className="flex items-center gap-1.5">
+              <span className="text-white/60">{weekDays}/7</span>
+              <span className="text-white/60 text-xs">天打卡</span>
+            </div>
+            <div className="w-px h-4 bg-white/20 hidden sm:block" />
+            <div className="hidden sm:flex items-center gap-1.5">
+              <span>🔥</span>
+              <span className="font-bold tabular-nums">{streak}</span>
+              <span className="text-white/60 text-xs">天连续</span>
             </div>
           </div>
         </div>
 
         {/* 快速操作栏 */}
-        <div className="px-5 py-3 lg:px-6 border-t border-border/30 bg-muted/30">
+        <div className="px-5 py-3 lg:px-6 border-t border-white/15 bg-white/5">
           <div className="flex items-center gap-2 overflow-x-auto">
             <a
               href="/chat"
-              className="flex items-center gap-1.5 shrink-0 px-3.5 py-2 rounded-xl bg-brand text-white text-sm font-medium hover:bg-brand/90 transition-colors active:scale-[0.97]"
+              className="flex items-center gap-1.5 shrink-0 px-3.5 py-2 rounded-xl bg-white text-brand text-sm font-medium hover:bg-white/90 transition-colors active:scale-[0.97]"
             >
               <span>🤖</span>
               <span>AI 助手</span>
             </a>
             <a
               href="/checkin"
-              className="flex items-center gap-1.5 shrink-0 px-3.5 py-2 rounded-xl bg-muted hover:bg-muted/80 text-sm font-medium transition-colors active:scale-[0.97]"
+              className="flex items-center gap-1.5 shrink-0 px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-sm font-medium transition-colors active:scale-[0.97]"
             >
               <span>✅</span>
               <span>打卡</span>
             </a>
             <a
               href="/pomodoro"
-              className="flex items-center gap-1.5 shrink-0 px-3.5 py-2 rounded-xl bg-muted hover:bg-muted/80 text-sm font-medium transition-colors active:scale-[0.97]"
+              className="flex items-center gap-1.5 shrink-0 px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-sm font-medium transition-colors active:scale-[0.97]"
             >
               <span>🍅</span>
               <span>专注</span>
             </a>
             <a
               href="/practice"
-              className="flex items-center gap-1.5 shrink-0 px-3.5 py-2 rounded-xl bg-muted hover:bg-muted/80 text-sm font-medium transition-colors active:scale-[0.97]"
+              className="flex items-center gap-1.5 shrink-0 px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-sm font-medium transition-colors active:scale-[0.97]"
             >
               <span>✏️</span>
               <span>练习</span>
@@ -323,7 +335,7 @@ export default async function DashboardPage({
             {dueWrongCount > 0 && (
               <a
                 href="/wrong-questions?dueToday=true"
-                className="flex items-center gap-1.5 shrink-0 px-3.5 py-2 rounded-xl bg-warning/10 hover:bg-warning/20 text-warning text-sm font-medium transition-colors active:scale-[0.97]"
+                className="flex items-center gap-1.5 shrink-0 px-3.5 py-2 rounded-xl bg-amber-400/90 text-amber-950 text-sm font-medium hover:bg-amber-400 transition-colors active:scale-[0.97]"
               >
                 <span>📕</span>
                 <span>{dueWrongCount} 题待复习</span>

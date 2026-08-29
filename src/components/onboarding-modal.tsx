@@ -1,90 +1,81 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Modal } from '@/components/ui/modal'
 import { useUIStore } from '@/stores/ui-store'
 
 /**
- * 新用户首次引导弹窗：功能导览 + AI 使用说明（重点）。
- * 仅首次登录且为新用户时显示一次；关闭后不再弹出（onboardingSeen）。
+ * 新用户首次引导弹窗：「第一件小事」三路选择（考研/还没想好/先逛逛）。
+ * - 仅首次登录且为新用户时显示一次；关闭后不再弹出（onboardingSeen）。
+ * - forceTour（?tour=1）：无条件显示，关闭不写已读——供测试与「重新查看引导」用。
  */
-export function OnboardingModal({ isNewUser }: { isNewUser: boolean }) {
+export function OnboardingModal({ isNewUser, forceTour = false }: { isNewUser: boolean; forceTour?: boolean }) {
   const onboardingSeen = useUIStore((s) => s.onboardingSeen)
   const setOnboardingSeen = useUIStore((s) => s.setOnboardingSeen)
+  const router = useRouter()
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
-    // 首帧不弹，稍作延迟让页面先渲染
-    if (isNewUser && !onboardingSeen) {
-      const t = setTimeout(() => setOpen(true), 800)
+    // 首帧不弹，稍作延迟让页面先渲染；forceTour 立即弹
+    if (forceTour || (isNewUser && !onboardingSeen)) {
+      const t = setTimeout(() => setOpen(true), forceTour ? 0 : 800)
       return () => clearTimeout(t)
     }
-  }, [isNewUser, onboardingSeen])
+  }, [isNewUser, onboardingSeen, forceTour])
 
   if (!open) return null
 
   const dismiss = () => {
     setOpen(false)
-    setOnboardingSeen(true)
+    if (!forceTour) setOnboardingSeen(true)
   }
 
-  const groups = [
-    { icon: '📅', name: '今日', items: [['🏠', '概览'], ['✅', '打卡'], ['🍅', '番茄钟'], ['🏆', '学习圈']] },
-    { icon: '📝', name: '备考', items: [['🎯', '目标'], ['📋', '计划'], ['✏️', '练习'], ['📕', '错题']] },
-    { icon: '🤖', name: 'AI', items: [['💬', '对话'], ['📊', '周报'], ['🗺️', '路径'], ['⚡', '技能']] },
-    { icon: '📚', name: '知识', items: [['📖', '资料'], ['🧠', '图谱'], ['🏫', '院校'], ['👤', '资料']] },
-  ]
+  const go = (path: string) => {
+    setOpen(false)
+    if (!forceTour) setOnboardingSeen(true)
+    router.push(path)
+  }
 
   return (
     <Modal
       open
       onClose={dismiss}
       title="🎉 欢迎来到 AI 考研助手"
-      description="这是你的备考工作台 —— 4 大分组 19 个功能，先花 1 分钟认识它"
-      footer={
-        <>
-          <Link href="/settings" onClick={dismiss}>
-            <span className="inline-flex items-center justify-center rounded-full h-11 px-6 text-sm font-semibold bg-brand hover:bg-brand/90 text-brand-foreground active:scale-[0.98] transition-all">
-              🤖 去配置 AI
-            </span>
-          </Link>
-          <button
-            onClick={dismiss}
-            className="rounded-full h-11 px-6 text-sm font-medium border border-border/60 hover:bg-muted transition-colors"
-          >
-            先逛逛
-          </button>
-        </>
-      }
+      description="你打算怎么准备？选一条路，我们从第一件小事开始。"
     >
-      {/* 功能导览 */}
-      <div className="grid grid-cols-2 gap-2.5">
-        {groups.map((g) => (
-          <div key={g.name} className="rounded-xl border border-border/50 bg-muted/30 p-3">
-            <p className="text-xs font-semibold mb-1.5">
-              {g.icon} {g.name}
-            </p>
-            <div className="flex flex-wrap gap-x-3 gap-y-1">
-              {g.items.map(([icon, label]) => (
-                <span key={`${g.name}-${label}`} className="text-[11px] text-muted-foreground">
-                  {icon} {label}
-                </span>
-              ))}
-            </div>
-          </div>
-        ))}
+      <div className="space-y-2.5">
+        <PathButton icon="🎯" title="我是考研人" desc="设目标院校/专业/科目，生成专属备考计划" onClick={() => go('/goal')} />
+        <PathButton icon="📝" title="还没想好 / 想学别的" desc="还没定方向？或描述你想学什么，生成自定义计划" onClick={() => go('/tasks')} />
+        <PathButton icon="👀" title="先逛逛" desc="直接进工作台，慢慢探索" onClick={dismiss} />
       </div>
 
-      {/* AI 使用说明（重点） */}
-      <div className="rounded-xl border border-brand/20 bg-brand/5 p-3 mt-3">
-        <p className="text-sm font-semibold text-foreground">🤖 AI 功能如何使用（重要）</p>
-        <ul className="text-xs text-muted-foreground mt-1.5 space-y-1">
-          <li>· AI 需要你自己的 API Key（支持 MiMo / DeepSeek / 通义千问等，OpenAI 兼容）</li>
-          <li>· 在「设置 → AI 配置」填 Key 并点「测试连接」，配置一次即可用于对话 / 计划 / 周报 / 技能</li>
-          <li>· <b>不配置不影响</b>打卡、番茄钟、错题本等非 AI 功能</li>
-        </ul>
-      </div>
+      <p className="text-xs text-muted-foreground mt-3.5">
+        AI 功能需自配 Key（设置页配置），不配置不影响打卡 / 番茄钟 / 错题等功能
+      </p>
     </Modal>
+  )
+}
+
+function PathButton({
+  icon, title, desc, onClick,
+}: {
+  icon: string
+  title: string
+  desc: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full flex items-center gap-3 rounded-xl border border-border/50 bg-card px-4 py-3 text-left hover:border-brand/40 hover:bg-brand/5 transition-colors active:scale-[0.99]"
+    >
+      <span className="text-2xl shrink-0">{icon}</span>
+      <span>
+        <span className="block text-sm font-medium text-foreground">{title}</span>
+        <span className="block text-xs text-muted-foreground mt-0.5">{desc}</span>
+      </span>
+    </button>
   )
 }

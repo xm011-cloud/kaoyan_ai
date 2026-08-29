@@ -1,21 +1,22 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { useUIStore } from '@/stores/ui-store'
 import { useAiConfigStatus } from '@/hooks/use-ai-config-status'
 
 /**
- * 新用户引导卡（dashboard 顶部常驻）：3 步清单 —— AI 配置 → 设目标 → 探索功能。
- * 全部完成后自动收起；可手动关闭（下次进入仍显示，直到完成）。
+ * 新用户引导卡（dashboard 顶部常驻）：设目标 → 探索功能 → 配置 AI（可选）。
+ * 设好目标后自动收起（isNewUser 判定）；可手动关闭。
+ * forceTour（?tour=1）：无条件显示，供测试与「重新查看引导」。
  */
-export function OnboardingCard({ isNewUser, hasGoal }: { isNewUser: boolean; hasGoal: boolean }) {
+export function OnboardingCard({ isNewUser, hasGoal, forceTour = false }: { isNewUser: boolean; hasGoal: boolean; forceTour?: boolean }) {
   const { configured: aiConfigured } = useAiConfigStatus()
   const [dismissed, setDismissed] = useState(false)
 
-  // 全部完成 → 不再展示
-  const allDone = aiConfigured && hasGoal
-  if (!isNewUser || dismissed || allDone) return null
+  // 设好目标 = 完成（AI 配置是可选项，不再参与完成判定）
+  const allDone = hasGoal
+  if ((!isNewUser && !forceTour) || dismissed || (!forceTour && allDone)) return null
 
   return (
     <div className="rounded-2xl border border-brand/20 bg-brand/5 px-4 py-3">
@@ -31,25 +32,16 @@ export function OnboardingCard({ isNewUser, hasGoal }: { isNewUser: boolean; has
       </div>
 
       <div className="flex flex-wrap gap-2 mt-2.5">
-        {/* ① AI 配置 */}
-        <StepLink
-          href="/settings"
-          done={aiConfigured}
-          icon="🤖"
-          label="配置 AI Key"
-          desc="对话/计划/周报可用"
-          highlight={!aiConfigured}
-        />
-        {/* ② 设置目标 */}
+        {/* ① 设置目标（核心，高亮） */}
         <StepLink
           href="/goal"
           done={hasGoal}
           icon="🎯"
           label="设置考研目标"
-          desc="院校/专业/考试日期"
+          desc="院校/专业/科目/考试日期"
           highlight={!hasGoal}
         />
-        {/* ③ 探索功能 */}
+        {/* ② 探索功能 */}
         <div className="flex items-center gap-1.5 rounded-xl border border-border/50 bg-card px-3 py-2">
           <span className="text-base">📚</span>
           <div className="leading-tight">
@@ -62,6 +54,15 @@ export function OnboardingCard({ isNewUser, hasGoal }: { isNewUser: boolean; has
             </div>
           </div>
         </div>
+        {/* ③ 配置 AI（可选，不高亮） */}
+        <StepLink
+          href="/settings"
+          done={aiConfigured}
+          icon="🤖"
+          label="配置 AI Key"
+          desc="可选 · 对话/计划/周报可用"
+          highlight={false}
+        />
       </div>
     </div>
   )

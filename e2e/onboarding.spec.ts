@@ -23,9 +23,9 @@ test("new user sees onboarding modal and card after registration", async ({ page
   // 进入 dashboard（新用户）
   await page.waitForURL(/\/dashboard/, { timeout: 20000 });
 
-  // 首次引导弹窗出现（欢迎 + AI 使用说明）
+  // 首次引导弹窗出现（三路选择：我是考研人 / 还没想好 / 先逛逛）
   await expect(page.getByText("🎉 欢迎来到 AI 考研助手")).toBeVisible({ timeout: 15000 });
-  await expect(page.getByText(/AI 功能如何使用/)).toBeVisible();
+  await expect(page.getByText("我是考研人")).toBeVisible();
   // 关闭弹窗
   await page.getByRole("button", { name: "先逛逛" }).click();
 

@@ -377,6 +377,17 @@ export default function SettingsPage() {
         <div className="rounded-2xl bg-card border border-border/50 shadow-sm p-6 space-y-6">
           <h2 className="font-semibold">🎨 界面定制</h2>
 
+          {/* 重新查看新用户引导（?tour=1 强制重放） */}
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">想再体验一遍新用户引导？</p>
+            <Link
+              href="/dashboard?tour=1"
+              className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:text-brand/80 transition-colors"
+            >
+              👋 重新查看引导
+            </Link>
+          </div>
+
           {/* 驾驶模式三档 */}
           <div>
             <div className="flex items-center justify-between mb-3">

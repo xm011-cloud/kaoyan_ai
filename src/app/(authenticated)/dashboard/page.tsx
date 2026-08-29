@@ -10,7 +10,15 @@ import { getDueCount } from "@/lib/sm2"
 import { derivePrepStage } from "@/lib/prep-stage"
 import type { SubjectProgress } from "@/lib/completion"
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tour?: string }>
+}) {
+  const sp = await searchParams
+  // ?tour=1：无条件重放新用户引导（测试 / 「重新查看引导」入口）
+  const forceTour = sp.tour === "1"
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
@@ -231,9 +239,9 @@ export default async function DashboardPage() {
 
   return (
     <div className="p-4 lg:p-6 max-w-6xl mx-auto space-y-6">
-      {/* ── 新用户引导（首次弹窗 + 常驻卡片）── */}
-      <OnboardingModal isNewUser={isNewUser} />
-      {isNewUser && <OnboardingCard isNewUser hasGoal={!!goal} />}
+      {/* ── 新用户引导（首次弹窗 + 常驻卡片；?tour=1 强制重放）── */}
+      <OnboardingModal isNewUser={isNewUser} forceTour={forceTour} />
+      {(isNewUser || forceTour) && <OnboardingCard isNewUser hasGoal={!!goal} forceTour={forceTour} />}
 
       {/* ── 更新告示（有新版本时出现，可关闭）── */}
       <ChangelogBanner />

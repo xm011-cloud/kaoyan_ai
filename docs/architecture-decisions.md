@@ -116,9 +116,11 @@
 
 ### 阶段 0 详案（本周 3-4 天，均不碰 schema、可回退）
 
-- **A 代码 · 大三长周期阶段化（最小版）**：`deriveStage(examDate, now)`（距考试 >12 月=长线准备 / 6-12 月=正式备考 / <6 月=冲刺）→ 驱动倒计时文案（"距考试 600 天"→"备考周期 · 当前：长线准备期"）+ 计划跨度提示。**以"阶段配置"形式实现，为 D4 计划类型分发留接口**。
-- **B 数据 · 激活漏斗页**：`/admin` 加「用户激活漏斗」tab —— 注册/激活→设目标→生成计划→首次打卡→配 AI→深功能→7 日回访 转化率 + 单用户轨迹。
-- **C 行为 · 狗粮测试**：开发者用产品设 2027 考研目标 → 生成本周任务 → 打卡；每次"用不下去"记入 `docs/usage-notes.md`，形成真实 backlog。
+> **进度（2026-08-29）**：✅ A / ✅ B / ✅ D6 种子 / 🔄 C 狗粮测试（持续记录 `docs/usage-notes.md`）。
+
+- **✅ A 代码 · 大三长周期阶段化（最小版）**：`derivePrepStage(examDate, now)`（探索/基础/备考/冲刺四段，原"长线/正式/冲刺"三档已并入）→ 驱动倒计时文案（今日状态头"备考周期 · 当前：X期"）+ **计划跨度提示**（`STAGE_CONFIG.planSpanHint`，tasks 页阶段卡展示 + 注入 generate-plan prompt/响应）。**已以 `STAGE_CONFIG` 配置形式实现**（label/planSpanHint/planPhase，`stageToPlanPhase` 读配置）—— 为 D4 计划类型分发留接口（加计划类型=加配置）。
+- **✅ B 数据 · 激活漏斗页**：`/admin`「用户激活漏斗」tab（📊 默认打开）—— 注册/激活→设目标→生成计划→首次打卡→配 AI→深功能→7 日回访 转化率 + 单用户轨迹（点开看各环节首触）。实现：`src/lib/funnel.ts`（纯逻辑）+ `/api/admin/funnel`（requireAdmin）+ `funnel-view.tsx`。
+- **🔄 C 行为 · 狗粮测试**：开发者用产品设 2027 考研目标 → 生成本周任务 → 打卡；每次"用不下去"记入 `docs/usage-notes.md`，形成真实 backlog。
 
 ### 接口预留（D1-D6 现状）
 
@@ -126,7 +128,7 @@
 - **D1/D2**（技能 schema 版本化 + 组件契约）：本次不碰，技能 JSON 保持向后兼容
 - **D3**（Goal 自由度）：本次不改 schema，设计上记住"院校/日期将可空"
 - **D5**（AI 护栏 + 能力白名单）：阶段 2 加技能前必须立
-- **D6 种子**：`CARD_REGISTRY` 保持单注册表 + 加 `sizes` 元数据字段；布局数据保持有序数组形状（可升级 `{id, size, pos}`），默认布局收敛随页面拥挤治理本轮做；MCP/CLI 薄适配层与桌面壳**阶段 0 不做**，技能生态启动时补
+- **✅ D6 种子**：`CARD_REGISTRY` 已加 `sizes: CardSize[]` 元数据（full/half/quarter，首项默认档，commit 51b771b）；布局数据保持有序数组形状（`workspaceCards: string[]`，可升级 `{id, size, pos}`），默认布局收敛已随页面拥挤治理（a2d8eac）落地；MCP/CLI 薄适配层与桌面壳**阶段 0 不做**，技能生态启动时补
 
 ## 关联
 

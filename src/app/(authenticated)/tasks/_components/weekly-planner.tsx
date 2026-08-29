@@ -212,7 +212,9 @@ export function WeeklyPlanner({
                     <div key={task.id} className={`text-xs p-2 rounded border group cursor-pointer hover:shadow-sm transition-shadow ${task.completed ? "opacity-50 bg-muted/50" : "bg-card"}`}
                       onClick={() => onEditTask(task)}>
                       <div className="flex items-start gap-1">
-                        <input type="checkbox" checked={task.completed} onChange={(e) => { e.stopPropagation(); onToggleComplete(task); }}
+                        <input type="checkbox" checked={task.completed}
+                          onClick={(e) => e.stopPropagation()} // 阻止 click 冒泡到行的 onEditTask（否则勾选会误打开编辑弹窗）
+                          onChange={(e) => { e.stopPropagation(); onToggleComplete(task); }}
                           className="mt-0.5 h-3.5 w-3.5 rounded shrink-0" />
                         <div className="flex-1 min-w-0">
                           <p className={task.completed ? "line-through" : ""}>{task.title}</p>

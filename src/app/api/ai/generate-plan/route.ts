@@ -253,7 +253,7 @@ export async function POST(request: NextRequest) {
         ? `每天任务总时长控制在 ${Math.round(weeklyHours / 7)} 小时左右（不超 ${Math.round(weeklyHours / 7) + 1} 小时）`
         : "每天任务总时长控制在 3-6 小时";
 
-      const stageFocusContext = `\n## 当前备考阶段\n${stage.label}（${stage.hint}）。本阶段焦点：${stage.focus}。任务 phase 统一用「${phase}」。\n`;
+      const stageFocusContext = `\n## 当前备考阶段\n${stage.label}（${stage.hint}）。本阶段焦点：${stage.focus}。本周计划跨度提示：${stage.planSpanHint}。任务 phase 统一用「${phase}」。\n`;
 
       const prompt = `你是一名资深的考研/学习辅导专家。请为用户的接下来一周（${weekStartStr} 至 ${weekEnd.toISOString().split("T")[0]}）生成详细的学习计划。
 
@@ -351,7 +351,7 @@ ${sprintContext}${regenerateContext}${pastSkipContext}
       phases: phaseStats,
       generatedBy: aiConfig ? "ai" : "local",
       reasoning: truncateReasoning(planReasoning),
-      stage: { id: stage.id, label: stage.label, hint: stage.hint },
+      stage: { id: stage.id, label: stage.label, hint: stage.hint, planSpanHint: stage.planSpanHint },
     });
   } catch (err) {
     console.error("Generate plan error:", err);

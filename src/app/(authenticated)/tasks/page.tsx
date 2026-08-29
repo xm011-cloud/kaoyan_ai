@@ -499,6 +499,7 @@ export default function TasksPage() {
             </div>
             <p className="text-xs text-muted-foreground mt-1">{stage.hint}</p>
             <p className="text-xs mt-1.5">🎯 本阶段焦点：{stage.focus}</p>
+            <p className="text-xs mt-1.5">📅 本周计划：{stage.planSpanHint}</p>
             {!goal && (
               <p className="text-[11px] text-muted-foreground/80 mt-1.5">
                 还没设考研目标——可以先生成一份自定义学习计划（点「生成本周计划」），或去「目标」页设置。

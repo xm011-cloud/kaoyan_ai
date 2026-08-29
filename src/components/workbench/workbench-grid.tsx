@@ -13,14 +13,19 @@ import { WrongOverviewCard } from './wrong-overview-card'
  * 工作台卡片单一注册表（DIY/插件化的地基）：
  * 新增一张卡片 = 在这里加一条，settings 的 label 自动复用（WORKBENCH_CARD_LABELS）。
  * 探索期（无目标）隐藏的空卡/死卡用 EXPLORATION_HIDDEN 过滤。
+ *
+ * sizes = 卡片支持的尺寸档位（D6 留口，ADR 3.6）：首项为当前默认档，网格引擎成熟后按 `{id,size,pos}` 升级。
+ * 现为固定双栏布局：full 独占一行，half 两列并排；quarter 为预留档位。
  */
-const CARD_REGISTRY: Record<string, { label: string; layout: 'full' | 'half'; render: (data: WorkbenchData) => ReactNode }> = {
-  stats: { label: '📊 统计', layout: 'full', render: (d) => <StatsCards {...d.stats} /> },
-  'today-tasks': { label: '📋 任务', layout: 'half', render: (d) => <TodayTasksCard tasks={d.todayTasks} dateStr={d.dateStr} /> },
-  'quick-practice': { label: '✏️ 练习', layout: 'full', render: (d) => <QuickPracticeCard subjects={d.subjects} todaySubjects={d.todaySubjects} dueWrongCount={d.dueWrongCount} /> },
-  'study-trend': { label: '📈 趋势', layout: 'half', render: (d) => <StudyTrendCard bars={d.weekBars} /> },
-  'recent-materials': { label: '📚 资料', layout: 'half', render: (d) => <RecentMaterialsCard materials={d.materials} /> },
-  'wrong-overview': { label: '🔴 错题', layout: 'half', render: (d) => <WrongOverviewCard wrongQuestions={d.wrongQuestions} dueCount={d.dueWrongCount} /> },
+export type WorkbenchCardSize = 'full' | 'half' | 'quarter'
+
+const CARD_REGISTRY: Record<string, { label: string; sizes: WorkbenchCardSize[]; render: (data: WorkbenchData) => ReactNode }> = {
+  stats: { label: '📊 统计', sizes: ['full'], render: (d) => <StatsCards {...d.stats} /> },
+  'today-tasks': { label: '📋 任务', sizes: ['half'], render: (d) => <TodayTasksCard tasks={d.todayTasks} dateStr={d.dateStr} /> },
+  'quick-practice': { label: '✏️ 练习', sizes: ['full'], render: (d) => <QuickPracticeCard subjects={d.subjects} todaySubjects={d.todaySubjects} dueWrongCount={d.dueWrongCount} /> },
+  'study-trend': { label: '📈 趋势', sizes: ['half'], render: (d) => <StudyTrendCard bars={d.weekBars} /> },
+  'recent-materials': { label: '📚 资料', sizes: ['half'], render: (d) => <RecentMaterialsCard materials={d.materials} /> },
+  'wrong-overview': { label: '🔴 错题', sizes: ['half'], render: (d) => <WrongOverviewCard wrongQuestions={d.wrongQuestions} dueCount={d.dueWrongCount} /> },
 }
 
 /** 探索期（未设目标）对用户无价值/无数据的卡片：练习无科目整卡置灰、趋势/资料/错题全空态 */
@@ -72,8 +77,10 @@ export function WorkbenchGrid({ data, isExploration = false }: { data: Workbench
   const workspaceCards = useUIStore((s) => s.workspaceCards)
   const ordered = (workspaceCards.length > 0 ? workspaceCards : DEFAULT_WORKSPACE_CARDS)
     .filter((id) => CARD_REGISTRY[id] && !(isExploration && EXPLORATION_HIDDEN.has(id)))
-  const fullCards = ordered.filter((id) => CARD_REGISTRY[id]?.layout === 'full')
-  const halfCards = ordered.filter((id) => CARD_REGISTRY[id]?.layout === 'half')
+  // 当前固定布局按卡片默认档位（sizes[0]）分列；网格引擎就绪后改为按 {id,size,pos} 排布
+  const sizeOf = (id: string): WorkbenchCardSize => CARD_REGISTRY[id]?.sizes[0] ?? 'full'
+  const fullCards = ordered.filter((id) => sizeOf(id) === 'full')
+  const halfCards = ordered.filter((id) => sizeOf(id) === 'half')
 
   const renderCard = (cardId: string) => {
     const entry = CARD_REGISTRY[cardId]

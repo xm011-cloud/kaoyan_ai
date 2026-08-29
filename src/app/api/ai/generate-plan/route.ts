@@ -181,6 +181,7 @@ export async function POST(request: NextRequest) {
     const weekStartStr = weekStartDate.toISOString().split("T")[0];
     // 本周今天以前已过去，不生成任务（用前端传来的"本地今天"字符串，与周槽位口径一致）
     const todayLocalStr = (body.todayLocal as string) || today.toISOString().split("T")[0];
+    const weekLastStr = new Date(weekStartDate.getTime() + 6 * 86400000).toISOString().split("T")[0]; // 本周最后一天（周日槽位）
     const pastSkip = todayLocalStr > weekStartStr;
 
     // ── 增量删除 ──
@@ -229,9 +230,9 @@ export async function POST(request: NextRequest) {
         ? `\n## 注意\n只需要生成 ${regenerateDay} 这一天的任务（3-5个），不要生成其他日期。\n`
         : "";
 
-      // 本周今天以前已过去，不要生成过去的任务
+      // 本周今天以前已过去，不要生成过去的任务；也不要超出本周
       const pastSkipContext = pastSkip
-        ? `\n## 注意（重要）\n今天是 ${todayLocalStr}，本周今天以前的日期（${weekStartStr} 至昨天）已经过去，**不要为这些过去的日期生成任务**，只生成 ${todayLocalStr} 及以后的任务。\n`
+        ? `\n## 注意（重要）\n今天是 ${todayLocalStr}，本周任务是 ${todayLocalStr} 至 ${weekLastStr}。**只生成这个范围内的任务**：不要生成过去的日期，也不要超出本周（不要排到 ${weekLastStr} 之后）。\n`
         : "";
 
       // 冲刺模式指令
@@ -307,12 +308,16 @@ ${sprintContext}${regenerateContext}${pastSkipContext}
       planTasks = generateLocalWeeklyPlan(subjects, weekStartDate, { phase, capacity: weeklyHours, foundationMode, minDateStr: todayLocalStr });
     }
 
-    // 规范化 + 添加周标识
-    planTasks = planTasks.map((t) => ({
-      ...t,
-      subject: normalizeSubject(t.subject),
-      phase: t.phase || phase,
-    }));
+    // 规范化 + 添加周标识；并对 AI 返回的任务做日期清洗：
+    // 只保留本周可见范围 [今天, 周日] —— 剔除 AI 生成的过去日期与越界到下周的任务
+    planTasks = planTasks
+      .map((t) => ({
+        ...t,
+        subject: normalizeSubject(t.subject),
+        phase: t.phase || phase,
+        date: String(t.date).split("T")[0],
+      }))
+      .filter((t) => t.date >= todayLocalStr && t.date <= weekLastStr);
 
     // 批量创建任务（带 weekStartDate 和 source）
     const created = await Promise.all(

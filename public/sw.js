@@ -1,5 +1,6 @@
 // Basic Service Worker for offline support + notification click handling
-const CACHE_NAME = 'c6-study-v4';
+// v5：强制刷新缓存（上一版 UI/键盘修复的 meta 与 bundle 需全量重新拉取，否则已安装 PWA 仍跑旧代码）
+const CACHE_NAME = 'c6-study-v5';
 
 // Assets to cache on install
 const PRECACHE_ASSETS = [

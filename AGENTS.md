@@ -95,7 +95,7 @@ npx playwright test --ui                     # UI 模式
 
 ## PWA / 离线（改缓存记得升版本）
 
-- `public/sw.js`：`CACHE_NAME = 'c6-study-v5'`。**改任何静态资源/离线逻辑后把版本号 +1**，配 `src/components/sw-update-notice.tsx` 的刷新浮条，否则用户拿到旧缓存
+- `public/sw.js`：`CACHE_NAME = 'c6-study-v6'`。**改任何静态资源/离线逻辑后把版本号 +1**，配 `src/components/sw-update-notice.tsx` 的刷新浮条，否则用户拿到旧缓存
 - `src/lib/offline-queue.ts`：IndexedDB 写入队列，断网排队、联网按序补传。只放「可安全重放」的写操作（打卡、任务完成态），用 `dedupeKey` 归并同一目标最新状态；4xx 出队，网络错误/5xx 保留
 
 ## 文档索引

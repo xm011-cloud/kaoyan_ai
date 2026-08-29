@@ -1,6 +1,6 @@
 // Basic Service Worker for offline support + notification click handling
-// v5：强制刷新缓存（上一版 UI/键盘修复的 meta 与 bundle 需全量重新拉取，否则已安装 PWA 仍跑旧代码）
-const CACHE_NAME = 'c6-study-v5';
+// v6：任务勾选热修 bundle 变更 → 强制刷新已安装 PWA（v5 的旧 bundle 会让 checkbox 修复不生效）
+const CACHE_NAME = 'c6-study-v6';
 
 // Assets to cache on install
 const PRECACHE_ASSETS = [

@@ -343,6 +343,38 @@ src/
 - **真实上传回归 E2E**：materials.spec 新增「上传→列表可见→删除清理」用例（确认弹窗定位与行删除按钮用 `aria-label` 区分）；`ai-waiting` chat 输入框占位符定位改为**兼容三种状态**（资料有无决定占位文案）——修掉测试库残留资料导致的 flake
 - 测试：123 用例全绿
 
+### 第 25 轮 — 阶段0 · 备考阶段 + 完成度模型 + 课业容量 + 探索期计划（2026-08-29，已部署）
+- **备考阶段推导 `src/lib/prep-stage.ts`**：`derivePrepStage({examDate, hasGoal, subjects, subjectProgress, weeklyHours})` → 探索/基础/备考/冲刺四段（SPRINT_DAYS=150 / PREP_DAYS=365），含 urgency/focus/hint 文案 + `stageToPlanPhase` 映射
+- **完成度模型 v3 `src/lib/completion.ts`**：五档自评（未开始/学习中/基础完成/强化中/冲刺）+ 科目感知完成标准（SUBJECT_COMPLETION_GUIDE）+ 保守软门控（`calibratedStage`/`confidence`/`needsConfirmation`）+ 对话式校准（`POST /api/ai/probe-mastery`，两步无状态：无 answers 出题 / 有 answers 评估）+ 计划生成前统一确认
+- **课业容量**：Goal `studyLoad.weeklyHours` → 生成计划按实际容量排任务
+- **探索期计划**：`POST /api/ai/judge-plan-intent` 计划类型判断（考研/自定义，双重源读 reasoningText + strict 重试 + 关键词兜底），无目标也能生成计划
+- 设计文档 `docs/completion-model.md`；changelog「备考阶段更懂你」
+
+### 第 26 轮 — 引导改造 + 计划生成体验修复（2026-08-29，已部署）
+- **引导改造**：`?tour=1` 无条件重放引导；首次弹窗 `OnboardingModal` 改「第一件小事」三路选择（🎯我是考研人→/goal / 📝还没想好→/tasks / 👀先逛逛→dismiss）；引导卡 `OnboardingCard` 重排（①设目标高亮 ②探索功能 ③配AI可选）
+- **计划意图判断修复**：`judge-plan-intent` 读 `result.text || reasoningText` 双源（推理模型常返回空 content）+ 失败 strict 重试 + extractSubjects 关键词兜底
+- **计划生成体验三修**：PlanIntentModal 接 `useAiTask`+AiWaiting+可取消；生成失败 toast 透传不静默；本周过去日期不生成任务（周六起不排周一至周五，按 `todayLocal` 槽位字符串）
+- **时区口径统一**：周计划用本地今天字符串过滤 + 周视图今天高亮；登出清空客户端残留（`src/lib/clear-client-state.ts`：localStorage stores + IndexedDB 离线队列 + SW postMessage 清 API 缓存）防跨账号泄漏
+- **日期清洗**：AI 返回任务统一过滤到 `[今天, 周日]` 本周范围（修「生成 11 个只见 6 个 / 下周闪现」）；`scripts/cleanup-stray-tasks.mjs` 越界任务清理（dry-run 默认 / --apply / --ids）
+- **周视图手动排**：未生成周计划的周也能查看 + 自写计划（天列始终显示 + 添加）；写好的计划可评审 + 按建议重生成
+
+### 第 27 轮 — UI 处理：布局根因 + 导航重构 + DIY 地基 + 键盘适配（2026-08-29，已部署）
+- **布局根因修复**：shell main 改 flex 容器使 chat/active-session 内层滚动生效 + 输入框钉底；后续回退全局 flex（移动端受影响）→ 改 chat/active-session `h-full` 定向接通；`@utility safe-area-bottom` 定义（iPhone Home 指示条吃 padding）
+- **导航重构**：备考组重排 `[计划/tasks, 练习/practice, 错题, 目标]`；设置组去 tab 留 ⚙️；`getVisibleGroups()` 单一 helper（Header/MobileNav/slide-over 收敛）；删 `navItems`/`findNavItem` 死代码
+- **DIY 地基**：`CARD_REGISTRY` 单注册表（`{label, layout, render}`）+ `WORKBENCH_CARD_LABELS` 导出（settings 引用）；删 `sidebarCollapsed`/`spaced-review` 死项
+- **键盘适配**：`interactive-widget=resizes-content` viewport meta（Android 原生抬升）+ `useKeyboardOpen` 三信号检测（基线对比/overlay 差值/聚焦信号 `isTextInputActive`）+ 键盘开时隐藏底部导航 + 聊天 kbPad 双路兜底（vv 测量优先 / 聚焦+固定键盘高度 40% 硬解 PWA 独立模式）；SW 缓存 v4→v5 强制 PWA 全量刷新
+
+### 第 28 轮 — 首页拥挤治理 + 渐变 Hero + 更新日志（2026-08-29，已部署）
+- **拥挤治理**：顶部 4 块横幅收敛 —— Hero 大横幅信息并入「今日状态 Banner」；探索期（无目标）隐藏死卡/空卡（quick-practice 置灰 + 趋势/资料/错题空态）只留 stats + today-tasks；删 ShortcutsCard（与快速操作栏/底部导航重复）；StatsCards 去重收窄 3 格（本周/今日时长/完成率）；间距 `space-y-6→4`
+- **渐变 Hero 状态头**：`bg-gradient-to-br from-brand to-primary/80` 白字；层级 = 标题「学习概览」→ 目标锚点大字（🎯院校·专业 + ⏳倒计时胶囊）或 欢迎语+去设置目标 CTA → 阶段提示 → 内联统计（今日/打卡/连续）→ 快速操作栏（白字半透明按钮）；h1 保持「学习概览」满足 E2E 稳定断言
+- **changelog**：补「首页焕新」条目（dashboard 更新告示 + /changelog 同步）
+
+### 第 29 轮 — 激活漏斗页 + 阶段0收口 + ADR 战略收口（2026-08-29，已部署）
+- **激活漏斗页**（ADR 3.4 阶段0 B）：/admin 新增📊tab —— 注册/激活→设目标→生成计划→首次打卡→配 AI→深功能→7 日回访 7 阶段转化率 + 单用户轨迹（点开卡住用户看使用痕迹）
+- **阶段0收口**：计划跨度提示（长线备考不再刺眼倒计时）+ 阶段配置化（D4 种子）+ CARD_REGISTRY `sizes` 元数据留口（D6 种子）
+- **ADR 战略收口**：3.6 卡片 DIY = 技能工具页宿主（共用布局引擎+组件契约）；3.7 能力出口与本地分层（MCP/CLI/桌面壳，不站队薄适配层双出口，阶段0不做）；D6 改接 MCP（数据/工具走标准、表现层自研对齐 MCP Apps）；特色定位修正（真差异化 = 考研垂直深度 × 温柔性格，非三个签名）
+- **AGENTS.md/CLAUDE.md 梳理**（/init）：补阶段完成度/工作台卡片/文档索引 + SW 版本 v4→v5
+
 ### 第 10 轮 — 对话→任务落地（事务边界）（2026-08-13）
 - **schema**：Task `proposalId/chatId` + `@@index([userId, proposalId])`；Chat `pendingProposal Json?`
 - **propose_tasks 工具**（writes:false 草稿不落库）：批量建议挂到对话 pendingProposal；`create_task` description 引导勿批量直写；chat 路由读 body.chatId → 提案时无对话则先建 → 返回 `chatId + proposal`
@@ -361,11 +393,15 @@ src/
 | P3 | 排行榜/学习圈：点赞/互关/动态等更深社交（当前仅排名） |
 | P3 | **AI 技能系统 V1 已完整落地**。后续：可视化工坊（拖拽编排 steps）、定时触发、技能分享/社区 |
 | P3 | **AI 等待安抚状态机已落地**（对话/浮窗/周计划/路径/周报/变式题 + 院校搜索/真题导入/出题）。后续：流式思考（第二层，先用展开率数据决策是否值得投）；/chat 蒸馏加载也可换用等待气泡 |
+| P2 | **E2E 回归待补跑**（2026-08-29 第 25-29 轮改动多、跨布局/导航/计划生成，但本机 Neon 网络超时未跑成）：等网络恢复后补跑全量，重点 dashboard（h1 学习概览 / 快捷链接 / 今日任务）、onboarding（新手上路 / 配置 AI Key / 设置考研目标） |
+| P3 | 完成度模型后续（阶段 1）：遗忘衰减（decay）、先测后分班（探索期首次摸底建基线）——见 `docs/completion-model.md` 待决 |
+| P3 | 技能宿主后续（阶段 2，已定方向）：MCP 数据/工具层 + 自研表现层对齐 MCP Apps；薄适配层双出口（MCP server + CLI）；桌面壳（Tauri）——阶段 0 不做，见 ADR 3.7 |
 
 ## 部署记录
 
 | 日期 | 范围 | 内容 |
 |------|------|------|
+| 2026-08-29 | `8fe1fdc..a2c1458` → 生产 | **阶段0 + 引导 + 计划体验 + UI/键盘 + 拥挤治理 + 渐变Hero + 激活漏斗 + ADR收口**（第 25-29 轮；备考阶段/完成度模型/课业容量/探索期计划；引导三路选择；计划生成体验修复（意图判断/时区/日期清洗/手动排）；UI 布局根因+导航重构+DIY地基+键盘适配；首页拥挤治理+渐变Hero状态头；激活漏斗页；changelog 两条），E2E 未跑（Neon 网络超时）；`c6-orcin.vercel.app` |
 | 2026-08-16 | `b5fceed..fbf2448` → 生产 | **PWA 上传二修**（资料/真题 file input 改覆盖式铺满按钮——点击落点在 input 本体走原生手势；SW v4 真升级时 postMessage 刷新浮条强制下发新版，已安装 PWA 不再卡旧 bundle；materials 新增真实上传回归 E2E，ai-waiting 占位符定位兼容资料有无），123 用例全绿；`c6-orcin.vercel.app` |
 | 2026-08-16 | `4dc95f9..b5fceed` → 生产 | **移动端体验 + 离线能力 + PWA 上传修复**（P0 表单字号 ≥16px 灭 iOS 缩放 / P1 触控目标全 ≥44px / P2 Modal 底部抽屉+安全区+键盘滚回；SW v3 GET API 缓存兜底 + IndexedDB 写队列自动补传；上传改 label 修 standalone PWA；useOnlineStatus 改 useSyncExternalStore 灭 hydration mismatch），122 用例全绿；`c6-orcin.vercel.app` |
 | 2026-08-16 | `4c5029c..4dc95f9` → 生产 | **等待安抚扩展 + 导航文案统一**（院校搜索/真题导入可取消 + 练习出题仅安抚；学习圈→排行榜等词统一；global-setup 修周日 E2E 弹窗 flake），121 用例全绿；`c6-orcin.vercel.app` |
@@ -386,6 +422,30 @@ src/
 ## 最近提交 (最新→最旧)
 
 ```
+940e4cb docs: changelog 补「首页焕新」条目 — 渐变概览卡/探索期隐藏空卡/删快捷卡/间距收紧
+520a50f docs: ADR 阶段0详案标注进度 — A/B/D6 ✅ 完成, C 狗粮持续
+51b771b feat: 阶段0收口 — 计划跨度提示 + 阶段配置化(D4种子) + CARD_REGISTRY sizes留口(D6)
+49709c2 feat: 激活漏斗页 — /admin 新增📊tab(ADR 3.4 阶段0 B) 7阶段转化率+单用户轨迹
+a2c50bf docs: AGENTS.md/CLAUDE.md 补阶段完成度/工作台卡片/文档索引 + SW版本v4→v5 — /init 梳理
+a2c1458 style: 今日状态头改渐变 Hero — 目标锚点大字 + 倒计时胶囊 + 欢迎语/去设置目标CTA + 内联统计，层级: 标题→目标/欢迎→阶段→数据→操作
+a2d8eac feat: 首页拥挤治理 — 合并顶部双横幅(Hero并入今日状态头) + 探索期隐藏死卡/空卡 + 删Shortcuts卡 + stats去重收窄3格 + 间距收紧space-y-6→4
+afb6bc5 docs: ADR 战略收口 — 3.6卡片DIY=技能宿主 + 3.7能力出口与本地分层(MCP/CLI/桌面壳) + D6改接MCP + 特色定位修正；补狗粮日志
+c6367c4 fix: 键盘兜底双路 — useKeyboardOpen加聚焦信号 + 聊天kbPad在vv无信号时用聚焦+固定键盘高度抬升(PWA独立模式resizes-content不生效/事件不触发的硬解)
+2e14b95 fix: 键盘检测改基线对比(resize模式也能判开,修网页端导航还抬) + SW缓存v5强制PWA全量刷新(修PWA跑旧代码不抬)
+9dbd816 feat: 键盘体验 — interactive-widget=resizes-content(PWA也原生抬升输入框) + 键盘弹出时隐藏底部导航(不再悬浮键盘上方)
+646381e fix: 聊天键盘抬起用视觉视口直测 — offsetTop+height量键盘高度,去阈值; Android挤压式差值≈0不重复抬, iOS覆盖式正确抬
+16d489e fix: 回退 shell main 全局 flex — 改 chat/active-session 用 h-full 定向接通内层滚动(避免移动端全站布局受影响) + chat 键盘padding加阈值防误抬
+6ed34c6 feat: UI 处理 — 布局根因修复(main改flex使聊天/做题内层滚动生效+输入框钉底) + 键盘适配 + safe-area-bottom定义 + 导航指向常用(备考→计划,设置去tab留⚙️) + DIY地基(导航getVisibleGroups收敛/卡片注册表/清死代码)
+3ed2902 feat: 周视图未生成计划也能手动排 — 天列始终显示(含+添加),空态改为不阻挡提示;自己写好的计划可评审+按建议重生成
+ff60244 chore: 越界任务清理脚本通用化保留 — 按 weekStartDate 周范围检测,默认dry-run, --apply 删除(跳过已完成)
+67f988f fix: 计划生成日期清洗 — AI 返回的任务统一过滤到本周可见范围[今天,周日]，剔除过去日期与越界下周(修'生成11个只见6个/下周闪现')
+462ed08 fix: 周计划时区口径统一(本地今天字符串过滤+周视图今天高亮) + 登出清空客户端残留(store/离线队列/SW缓存)防跨账号数据泄漏
+59c53a4 fix: 计划生成体验三修 — 意图判断加等待安抚可取消 + 生成失败 toast 不静默 + 本周过去日期不生成任务(周六起不排周一至周五)
+1f78a77 fix: 计划意图判断/掌握度校准读 reasoningText 双源 + 失败重试严格模式 — 修探索期生成计划计划类型判断失败
+0229812 feat: 引导体验改造 — ?tour=1 可重放引导 + 首次弹窗改「第一件小事」三路选择 + 引导卡顺序修正(设目标优先/配AI可选)
+98d14c3 docs: 更新日志补第 25 轮 — 备考阶段/完成度模型/课业容量/探索期计划 上线
+1610f1c feat: 阶段0 完成度模型+备考阶段 — 五档自评/对话校准/阶段推导四段/课业容量/探索期计划
+77f7470 docs: 新增产品架构决策记录(ADR) — 定位收敛/技能插件化/测评消抵触/自由度计划 + 防推倒重来 D1-D5 架构决策
 4d2e20f feat: 等待安抚状态机 — useAiTask 分阶段等待(文案轮播+预估秒数+可取消) + AiWaiting 组件
 d61c208 docs: 项目状态补 Round C — 蒸馏 + 提议 + 100 用例
 a0d8029 feat: AI 技能系统 Round C — 对话蒸馏 + AI 主动提议

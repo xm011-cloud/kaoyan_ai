@@ -33,7 +33,6 @@ export interface PracticeDefaults {
 export interface UIState {
   // Navigation
   navGroups: NavGroup[]
-  sidebarCollapsed: boolean
 
   // Workspace cards
   workspaceCards: string[] // ordered IDs of visible cards
@@ -54,7 +53,6 @@ export interface UIState {
   setNavGroups: (groups: NavGroup[]) => void
   toggleGroup: (groupId: string) => void
   toggleNavItem: (groupId: string, href: string) => void
-  setSidebarCollapsed: (collapsed: boolean) => void
   setWorkspaceCards: (cards: string[]) => void
   setPracticeDefaults: (defaults: Partial<PracticeDefaults>) => void
   setShowAiThinking: (show: boolean) => void
@@ -135,7 +133,6 @@ export const DEFAULT_WORKSPACE_CARDS = [
   'study-trend',
   'recent-materials',
   'wrong-overview',
-  'spaced-review',
   'shortcuts',
 ]
 
@@ -156,7 +153,6 @@ export const useUIStore = create<UIState>()(
   persist(
     (set) => ({
       navGroups: DEFAULT_NAV_GROUPS,
-      sidebarCollapsed: false,
       workspaceCards: DEFAULT_WORKSPACE_CARDS,
       practiceDefaults: DEFAULT_PRACTICE_DEFAULTS,
       showAiThinking: DEFAULT_SHOW_AI_THINKING,
@@ -185,8 +181,6 @@ export const useUIStore = create<UIState>()(
               : g
           ),
         })),
-
-      setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
 
       setWorkspaceCards: (cards) => set({ workspaceCards: cards }),
 
@@ -231,7 +225,6 @@ export const useUIStore = create<UIState>()(
         }
         return {
           navGroups,
-          sidebarCollapsed: p.sidebarCollapsed ?? false,
           workspaceCards: p.workspaceCards || DEFAULT_WORKSPACE_CARDS,
           practiceDefaults: p.practiceDefaults || DEFAULT_PRACTICE_DEFAULTS,
           showAiThinking: p.showAiThinking ?? DEFAULT_SHOW_AI_THINKING,

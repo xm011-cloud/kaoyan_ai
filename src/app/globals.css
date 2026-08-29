@@ -154,6 +154,11 @@
   }
 }
 
+/* 底部安全区工具类：iPhone Home 指示条下内边距（mobile-nav / activity-bar 使用） */
+@utility safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
 /*
  * 移动端表单控件字号 ≥16px — 消灭 iOS Safari 聚焦自动缩放。
  * iOS 规则：任何 font-size < 16px 的 input/textarea 聚焦时会整页 zoom。

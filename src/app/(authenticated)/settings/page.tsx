@@ -9,6 +9,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import {
   useUIStore, DEFAULT_NAV_GROUPS, DEFAULT_WORKSPACE_CARDS, DEFAULT_PRACTICE_DEFAULTS
 } from '@/stores/ui-store'
+import { WORKBENCH_CARD_LABELS } from '@/components/workbench/workbench-grid'
 import { defaultNavGroups } from '@/lib/nav'
 
 type Tab = 'ai' | 'reminders' | 'ui'
@@ -474,12 +475,11 @@ export default function SettingsPage() {
             </div>
             <div className="flex flex-wrap gap-2">
               {DEFAULT_WORKSPACE_CARDS.map(cid => {
-                const label: Record<string, string> = { stats: '📊 统计', 'today-tasks': '📋 任务', 'quick-practice': '✏️ 练习', 'study-trend': '📈 趋势', 'recent-materials': '📚 资料', 'wrong-overview': '🔴 错题', shortcuts: '🔗 快捷' }
                 const vis = workspaceCards.includes(cid)
                 return (
                   <button key={cid} onClick={() => setWorkspaceCards(vis ? workspaceCards.filter(c => c !== cid) : [...workspaceCards, cid])}
                     className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${vis ? 'border-brand/30 bg-brand-muted text-brand' : 'border-border/50 bg-muted text-muted-foreground'}`}>
-                    {label[cid] || cid}
+                    {WORKBENCH_CARD_LABELS[cid] || cid}
                   </button>
                 )
               })}

@@ -171,6 +171,7 @@ export default function ChatPage() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
   const skillMenuRef = useRef<HTMLDivElement>(null)
   const skillKickoffRef = useRef(false)
 
@@ -255,23 +256,23 @@ export default function ChatPage() {
     }
   }, [subjects, wrongSubject]);
 
+  // 新消息时自动滚到底部，但用户手动上翻历史时（不在底部附近）不打断
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const el = scrollAreaRef.current
+    if (!el) return
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120
+    if (nearBottom) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
   }, [messages])
 
-  useEffect(() => {
-    inputRef.current?.focus()
-  }, [loading])
-
-  // iOS 键盘遮挡：visualViewport 变化（键盘弹出/收起）时把聚焦的输入框滚回可视区
+  // iOS 键盘遮挡：键盘弹出/收起时，给输入区加底部 padding 把钉底的输入框顶上去
+  const [kbPad, setKbPad] = useState(0)
   useEffect(() => {
     const vv = window.visualViewport
     if (!vv) return
     const onVvResize = () => {
-      const el = inputRef.current
-      if (el && document.activeElement === el) {
-        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-      }
+      setKbPad(Math.max(0, (window.innerHeight || 0) - vv.height))
     }
     vv.addEventListener('resize', onVvResize)
     return () => vv.removeEventListener('resize', onVvResize)
@@ -700,7 +701,7 @@ export default function ChatPage() {
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto min-h-0 px-4 lg:px-6 py-4 space-y-4">
+      <div ref={scrollAreaRef} className="flex-1 overflow-y-auto min-h-0 px-4 lg:px-6 py-4 space-y-4">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
             <div className="text-5xl mb-4">💬</div>
@@ -796,8 +797,8 @@ export default function ChatPage() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input area */}
-      <div className="shrink-0 border-t border-border/50 p-3 lg:p-4 bg-card">
+      {/* Input area —— paddingBottom 随 iOS 键盘高度抬升，避免遮挡 */}
+      <div className="shrink-0 border-t border-border/50 p-3 lg:p-4 bg-card" style={{ paddingBottom: kbPad > 0 ? kbPad : undefined }}>
         <div className="max-w-3xl mx-auto space-y-2">
           {/* 资料选择器 */}
           {materials.length > 0 && (

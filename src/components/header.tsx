@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { usePomodoroStore } from '@/stores/pomodoro-store'
 import { formatTime } from '@/lib/time-utils'
-import { defaultNavGroups } from '@/lib/nav'
+import { getVisibleGroups } from '@/lib/nav'
 import { useUIStore } from '@/stores/ui-store'
 import { cn } from '@/lib/utils'
 import { clearClientStateOnLogout } from '@/lib/clear-client-state'
@@ -33,34 +33,17 @@ export function Header({ daysLeft, daysLabel }: { daysLeft: number; daysLabel?: 
 
   const dateStr = now.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'short' })
 
-  // Build tabs from visible groups
-  const groups = defaultNavGroups
-    .filter((dg) => {
-      const ui = uiGroups.find((g) => g.id === dg.id)
-      return ui?.visible ?? true
-    })
-    .map((dg) => ({
-      ...dg,
-      firstItem: dg.items.find((item) => {
-        const uiItem = uiGroups.find((g) => g.id === dg.id)?.items.find((i) => i.href === item.href)
-        return uiItem?.visible ?? true
-      }),
-    }))
-    .filter((g) => g.firstItem)
+  // 可见分组（统一走 getVisibleGroups，避免各处重复过滤）
+  const visibleGroups = getVisibleGroups(uiGroups)
+
+  // 桌面 tab：可见分组中排除 tab:false（如"设置"组用 ⚙️ 入口）；tab 跳转 = 组首项
+  const groups = visibleGroups
+    .filter((dg) => dg.tab !== false)
+    .map((dg) => ({ ...dg, firstItem: dg.items[0] }))
     .slice(0, 6)
 
-  // Build slide-over menu items
-  const menuGroups = defaultNavGroups.map((dg) => {
-    const ui = uiGroups.find((g) => g.id === dg.id)
-    return {
-      ...dg,
-      visible: ui?.visible ?? true,
-      items: dg.items.filter((item) => {
-        const uiItem = ui?.items.find((i) => i.href === item.href)
-        return uiItem?.visible ?? true
-      }),
-    }
-  }).filter((g) => g.visible && g.items.length > 0)
+  // slide-over 菜单：所有可见分组（含设置组）
+  const menuGroups = visibleGroups
 
   return (
     <>

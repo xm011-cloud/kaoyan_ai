@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { useUIStore, DEFAULT_WORKSPACE_CARDS } from '@/stores/ui-store'
 import { StatsCards } from './stats-cards'
 import { TodayTasksCard } from './today-tasks-card'
@@ -9,16 +10,24 @@ import { RecentMaterialsCard } from './recent-materials-card'
 import { WrongOverviewCard } from './wrong-overview-card'
 import { ShortcutsCard } from './shortcuts-card'
 
-// ── Layout defines which cards go full-width vs 2-col ──
-const CARD_LAYOUT: Record<string, 'full' | 'half'> = {
-  stats: 'full',
-  'today-tasks': 'half',
-  'quick-practice': 'full',
-  'study-trend': 'half',
-  'recent-materials': 'half',
-  'wrong-overview': 'half',
-  shortcuts: 'full',
+/**
+ * 工作台卡片单一注册表（DIY/插件化的地基）：
+ * 新增一张卡片 = 在这里加一条，settings 的 label 自动复用（WORKBENCH_CARD_LABELS）。
+ */
+const CARD_REGISTRY: Record<string, { label: string; layout: 'full' | 'half'; render: (data: WorkbenchData) => ReactNode }> = {
+  stats: { label: '📊 统计', layout: 'full', render: (d) => <StatsCards {...d.stats} /> },
+  'today-tasks': { label: '📋 任务', layout: 'half', render: (d) => <TodayTasksCard tasks={d.todayTasks} dateStr={d.dateStr} /> },
+  'quick-practice': { label: '✏️ 练习', layout: 'full', render: (d) => <QuickPracticeCard subjects={d.subjects} todaySubjects={d.todaySubjects} dueWrongCount={d.dueWrongCount} /> },
+  'study-trend': { label: '📈 趋势', layout: 'half', render: (d) => <StudyTrendCard bars={d.weekBars} /> },
+  'recent-materials': { label: '📚 资料', layout: 'half', render: (d) => <RecentMaterialsCard materials={d.materials} /> },
+  'wrong-overview': { label: '🔴 错题', layout: 'half', render: (d) => <WrongOverviewCard wrongQuestions={d.wrongQuestions} dueCount={d.dueWrongCount} /> },
+  shortcuts: { label: '🔗 快捷', layout: 'full', render: () => <ShortcutsCard /> },
 }
+
+/** 供 settings「界面定制」引用，避免卡片 label 第四处硬编码 */
+export const WORKBENCH_CARD_LABELS: Record<string, string> = Object.fromEntries(
+  Object.entries(CARD_REGISTRY).map(([id, c]) => [id, c.label])
+)
 
 export interface WorkbenchData {
   stats: {
@@ -60,26 +69,12 @@ export interface WorkbenchData {
 export function WorkbenchGrid({ data }: { data: WorkbenchData }) {
   const workspaceCards = useUIStore((s) => s.workspaceCards)
   const ordered = workspaceCards.length > 0 ? workspaceCards : DEFAULT_WORKSPACE_CARDS
+  const fullCards = ordered.filter((id) => CARD_REGISTRY[id]?.layout === 'full')
+  const halfCards = ordered.filter((id) => CARD_REGISTRY[id]?.layout === 'half')
 
   const renderCard = (cardId: string) => {
-    switch (cardId) {
-      case 'stats':
-        return <StatsCards key="stats" {...data.stats} />
-      case 'today-tasks':
-        return <TodayTasksCard key="today-tasks" tasks={data.todayTasks} dateStr={data.dateStr} />
-      case 'quick-practice':
-        return <QuickPracticeCard key="quick-practice" subjects={data.subjects} todaySubjects={data.todaySubjects} dueWrongCount={data.dueWrongCount} />
-      case 'study-trend':
-        return <StudyTrendCard key="study-trend" bars={data.weekBars} />
-      case 'recent-materials':
-        return <RecentMaterialsCard key="recent-materials" materials={data.materials} />
-      case 'wrong-overview':
-        return <WrongOverviewCard key="wrong-overview" wrongQuestions={data.wrongQuestions} dueCount={data.dueWrongCount} />
-      case 'shortcuts':
-        return <ShortcutsCard key="shortcuts" />
-      default:
-        return null
-    }
+    const entry = CARD_REGISTRY[cardId]
+    return entry ? <div key={cardId}>{entry.render(data)}</div> : null
   }
 
   return (
@@ -135,21 +130,11 @@ export function WorkbenchGrid({ data }: { data: WorkbenchData }) {
 
       {/* Card grid — full-width cards stack, half-width go 2-col on lg+ */}
       <div className="space-y-5">
-        {ordered.map((cardId) => {
-          const layout = CARD_LAYOUT[cardId] || 'full'
-          if (layout === 'full') {
-            return <div key={cardId}>{renderCard(cardId)}</div>
-          }
-          return null
-        })}
+        {fullCards.map(renderCard)}
 
         {/* 2-column row for half-width cards */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {ordered
-            .filter((id) => CARD_LAYOUT[id] === 'half')
-            .map((cardId) => (
-              <div key={cardId}>{renderCard(cardId)}</div>
-            ))}
+          {halfCards.map(renderCard)}
         </div>
       </div>
     </div>

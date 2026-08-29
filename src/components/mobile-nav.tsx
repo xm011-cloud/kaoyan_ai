@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { defaultNavGroups } from '@/lib/nav'
+import { getVisibleGroups } from '@/lib/nav'
 import { useUIStore } from '@/stores/ui-store'
 import { usePomodoroStore } from '@/stores/pomodoro-store'
 import { usePracticeStore } from '@/stores/practice-store'
@@ -27,14 +27,7 @@ export function MobileNav() {
 
   const hasActivity = pomodoro.isRunning || !!practice.activeSessionId
 
-  const groups = defaultNavGroups
-    .filter((dg) => { const ui = uiGroups.find(g => g.id === dg.id); return ui?.visible ?? true })
-    .map((dg) => {
-      const ui = uiGroups.find(g => g.id === dg.id)
-      return { ...dg, items: dg.items.filter(item => { const uiI = ui?.items.find(i => i.href === item.href); return uiI?.visible ?? true }) }
-    })
-    .filter(g => g.items.length > 0)
-    .slice(0, 5)
+  const groups = getVisibleGroups(uiGroups).slice(0, 5)
 
   // Pomodoro progress
   const total = pomodoro.totalSeconds || 1

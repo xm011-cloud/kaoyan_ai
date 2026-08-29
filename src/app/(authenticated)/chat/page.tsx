@@ -266,15 +266,16 @@ export default function ChatPage() {
     }
   }, [messages])
 
-  // iOS 键盘遮挡：键盘弹出/收起时，给输入区加底部 padding 把钉底的输入框顶上去
+  // iOS/Android 键盘遮挡：键盘弹出/收起时给输入区加底部 padding 把钉底的输入框顶上去。
+  // 用 offsetTop+height 量键盘高度（布局视口 - 可视区）：
+  //  - Android 挤压式：innerHeight 随键盘缩小 → 差值≈0 → 靠 h-dvh 原生抬升，不重复抬
+  //  - iOS 覆盖式：innerHeight 不变 → 差值=键盘高度 → padding 抬升
   const [kbPad, setKbPad] = useState(0)
   useEffect(() => {
     const vv = window.visualViewport
     if (!vv) return
     const onVvResize = () => {
-      const pad = (window.innerHeight || 0) - vv.height
-      // 只有明显的高度差（真实键盘 >80px）才抬升，避免工具条波动给输入区加多余内边距
-      setKbPad(pad > 80 ? pad : 0)
+      setKbPad(Math.max(0, (window.innerHeight || 0) - (vv.offsetTop || 0) - vv.height))
     }
     vv.addEventListener('resize', onVvResize)
     return () => vv.removeEventListener('resize', onVvResize)

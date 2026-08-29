@@ -71,6 +71,42 @@ test.describe("Tasks", () => {
     // checkbox 应保持勾选
     await expect(checkbox).toBeChecked();
 
+    // 持久化：刷新后仍勾选（服务器已更新）
+    await page.reload();
+    await page.waitForTimeout(1500);
+    const rowAfter = page
+      .locator("div")
+      .filter({ hasText: title })
+      .filter({ has: page.locator('input[type="checkbox"]') })
+      .last();
+    await expect(rowAfter.locator('input[type="checkbox"]')).toBeChecked();
+
+    // 学习概览（dashboard）也应显示已完成 —— 两端同读 DB，状态一致
+    await page.goto("/dashboard");
+    await page.waitForTimeout(1500);
+    const dashRow = page.locator("div").filter({ hasText: title }).last();
+    await expect(dashRow.locator("span.line-through").first()).toBeVisible({ timeout: 3000 });
+
+    // 回计划页取消勾选也应持久化
+    await page.goto("/tasks");
+    await page.waitForTimeout(1500);
+    const rowBefore = page
+      .locator("div")
+      .filter({ hasText: title })
+      .filter({ has: page.locator('input[type="checkbox"]') })
+      .last();
+    await rowBefore.locator('input[type="checkbox"]').click();
+    await page.waitForTimeout(800);
+    await expect(rowBefore.locator('input[type="checkbox"]')).not.toBeChecked();
+    await page.reload();
+    await page.waitForTimeout(1500);
+    const rowAfter2 = page
+      .locator("div")
+      .filter({ hasText: title })
+      .filter({ has: page.locator('input[type="checkbox"]') })
+      .last();
+    await expect(rowAfter2.locator('input[type="checkbox"]')).not.toBeChecked();
+
     // 清理
     await page.request.delete(`/api/tasks/${task.id}`);
   });

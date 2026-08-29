@@ -19,6 +19,7 @@ export default function GoalPage() {
   const [subjects, setSubjects] = useState<string[]>([])
   const [subjectsEdited, setSubjectsEdited] = useState(false)
   const [targetScores, setTargetScores] = useState<Record<string, number>>({})
+  const [weeklyHours, setWeeklyHours] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
@@ -36,6 +37,9 @@ export default function GoalPage() {
         setSubjectsEdited(data.goal.subjectsEdited ?? false)
         if (data.goal.targetScores && typeof data.goal.targetScores === 'object') {
           setTargetScores(data.goal.targetScores as Record<string, number>)
+        }
+        if (data.goal.studyLoad && typeof data.goal.studyLoad === 'object') {
+          setWeeklyHours((data.goal.studyLoad as { weeklyHours?: number }).weeklyHours ?? null)
         }
         setSaved(true)
       }
@@ -66,6 +70,7 @@ export default function GoalPage() {
           university, major, examDate,
           subjects: subjectList,
           targetScores: Object.keys(targetScores).length > 0 ? targetScores : undefined,
+          studyLoad: { weeklyHours: weeklyHours ?? null },
           subjectsEdited,
         }),
       })
@@ -133,6 +138,17 @@ export default function GoalPage() {
               </div>
             </div>
           )}
+
+          <div>
+            <label htmlFor="goal-weekly-hours" className="block text-sm font-medium mb-1">⏰ 每周可投入时间（可选）</label>
+            <div className="flex items-center gap-2 flex-wrap">
+              <input id="goal-weekly-hours" type="number" min={0} max={80} value={weeklyHours ?? ''}
+                onChange={(e) => setWeeklyHours(e.target.value === '' ? null : Math.max(0, parseInt(e.target.value) || 0))}
+                placeholder="如 12"
+                className="w-24 h-11 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20" />
+              <span className="text-xs text-muted-foreground">小时 / 周 —— 还在上课或有其他安排就填小一点，计划会按这个容量排任务，不会硬塞</span>
+            </div>
+          </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 

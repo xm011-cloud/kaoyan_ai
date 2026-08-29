@@ -12,6 +12,16 @@ import { useAiTask } from "@/hooks/use-ai-task";
 import { WeeklyPlanner } from "./_components/weekly-planner";
 import { getWeekStart, toDateString } from "@/lib/date-utils";
 import { enqueueWrite } from "@/lib/offline-queue";
+import {
+  STAGE_ORDER, STAGE_LABELS, STAGE_TO_PERCENT,
+  inferStageFromPercent, needsConfirmation, isStageConfirmed,
+  getSubjectGuide,
+  type SubjectProgress, type SubjectStage,
+} from "@/lib/completion";
+import { derivePrepStage } from "@/lib/prep-stage";
+import { SubjectProbeModal, type ProbeResult } from "./_components/subject-probe";
+import { PlanIntentModal } from "./_components/plan-intent-modal";
+import type { PlanIntent } from "@/app/api/ai/judge-plan-intent/route";
 
 interface Task {
   id: string;
@@ -26,7 +36,7 @@ interface Task {
   source?: string | null;
 }
 
-interface ProgressEntry { percent: number; note: string }
+type ProgressEntry = SubjectProgress;
 interface SystemStats {
   knowledgeMastery: number | null;
   wrongQuestions: { total: number; reviewed: number; unreviewed: number; dueToday: number } | null;
@@ -55,6 +65,24 @@ export default function TasksPage() {
   const subjects = goal?.subjects ?? [];
   const examDate = goal?.examDate ? new Date(goal.examDate).toISOString() : "";
   const savedProgress = (goal?.progress as Record<string, ProgressEntry>) || {};
+  const weeklyHours = (goal?.studyLoad as { weeklyHours?: number } | undefined)?.weeklyHours ?? null;
+
+  // 阶段推导（0.3）：探索/基础/备考/冲刺
+  const stage = useMemo(
+    () =>
+      derivePrepStage({
+        examDate: goal?.examDate ?? null,
+        hasGoal: !!goal,
+        subjects,
+        subjectProgress: savedProgress,
+        weeklyHours,
+      }),
+    [goal, subjects, savedProgress, weeklyHours]
+  );
+
+  // 掌握度确认弹窗 + 探索期意图确认弹窗
+  const [probeSubject, setProbeSubject] = useState<{ subject: string; stage: SubjectStage } | null>(null);
+  const [intentOpen, setIntentOpen] = useState(false);
 
   const [weekStart, setWeekStart] = useState<Date>(() => {
     const urlWeek = searchParams.get("week");
@@ -146,7 +174,17 @@ export default function TasksPage() {
   // Sync progress from goal
   useEffect(() => {
     if (savedProgress && Object.keys(savedProgress).length > 0) {
-      setEditProgress((prev) => ({ ...savedProgress, ...prev }));
+      setEditProgress((prev) => {
+        const merged: Record<string, ProgressEntry> = { ...savedProgress, ...prev };
+        // 老数据（无档位）→ 按 percent 推断档位，读时推断、保存时落库（不做静默迁移）
+        for (const k of Object.keys(merged)) {
+          const p = merged[k];
+          if (p && !p.stage) {
+            merged[k] = { ...p, stage: inferStageFromPercent(p.percent) };
+          }
+        }
+        return merged;
+      });
     }
   }, [savedProgress]);
 
@@ -159,7 +197,7 @@ export default function TasksPage() {
     router.replace(`${pathname}?week=${toDateString(d)}`, { scroll: false });
   };
 
-  const handleGenerate = async () => {
+  const runGenerate = async (extraBody: Record<string, unknown>) => {
     setGenerating(true);
     const controller = genStart();
     try {
@@ -169,11 +207,26 @@ export default function TasksPage() {
         body: JSON.stringify({
           weekStartDate: weekStart.toISOString(),
           progress: editProgress,
+          ...extraBody,
         }),
         signal: controller.signal,
       });
       if (res.ok) await loadWeekTasks();
     } catch { /* ignore：含用户取消 */ } finally { genStop(); setGenerating(false); }
+  };
+
+  const handleGenerate = () => {
+    // 探索期（无目标）→ 先描述需求、判断计划类型（0.4b）
+    if (!goal) {
+      setIntentOpen(true);
+      return;
+    }
+    return runGenerate({});
+  };
+
+  const handleIntentConfirm = async (intent: PlanIntent) => {
+    setIntentOpen(false);
+    await runGenerate({ planContext: { label: intent.summary, subjects: intent.subjects } });
   };
 
   // ── ?generate=1 自动生成（周计划到期提醒跳转而来）──
@@ -331,15 +384,53 @@ export default function TasksPage() {
     } catch { /* ignore */ }
   };
 
-  const handleSaveProgress = async () => {
+  const saveProgress = async (next: Record<string, ProgressEntry>) => {
     setSavingProgress(true);
     try {
       await fetch("/api/goal", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ progress: editProgress }),
+        body: JSON.stringify({ progress: next }),
       });
     } catch { /* ignore */ } finally { setSavingProgress(false); }
+  };
+
+  const handleSaveProgress = () => saveProgress(editProgress);
+
+  /** 采纳对话校准结果 → 校准档位 + 置信度 high + 立即保存 */
+  const handleProbeAccept = (subj: string, r: ProbeResult) => {
+    const next: Record<string, ProgressEntry> = {
+      ...editProgress,
+      [subj]: {
+        ...(editProgress[subj] || {}),
+        calibratedStage: r.calibratedStage,
+        confidence: "high" as const,
+        lastProbeAt: new Date().toISOString(),
+      },
+    };
+    setEditProgress(next);
+    saveProgress(next);
+    setProbeSubject(null);
+  };
+
+  /** 保持自评 → 只关弹窗，不改置信度（仍显示待确认） */
+  const handleProbeKeep = () => setProbeSubject(null);
+
+  /** 自评档位变化 → 更新档位 + 默认 percent；旧校准失效回到"待确认"（保守原则） */
+  const setSubjectStage = (subj: string, stage: SubjectStage) => {
+    setEditProgress((prev) => {
+      const existing = prev[subj] || {};
+      return {
+        ...prev,
+        [subj]: {
+          ...existing,
+          stage,
+          percent: STAGE_TO_PERCENT[stage],
+          confidence: "low",
+          calibratedStage: undefined,
+        },
+      };
+    });
   };
 
   // ── Render ──
@@ -348,7 +439,7 @@ export default function TasksPage() {
       <div className="max-w-6xl mx-auto space-y-6">
         <PageHeader
           title="备考计划"
-          subtitle={`距考试 ${daysRemaining} 天 · ${subjects.length} 个科目`}
+          subtitle={stage.hint}
         />
 
         {/* 冲刺模式横幅 */}
@@ -366,29 +457,47 @@ export default function TasksPage() {
           </div>
         )}
 
-        {/* Zone 1: Phase overview */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {phases.map((p) => (
-            <div key={p.name} className={`p-4 rounded-xl border-2 ${p.isCurrent ? "ring-2 ring-blue-400 " + (PHASE_COLORS[p.name] || "border-border/50") : "border-border/50 bg-card"}`}>
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-bold text-sm">{p.name}</span>
-                {p.isCurrent && <span className="text-[10px] bg-blue-500 text-white px-1.5 py-0.5 rounded-full">当前</span>}
+        {/* Zone 1: 阶段总览（备考期显示三阶段卡；探索/基础/冲刺显示阶段卡） */}
+        {stage.id === "prep" ? (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {phases.map((p) => (
+              <div key={p.name} className={`p-4 rounded-xl border-2 ${p.isCurrent ? "ring-2 ring-blue-400 " + (PHASE_COLORS[p.name] || "border-border/50") : "border-border/50 bg-card"}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-bold text-sm">{p.name}</span>
+                  {p.isCurrent && <span className="text-[10px] bg-blue-500 text-white px-1.5 py-0.5 rounded-full">当前</span>}
+                </div>
+                <p className="text-xs text-gray-500 mb-2">{p.goal}</p>
+                <div className="flex justify-between text-[11px] text-gray-400">
+                  <span>{p.start}</span>
+                  <span>→</span>
+                  <span>{p.end}</span>
+                </div>
               </div>
-              <p className="text-xs text-gray-500 mb-2">{p.goal}</p>
-              <div className="flex justify-between text-[11px] text-gray-400">
-                <span>{p.start}</span>
-                <span>→</span>
-                <span>{p.end}</span>
-              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-2xl border-2 border-brand/30 bg-brand/5 p-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <span className="font-bold text-sm">{stage.label}</span>
+              <span className="text-[10px] rounded-full bg-brand/10 px-2 py-0.5 text-brand font-medium">
+                {stage.urgency === 0 ? "宽松" : stage.urgency === 1 ? "正常" : stage.urgency === 2 ? "紧迫" : "爆冲"}
+              </span>
             </div>
-          ))}
-        </div>
+            <p className="text-xs text-muted-foreground mt-1">{stage.hint}</p>
+            <p className="text-xs mt-1.5">🎯 本阶段焦点：{stage.focus}</p>
+            {!goal && (
+              <p className="text-[11px] text-muted-foreground/80 mt-1.5">
+                还没设考研目标——可以先生成一份自定义学习计划（点「生成本周计划」），或去「目标」页设置。
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Zone 2: Subject progress */}
         {subjects.length > 0 && (
           <div className="bg-card rounded-2xl border border-border/50 p-5 space-y-3">
             <h2 className="font-bold">📝 各科学习进度</h2>
-            <p className="text-xs text-gray-500">填写当前进度，AI 生成计划时会根据你的实际水平调整</p>
+            <p className="text-xs text-gray-500">点选各科学习档位（自评），AI 生成计划时会根据你的实际水平调整。升到「学习中」以上会标 ⚪待确认——系统对你的自评持保守态度，计划生成前可对话确认掌握度</p>
             {subjects.map((subj) => {
               const ep = editProgress[subj] || { percent: 0, note: "" };
               const stats = systemStats[subj];
@@ -410,6 +519,43 @@ export default function TasksPage() {
                       <span className="text-xs text-gray-400 w-6">%</span>
                     </div>
                   </div>
+
+                  {/* 档位选择（自评 = 假设，非事实；升档会标"待确认"） */}
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                    {STAGE_ORDER.map((st) => {
+                      const active = (ep.stage ?? inferStageFromPercent(ep.percent)) === st;
+                      return (
+                        <button
+                          key={st} type="button"
+                          onClick={() => setSubjectStage(subj, st)}
+                          className={`px-2 py-1 rounded-full text-[11px] border transition-colors ${
+                            active
+                              ? "bg-brand/10 border-brand/40 text-brand font-medium"
+                              : "border-border/50 text-muted-foreground hover:bg-muted/60"
+                          }`}
+                        >
+                          {STAGE_LABELS[st]}
+                        </button>
+                      );
+                    })}
+                    {needsConfirmation(ep) && (
+                      <span className="text-[10px] text-warning" title="系统对你的自评持保守态度，计划生成前可对话确认掌握度">
+                        ⚪ 待确认
+                      </span>
+                    )}
+                    {isStageConfirmed(ep) && (
+                      <span className="text-[10px] text-success">✅ 已确认</span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setProbeSubject({ subject: subj, stage: ep.stage ?? inferStageFromPercent(ep.percent) })}
+                      className="px-2 py-1 rounded-full text-[11px] border border-dashed border-border/60 text-muted-foreground hover:bg-muted/60 transition-colors"
+                      title="用 2-3 个对话式问题确认你的掌握度（不判分、不打脸）"
+                    >
+                      🤔 确认掌握度
+                    </button>
+                  </div>
+
                   <div className="flex items-center gap-2">
                     <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
                       <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${ep.percent || 0}%` }} />
@@ -419,6 +565,9 @@ export default function TasksPage() {
                       placeholder="学到哪了..."
                       className="flex-1 px-2 py-0.5 text-xs border border-border/50 rounded bg-muted/50 max-w-[280px]" />
                   </div>
+
+                  {/* 科目感知完成标准 */}
+                  <p className="text-[10px] text-muted-foreground/80">{getSubjectGuide(subj)}</p>
                 </div>
               );
             })}
@@ -526,6 +675,21 @@ export default function TasksPage() {
             </div>
           </Modal>
         )}
+
+        {/* 掌握度确认弹窗（对话校准 0.2） */}
+        {probeSubject && (
+          <SubjectProbeModal
+            open
+            onClose={() => setProbeSubject(null)}
+            subject={probeSubject.subject}
+            stage={probeSubject.stage}
+            onAccept={(r) => handleProbeAccept(probeSubject.subject, r)}
+            onKeep={handleProbeKeep}
+          />
+        )}
+
+        {/* 探索期计划意图确认（0.4b） */}
+        <PlanIntentModal open={intentOpen} onClose={() => setIntentOpen(false)} onConfirm={handleIntentConfirm} />
       </div>
     </div>
   );

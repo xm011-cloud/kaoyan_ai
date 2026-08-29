@@ -69,7 +69,8 @@ model Goal {
   examDate    DateTime // 考试日期
   subjects    String[] // 考试科目
   targetScores Json?    // 目标分数 {"政治":70, "英语":65, ...}
-  progress    Json?    // 各科进度 {"数学一":{"percent":80,"note":"高数第三章"}}
+  progress    Json?    // 各科进度 {"数学一":{"percent":80,"note":"高数第三章", "stage":"learning", "confidence":"low", "calibratedStage":null}} — 完成度模型 v3
+  studyLoad   Json?    // 课业/可投入时间 {"weeklyHours":12}（阶段 0 轻量标记）
   subjectsEdited Boolean @default(false) // 科目是否被用户手动调整过（是则专业→科目不再自动覆盖）
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

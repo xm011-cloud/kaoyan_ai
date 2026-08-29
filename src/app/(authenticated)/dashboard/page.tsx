@@ -7,6 +7,8 @@ import { OnboardingModal } from "@/components/onboarding-modal"
 import { OnboardingCard } from "@/components/onboarding-card"
 import { startOfDay, endOfDay, toDateString, getWeekStart, getWeekEnd, daysAgo } from "@/lib/date-utils"
 import { getDueCount } from "@/lib/sm2"
+import { derivePrepStage } from "@/lib/prep-stage"
+import type { SubjectProgress } from "@/lib/completion"
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -135,6 +137,15 @@ export default async function DashboardPage() {
     ? Math.max(0, Math.ceil((new Date(goal.examDate).getTime() - today.getTime()) / 86400000)) || 0
     : 0
 
+  // 备考阶段（0.3）：探索/基础/备考/冲刺
+  const stage = derivePrepStage({
+    examDate: goal?.examDate ?? null,
+    hasGoal: !!goal,
+    subjects: goal?.subjects,
+    subjectProgress: (goal?.progress as Record<string, SubjectProgress> | null) || null,
+    weeklyHours: (goal?.studyLoad as { weeklyHours?: number } | undefined)?.weeklyHours ?? null,
+  })
+
   // 本周柱状图
   const weekDayNames = ["日", "一", "二", "三", "四", "五", "六"]
   const weekBars = Array.from({ length: 7 }, (_, i) => {
@@ -234,7 +245,7 @@ export default async function DashboardPage() {
             <div>
               <h1 className="text-xl lg:text-2xl font-bold tracking-tight">学习概览</h1>
               <p className="text-sm text-muted-foreground mt-0.5">
-                📅 {todayStr} {weekDayNames[today.getDay()]} ·{goal ? ` ⏳ 距考试 ${daysLeft} 天` : ''}
+                📅 {todayStr} {weekDayNames[today.getDay()]} · {stage.hint}
               </p>
             </div>
             <div className="flex items-center gap-4 text-sm">

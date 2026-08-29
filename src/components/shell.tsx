@@ -24,9 +24,11 @@ import { SwUpdateNotice } from '@/components/sw-update-notice'
 export function Shell({
   children,
   daysLeft,
+  daysLabel,
 }: {
   children: React.ReactNode
   daysLeft: number
+  daysLabel?: string
 }) {
   return (
     <div className="h-dvh flex flex-col bg-background pt-[env(safe-area-inset-top)]">
@@ -34,7 +36,7 @@ export function Shell({
       <AiFloating />
       <OfflineBanner />
       <SwUpdateNotice />
-      <Header daysLeft={daysLeft} />
+      <Header daysLeft={daysLeft} daysLabel={daysLabel} />
       <main className="flex-1 overflow-y-auto">
         {children}
       </main>

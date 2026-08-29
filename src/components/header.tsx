@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils'
  * └─ 桌面端：logo + tabs + 活动状态 + 设置
  *    移动端：logo + 活动 + 设置（tabs 通过底部 MobileNav 访问）
  */
-export function Header({ daysLeft }: { daysLeft: number }) {
+export function Header({ daysLeft, daysLabel }: { daysLeft: number; daysLabel?: string }) {
   const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
   const [now, setNow] = useState(new Date())
@@ -103,7 +103,7 @@ export function Header({ daysLeft }: { daysLeft: number }) {
 
         {/* Date (desktop only) */}
         <span className="hidden xl:block text-xs text-muted-foreground mr-2 shrink-0 whitespace-nowrap">
-          📅 {dateStr}{daysLeft > 0 ? ` · ⏳ ${daysLeft}天` : ''}
+          📅 {dateStr}{daysLabel || (daysLeft > 0 ? ` · ⏳ ${daysLeft}天` : '')}
         </span>
 
         {/* Activity indicators */}
@@ -141,7 +141,7 @@ export function Header({ daysLeft }: { daysLeft: number }) {
             <div className="p-4 border-b">
               <p className="text-sm font-semibold">🎓 考研助手</p>
               <p className="text-xs text-muted-foreground mt-0.5">{dateStr}</p>
-              {daysLeft > 0 && <p className="text-xs text-warning font-medium mt-0.5">⏳ 距考试 {daysLeft} 天</p>}
+              {(daysLabel || daysLeft > 0) && <p className="text-xs text-warning font-medium mt-0.5">{daysLabel || `⏳ 距考试 ${daysLeft} 天`}</p>}
             </div>
 
             <div className="p-3 space-y-3">

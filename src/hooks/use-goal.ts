@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import type { SubjectProgress } from "@/lib/completion";
 
 interface GoalData {
   id: string;
@@ -9,7 +10,8 @@ interface GoalData {
   examDate: string;
   subjects: string[];
   targetScores?: Record<string, number>;
-  progress?: Record<string, { percent: number; note: string }>;
+  progress?: Record<string, SubjectProgress>;
+  studyLoad?: { weeklyHours?: number; busyWeeks?: string[] };
 }
 
 async function fetchGoal(): Promise<GoalData | null> {

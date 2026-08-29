@@ -10,7 +10,7 @@ import { ModuleLinks } from "@/components/ui/module-links";
 import { useGoal } from "@/hooks/use-goal";
 import { useAiTask } from "@/hooks/use-ai-task";
 import { WeeklyPlanner } from "./_components/weekly-planner";
-import { getWeekStart, toDateString } from "@/lib/date-utils";
+import { getWeekStart, toDateString, startOfDay } from "@/lib/date-utils";
 import { enqueueWrite } from "@/lib/offline-queue";
 import { toast } from "@/stores/toast-store";
 import {
@@ -208,6 +208,7 @@ export default function TasksPage() {
         body: JSON.stringify({
           weekStartDate: weekStart.toISOString(),
           progress: editProgress,
+          todayLocal: toDateString(startOfDay(new Date())), // 本地今天（过滤本周已过去的日期）
           ...extraBody,
         }),
         signal: controller.signal,

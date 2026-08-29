@@ -8,6 +8,7 @@ import { formatTime } from '@/lib/time-utils'
 import { defaultNavGroups } from '@/lib/nav'
 import { useUIStore } from '@/stores/ui-store'
 import { cn } from '@/lib/utils'
+import { clearClientStateOnLogout } from '@/lib/clear-client-state'
 
 /**
  * 统一头部 — 合并了旧 TopBar + WorkbenchTabs
@@ -179,10 +180,8 @@ export function Header({ daysLeft, daysLabel }: { daysLeft: number; daysLabel?: 
                 action="/auth/signout"
                 method="post"
                 onSubmit={() => {
-                  // 登出前清空 SW 的 API 缓存，避免下一位登录者读到本账号数据
-                  if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
-                    navigator.serviceWorker.controller.postMessage({ type: "clear-api-cache" });
-                  }
+                  // 登出前清空客户端残留（store/离线队列/SW缓存），避免下一位账号读到本账号数据
+                  clearClientStateOnLogout();
                 }}
               >
                 <button className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-destructive w-full rounded-lg hover:bg-muted transition-colors">

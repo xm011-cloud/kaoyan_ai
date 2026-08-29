@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { AiWaiting } from "@/components/ai-waiting";
+import { toDateString, startOfDay } from "@/lib/date-utils";
 import type { AiWaitPhase } from "@/hooks/use-ai-task";
 
 interface WeekTask {
@@ -188,7 +189,7 @@ export function WeeklyPlanner({
             const ds = dayDate.toISOString().split("T")[0];
             const dayTasks = tasksByDay[i];
             const dayCompleted = dayTasks.filter((t) => t.completed).length;
-            const isToday = new Date().toISOString().split("T")[0] === ds;
+            const isToday = toDateString(startOfDay(new Date())) === ds;
 
             return (
               <div key={i} className={`border border-border/50 rounded-lg ${isToday ? "border-brand/40 bg-brand/5" : "border-border/50"}`}>

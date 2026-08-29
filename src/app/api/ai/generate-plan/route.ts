@@ -32,9 +32,9 @@ interface StudyLoad {
 function generateLocalWeeklyPlan(
   subjects: string[],
   weekStart: Date,
-  opts: { phase: string; capacity: number | null; foundationMode: boolean; minDate?: Date }
+  opts: { phase: string; capacity: number | null; foundationMode: boolean; minDateStr?: string }
 ): PlanTask[] {
-  const { phase, capacity, foundationMode, minDate } = opts;
+  const { phase, capacity, foundationMode, minDateStr } = opts;
   const tasks: PlanTask[] = [];
 
   // 冲刺模板：真题/错题/背诵优先
@@ -66,9 +66,9 @@ function generateLocalWeeklyPlan(
   let templateIdx = 0;
   for (let d = 0; d < 7; d++) {
     const date = new Date(weekStart.getTime() + d * 86400000);
-    // 本周已过去的日期不生成任务（今天以前不该有"待做"任务）
-    if (minDate && date < minDate) continue;
     const dateStr = date.toISOString().split("T")[0];
+    // 本周今天以前已过去（按日期字符串比较，与前端周槽位口径一致）
+    if (minDateStr && dateStr < minDateStr) continue;
     const isWeekend = date.getDay() === 0 || date.getDay() === 6;
 
     // 容量：每周小时 → 每天约 hours/7 小时；按每任务约 45 分钟折算任务数
@@ -179,9 +179,9 @@ export async function POST(request: NextRequest) {
     // 周范围
     const weekEnd = new Date(weekStartDate.getTime() + 7 * 86400000);
     const weekStartStr = weekStartDate.toISOString().split("T")[0];
-    // 本周已过去的日期不生成任务（今天以前不该有"待做"任务）
-    const minDate = today > weekStartDate ? today : weekStartDate;
-    const minDateStr = minDate.toISOString().split("T")[0];
+    // 本周今天以前已过去，不生成任务（用前端传来的"本地今天"字符串，与周槽位口径一致）
+    const todayLocalStr = (body.todayLocal as string) || today.toISOString().split("T")[0];
+    const pastSkip = todayLocalStr > weekStartStr;
 
     // ── 增量删除 ──
     const deleteWhere: Record<string, unknown> = {
@@ -230,8 +230,8 @@ export async function POST(request: NextRequest) {
         : "";
 
       // 本周今天以前已过去，不要生成过去的任务
-      const pastSkipContext = minDate > weekStartDate
-        ? `\n## 注意（重要）\n今天是 ${minDateStr}，本周今天以前的日期（${weekStartStr} 至昨天）已经过去，**不要为这些过去的日期生成任务**，只生成 ${minDateStr} 及以后的任务。\n`
+      const pastSkipContext = pastSkip
+        ? `\n## 注意（重要）\n今天是 ${todayLocalStr}，本周今天以前的日期（${weekStartStr} 至昨天）已经过去，**不要为这些过去的日期生成任务**，只生成 ${todayLocalStr} 及以后的任务。\n`
         : "";
 
       // 冲刺模式指令
@@ -301,10 +301,10 @@ ${sprintContext}${regenerateContext}${pastSkipContext}
         }
       } catch (e) {
         console.error("Plan generation AI fallback:", e instanceof Error ? e.message : String(e));
-        planTasks = generateLocalWeeklyPlan(subjects, weekStartDate, { phase, capacity: weeklyHours, foundationMode, minDate });
+        planTasks = generateLocalWeeklyPlan(subjects, weekStartDate, { phase, capacity: weeklyHours, foundationMode, minDateStr: todayLocalStr });
       }
     } else {
-      planTasks = generateLocalWeeklyPlan(subjects, weekStartDate, { phase, capacity: weeklyHours, foundationMode, minDate });
+      planTasks = generateLocalWeeklyPlan(subjects, weekStartDate, { phase, capacity: weeklyHours, foundationMode, minDateStr: todayLocalStr });
     }
 
     // 规范化 + 添加周标识

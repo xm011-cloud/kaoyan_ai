@@ -19,3 +19,8 @@ test("admin reset-link API returns 403 for non-admin user", async ({ page }) => 
   });
   expect(response.status()).toBe(403);
 });
+
+test("admin funnel API returns 403 for non-admin user", async ({ page }) => {
+  const response = await page.request.get("/api/admin/funnel");
+  expect(response.status()).toBe(403);
+});

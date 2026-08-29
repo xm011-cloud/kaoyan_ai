@@ -7,6 +7,7 @@ import { getVisibleGroups } from '@/lib/nav'
 import { useUIStore } from '@/stores/ui-store'
 import { usePomodoroStore } from '@/stores/pomodoro-store'
 import { usePracticeStore } from '@/stores/practice-store'
+import { useKeyboardOpen } from '@/hooks/use-keyboard-open'
 import { formatTime } from '@/lib/time-utils'
 
 /**
@@ -26,6 +27,10 @@ export function MobileNav() {
   const storeReset = usePomodoroStore((s) => s.reset)
 
   const hasActivity = pomodoro.isRunning || !!practice.activeSessionId
+
+  // 键盘弹出时隐藏底部导航（避免它随布局缩放悬浮在键盘上方，遮挡输入区）
+  const keyboardOpen = useKeyboardOpen()
+  if (keyboardOpen) return null
 
   const groups = getVisibleGroups(uiGroups).slice(0, 5)
 

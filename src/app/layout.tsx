@@ -10,6 +10,10 @@ export const viewport: Viewport = {
   initialScale: 1,
   // 允许内容延伸到刘海屏区域，配合 env(safe-area-inset-*) 处理安全区
   viewportFit: "cover",
+  // 键盘弹出时强制浏览器缩放布局视口（Android 网页/PWA 都生效）：
+  // 钉底的输入框随布局原生抬到键盘上方，不依赖不稳定的 visualViewport 测量；
+  // iOS Safari 不支持该值会忽略，仍走聊天页的测量兜底
+  interactiveWidget: "resizes-content",
 };
 
 const geistSans = Geist({

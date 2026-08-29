@@ -39,10 +39,33 @@ const pool = new Pool({ connectionString: url });
 const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 
 const APPLY = process.argv.includes("--apply");
+const IDS_ARG = process.argv.find((a) => a.startsWith("--ids="));
+const IDS = IDS_ARG ? IDS_ARG.slice(6).split(",").map((s) => s.trim()).filter(Boolean) : null;
 const WINDOW_MS = 90 * 86400000; // 只扫描近 90 天，避免误伤历史数据
 const DAY_MS = 86400000;
 
 async function main() {
+  // 精确按 id 删除（--ids=id1,id2,..）——目标明确，只删列出的任务
+  if (IDS && IDS.length > 0) {
+    const targets = await prisma.task.findMany({
+      where: { id: { in: IDS } },
+      select: { id: true, title: true, date: true, weekStartDate: true, subject: true, source: true, completed: true },
+    });
+    console.log(`按 id 指定删除 ${targets.length} 条：`);
+    for (const t of targets) {
+      const w = t.weekStartDate?.toISOString().split("T")[0] ?? "-";
+      const d = t.date.toISOString().split("T")[0];
+      console.log(`  - id=${t.id} | 所属周=${w} | 任务日期=${d} | 来源=${t.source} | ${t.subject || "-"} | ${t.title}`);
+    }
+    const aiOnly = targets.filter((t) => t.source === "ai" && !t.completed);
+    if (!APPLY) {
+      console.log("预演（dry-run），未删除。加 --apply 执行。");
+      return;
+    }
+    const del = await prisma.task.deleteMany({ where: { id: { in: aiOnly.map((t) => t.id) } } });
+    console.log(`✅ 已删除 ${del.count} 条。`);
+    return;
+  }
   const since = new Date(Date.now() - WINDOW_MS);
   const tasks = await prisma.task.findMany({
     where: { source: "ai", weekStartDate: { gte: since } },
@@ -62,7 +85,7 @@ async function main() {
   for (const s of strays) {
     const w = s.weekStartDate.toISOString().split("T")[0];
     const d = s.date.toISOString().split("T")[0];
-    console.log(`  - 所属周=${w} | 任务日期=${d} | ${s.subject || "-"} | ${s.title}${s.completed ? "（已完成，跳过）" : ""}`);
+    console.log(`  - id=${s.id} | 所属周=${w} | 任务日期=${d} | ${s.subject || "-"} | ${s.title}${s.completed ? "（已完成，跳过）" : ""}`);
   }
 
   if (strays.length === 0) {

@@ -181,9 +181,8 @@ export function WeeklyPlanner({
         </div>
       )}
 
-      {/* Daily task columns */}
-      {hasGenerated && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-7 gap-3">
+      {/* Daily task columns —— 始终显示：未生成的周也能自己手动添加任务 */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-7 gap-3">
           {DAY_NAMES.map((dayName, i) => {
             const dayDate = new Date(weekStart.getTime() + i * 86400000);
             const ds = dayDate.toISOString().split("T")[0];
@@ -239,14 +238,13 @@ export function WeeklyPlanner({
               </div>
             );
           })}
-        </div>
-      )}
+      </div>
 
       {!hasGenerated && !generating && (
-        <div className="text-center py-12 text-muted-foreground bg-card rounded-2xl border border-border/50">
-          <div className="text-5xl mb-4">📅</div>
-          <p className="font-medium">还没有生成这周的学习计划</p>
-          <p className="text-sm mt-1">点击上方"生成周计划"，AI 将根据你的目标、进度和阶段自动安排每天的学习任务</p>
+        <div className="text-center py-6 text-muted-foreground bg-card rounded-2xl border border-dashed border-border/50">
+          <div className="text-4xl mb-3">📅</div>
+          <p className="font-medium">这周还没有计划</p>
+          <p className="text-sm mt-1">点每天的「＋」自己安排任务，或点上方「生成周计划」让 AI 来排；自己写好后可「评审」让 AI 提建议。</p>
         </div>
       )}
     </div>

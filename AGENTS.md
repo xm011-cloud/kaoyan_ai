@@ -63,7 +63,13 @@ npx playwright test --ui                     # UI 模式
 
 ## 数据层（Prisma driver adapter）
 
-`src/lib/prisma.ts` 用 **`@prisma/adapter-pg` + `pg.Pool`**（driver adapter），连接串来自 `envConfig`，全局单例。写新 Prisma 代码沿用此模式；schema 里不要用传统直连覆盖。模型见 `prisma/schema.prisma`：核心为 User / Goal / Task / CheckIn / Material / Chat / Skill / WrongQuestion(SM-2) / PracticeSession / KnowledgeNode / StudyPath / AdmissionInfo。Material.embedding 是 `vector(1536)`（pgvector），用 `src/lib/vector.ts` 处理嵌入。
+`src/lib/prisma.ts` 用 **`@prisma/adapter-pg` + `pg.Pool`**（driver adapter），连接串来自 `envConfig`，全局单例。写新 Prisma 代码沿用此模式；schema 里不要用传统直连覆盖。模型见 `prisma/schema.prisma`：核心为 User / Goal / Task / CheckIn / Material / Chat / Skill / WrongQuestion(SM-2) / PracticeSession / PomodoroSession / KnowledgeNode / StudyPath / AdmissionInfo 等。Material.embedding 是 `vector(1536)`（pgvector），用 `src/lib/vector.ts` 处理嵌入。
+
+## 阶段与完成度（跨页面核心逻辑，2026-08 新增）
+
+- `src/lib/prep-stage.ts`：`derivePrepStage()` 四段阶段推导 — 探索(explore)/基础(foundation)/备考(prep)/冲刺(sprint)，由「目标状态 + 距考试天数 + 科目完成度 + 每周课业容量」共同决定，返回阶段文案/紧迫度/焦点；`stageToPlanPhase()` 把阶段映射回任务 phase 名
+- `src/lib/completion.ts`：完成度模型 v3 — 五档(not_started/learning/foundation/intensifying/mastering) + 对话校准(`calibratedStage`/`confidence`) + 保守软门控(`needsConfirmation`)。`getEffectiveStage()` 是唯一取档位入口（校准 > 自评 > percent 推断）；`SUBJECT_COMPLETION_GUIDE` 是科目感知的"基础完成"标准
+- 阶段推导、AI 计划生成、`/api/ai/probe-mastery`（对话校准档位）、首页阶段态都走这两个模块；设计详见 `docs/completion-model.md`
 
 ## AI 层（用户自带 Key + Function Calling）
 
@@ -84,12 +90,22 @@ npx playwright test --ui                     # UI 模式
 
 - 客户端状态：zustand persist（`src/stores/`，如 pomodoro-store / practice-store）+ React Query（`src/lib/query-provider.tsx`，练习等用 `src/hooks/use-*.ts`）
 - 登录后页面在 `src/app/(authenticated)/`，用 `Shell` 外壳布局（`src/components/shell.tsx`，含 Header/ActivityBar/MobileNav/PomodoroEngine 等全局件）
+- 首页工作台 = `src/components/workbench/` 卡片系统：`CARD_REGISTRY` 注册表（`layout: 'full'|'half'`）+ ui-store 的 `workspaceCards` 有序数组决定排序；探索期 `EXPLORATION_HIDDEN` 隐藏空卡/死卡。新卡片在此注册；布局保持有序数组形状（ADR 3.6 / D6 留口）
 - 共享类型放 `src/lib/*-types.ts`（如 `practice-types.ts`）供前后端一致引用
 
 ## PWA / 离线（改缓存记得升版本）
 
-- `public/sw.js`：`CACHE_NAME = 'c6-study-v4'`。**改任何静态资源/离线逻辑后把版本号 +1**，配 `src/components/sw-update-notice.tsx` 的刷新浮条，否则用户拿到旧缓存
+- `public/sw.js`：`CACHE_NAME = 'c6-study-v5'`。**改任何静态资源/离线逻辑后把版本号 +1**，配 `src/components/sw-update-notice.tsx` 的刷新浮条，否则用户拿到旧缓存
 - `src/lib/offline-queue.ts`：IndexedDB 写入队列，断网排队、联网按序补传。只放「可安全重放」的写操作（打卡、任务完成态），用 `dedupeKey` 归并同一目标最新状态；4xx 出队，网络错误/5xx 保留
+
+## 文档索引
+
+- `docs/architecture-decisions.md` — **架构决策记录（ADR）**：产品定位 + D1-D6 接口决策 + 阶段 0-3 路线。写新功能前先看这里对齐方向，避免推倒重来
+- `docs/completion-model.md` — 完成度模型设计（五档 + 科目感知 + 对话校准 + 保守门控）
+- `docs/usage-notes.md` — 狗粮测试日志（开发者真实"用不下去"记录 → 产品 backlog）
+- `docs/edgeone-deploy.md` — 国内 EdgeOne 部署方案（Cloud SSR 函数包超限，暂缓）
+- `docs/memfire-migration.md` — MemFire 迁移说明
+- `PROJECT_STATUS.md` — 已实现功能清单；`README.md` — 产品介绍
 
 ## 关键约定
 

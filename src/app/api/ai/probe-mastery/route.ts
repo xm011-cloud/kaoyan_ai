@@ -91,7 +91,7 @@ ${body.answers.trim()}
         evidence: string;
         suggestion: string;
         confirmed: boolean;
-      }>(result.text || "");
+      }>(result.text || result.reasoningText || "");
       if (!parsed || !STAGE_SET.includes(parsed.calibratedStage || "")) {
         return jsonNoStore({ error: "评估结果格式不正确，请重试" }, { status: 500 });
       }
@@ -127,7 +127,7 @@ ${wrongContext}
       maxTokens: 1024,
     });
 
-    const parsedQuestions = extractJsonArray<string>(result.text || "");
+    const parsedQuestions = extractJsonArray<string>(result.text || result.reasoningText || "");
     const questions = (parsedQuestions ?? []).filter((q) => typeof q === "string");
     if (questions.length === 0) {
       return jsonNoStore({ error: "问题生成失败，请重试" }, { status: 500 });

@@ -28,6 +28,23 @@ export interface PlanIntent {
 
 const VALID_TYPES: PlanIntentType[] = ["kaoyan", "course", "selfstudy"];
 
+/** 从描述里启发式提取已知科目（容错兜底，保证 planContext.subjects 非空） */
+const SUBJECT_KEYWORDS = [
+  "政治", "英语一", "英语二", "数学一", "数学二", "数学三",
+  "408计算机统考", "408", "计算机网络", "数据结构", "操作系统",
+  "计算机组成原理", "组成原理", "数据库", "专业课",
+];
+function extractSubjects(text: string): string[] {
+  const found: string[] = [];
+  for (const k of SUBJECT_KEYWORDS) {
+    if (text.includes(k) && !found.includes(k)) found.push(k);
+  }
+  if (found.includes("408") && !found.includes("408计算机统考")) {
+    found[found.indexOf("408")] = "408计算机统考";
+  }
+  return found.slice(0, 5);
+}
+
 function buildPrompt(description: string, strict = false): string {
   if (strict) {
     // 严格模式：强制单行合法 JSON，几乎不留给模型发挥空间
@@ -66,10 +83,13 @@ async function judgeOnce(aiConfig: AiConfig, description: string, strict: boolea
   const fullContent = result.text || result.reasoningText || "";
   const parsed = extractJson<PlanIntent>(fullContent);
   if (parsed && VALID_TYPES.includes(parsed.type)) {
+    const subjects = Array.isArray(parsed.subjects) && parsed.subjects.length
+      ? parsed.subjects.slice(0, 5)
+      : extractSubjects(description); // 科目为空时从描述兜底提取
     return {
       type: parsed.type,
       summary: parsed.summary || description,
-      subjects: Array.isArray(parsed.subjects) ? parsed.subjects.slice(0, 5) : [],
+      subjects,
       mentionsExamDate: Boolean(parsed.mentionsExamDate),
     };
   }
@@ -77,10 +97,11 @@ async function judgeOnce(aiConfig: AiConfig, description: string, strict: boolea
   // 容错：文本里能明确识别类型关键词时，不阻断流程
   const t = fullContent.toLowerCase();
   if (t.includes("kaoyan") || /考研|目标院校/.test(fullContent)) {
-    return { type: "kaoyan", summary: description, subjects: [], mentionsExamDate: false };
+    const subjects = extractSubjects(description);
+    return { type: "kaoyan", summary: description, subjects: subjects.length ? subjects : ["政治"], mentionsExamDate: false };
   }
   if (t.includes("course") || /课程|期末/.test(fullContent)) {
-    return { type: "course", summary: description, subjects: [], mentionsExamDate: false };
+    return { type: "course", summary: description, subjects: ["课程学习"], mentionsExamDate: false };
   }
   return null;
 }

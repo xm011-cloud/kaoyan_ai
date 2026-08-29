@@ -32,9 +32,9 @@ interface StudyLoad {
 function generateLocalWeeklyPlan(
   subjects: string[],
   weekStart: Date,
-  opts: { phase: string; capacity: number | null; foundationMode: boolean }
+  opts: { phase: string; capacity: number | null; foundationMode: boolean; minDate?: Date }
 ): PlanTask[] {
-  const { phase, capacity, foundationMode } = opts;
+  const { phase, capacity, foundationMode, minDate } = opts;
   const tasks: PlanTask[] = [];
 
   // 冲刺模板：真题/错题/背诵优先
@@ -66,6 +66,8 @@ function generateLocalWeeklyPlan(
   let templateIdx = 0;
   for (let d = 0; d < 7; d++) {
     const date = new Date(weekStart.getTime() + d * 86400000);
+    // 本周已过去的日期不生成任务（今天以前不该有"待做"任务）
+    if (minDate && date < minDate) continue;
     const dateStr = date.toISOString().split("T")[0];
     const isWeekend = date.getDay() === 0 || date.getDay() === 6;
 
@@ -177,6 +179,9 @@ export async function POST(request: NextRequest) {
     // 周范围
     const weekEnd = new Date(weekStartDate.getTime() + 7 * 86400000);
     const weekStartStr = weekStartDate.toISOString().split("T")[0];
+    // 本周已过去的日期不生成任务（今天以前不该有"待做"任务）
+    const minDate = today > weekStartDate ? today : weekStartDate;
+    const minDateStr = minDate.toISOString().split("T")[0];
 
     // ── 增量删除 ──
     const deleteWhere: Record<string, unknown> = {
@@ -224,6 +229,11 @@ export async function POST(request: NextRequest) {
         ? `\n## 注意\n只需要生成 ${regenerateDay} 这一天的任务（3-5个），不要生成其他日期。\n`
         : "";
 
+      // 本周今天以前已过去，不要生成过去的任务
+      const pastSkipContext = minDate > weekStartDate
+        ? `\n## 注意（重要）\n今天是 ${minDateStr}，本周今天以前的日期（${weekStartStr} 至昨天）已经过去，**不要为这些过去的日期生成任务**，只生成 ${minDateStr} 及以后的任务。\n`
+        : "";
+
       // 冲刺模式指令
       const sprintContext = stage.id === "sprint"
         ? `\n## 冲刺模式（距考试 ${daysRemaining} 天）\n1. 每天安排 1 套真题或模拟卷计时作答（至少 90 分钟整卷）\n2. 所有错题当天复盘并整理进错题本\n3. 记忆/背诵类任务占比提高到 40% 以上\n4. 减少新知识学习，聚焦高频考点、查漏补缺与应试技巧\n`
@@ -256,7 +266,7 @@ ${progressContext}${feedbackContext}${capacityContext}${stageFocusContext}
 4. 周末安排复盘 + 错题回顾
 5. 任务要具体，例如"完成多元函数微分学课后习题并订正"而非"做数学题"
 6. 每个任务包含：title(标题)、description(详细描述)、date(YYYY-MM-DD)、duration(分钟数, 30-180之间)、phase(阶段名)、subject(科目名)
-${sprintContext}${regenerateContext}
+${sprintContext}${regenerateContext}${pastSkipContext}
 ## 输出格式
 只返回 JSON 数组，不含其他内容：
 [{
@@ -291,10 +301,10 @@ ${sprintContext}${regenerateContext}
         }
       } catch (e) {
         console.error("Plan generation AI fallback:", e instanceof Error ? e.message : String(e));
-        planTasks = generateLocalWeeklyPlan(subjects, weekStartDate, { phase, capacity: weeklyHours, foundationMode });
+        planTasks = generateLocalWeeklyPlan(subjects, weekStartDate, { phase, capacity: weeklyHours, foundationMode, minDate });
       }
     } else {
-      planTasks = generateLocalWeeklyPlan(subjects, weekStartDate, { phase, capacity: weeklyHours, foundationMode });
+      planTasks = generateLocalWeeklyPlan(subjects, weekStartDate, { phase, capacity: weeklyHours, foundationMode, minDate });
     }
 
     // 规范化 + 添加周标识

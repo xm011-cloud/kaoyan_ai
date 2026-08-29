@@ -12,6 +12,7 @@ import { useAiTask } from "@/hooks/use-ai-task";
 import { WeeklyPlanner } from "./_components/weekly-planner";
 import { getWeekStart, toDateString } from "@/lib/date-utils";
 import { enqueueWrite } from "@/lib/offline-queue";
+import { toast } from "@/stores/toast-store";
 import {
   STAGE_ORDER, STAGE_LABELS, STAGE_TO_PERCENT,
   inferStageFromPercent, needsConfirmation, isStageConfirmed,
@@ -211,8 +212,20 @@ export default function TasksPage() {
         }),
         signal: controller.signal,
       });
-      if (res.ok) await loadWeekTasks();
-    } catch { /* ignore：含用户取消 */ } finally { genStop(); setGenerating(false); }
+      if (res.ok) {
+        await loadWeekTasks();
+      } else {
+        // 失败不静默：把后端错误提示给用户
+        const d = await res.json().catch(() => ({}));
+        toast.error(d.error || "生成计划失败，请稍后再试");
+      }
+    } catch {
+      // 用户取消（AbortError）安静收场；其他网络错误给提示
+      if (!controller.signal.aborted) toast.error("生成计划失败，请检查网络后重试");
+    } finally {
+      genStop();
+      setGenerating(false);
+    }
   };
 
   const handleGenerate = () => {

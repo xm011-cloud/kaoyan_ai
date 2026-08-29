@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
+import { AiWaiting } from "@/components/ai-waiting";
+import { useAiTask } from "@/hooks/use-ai-task";
 import type { PlanIntent, PlanIntentType } from "@/app/api/ai/judge-plan-intent/route";
 
 const INTENT_LABELS: Record<PlanIntentType, string> = {
@@ -24,19 +26,22 @@ interface Props {
  */
 export function PlanIntentModal({ open, onClose, onConfirm }: Props) {
   const [description, setDescription] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [judging, setJudging] = useState(false);
   const [error, setError] = useState("");
   const [intent, setIntent] = useState<PlanIntent | null>(null);
+  const { phase, estimate, start, stop, cancel } = useAiTask();
 
   const judge = async () => {
     if (!description.trim()) return;
-    setLoading(true);
+    setJudging(true);
     setError("");
+    const controller = start();
     try {
       const res = await fetch("/api/ai/judge-plan-intent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ description }),
+        signal: controller.signal,
       });
       const d = await res.json();
       if (d.error) {
@@ -45,9 +50,11 @@ export function PlanIntentModal({ open, onClose, onConfirm }: Props) {
       }
       setIntent(d.intent);
     } catch {
-      setError("请求失败，请稍后再试");
+      // 用户取消（AbortError）安静收场；其他网络错误给提示
+      if (!controller.signal.aborted) setError("请求失败，请稍后再试");
     } finally {
-      setLoading(false);
+      stop();
+      setJudging(false);
     }
   };
 
@@ -74,9 +81,13 @@ export function PlanIntentModal({ open, onClose, onConfirm }: Props) {
               className="w-full rounded-xl border border-border/50 bg-muted/50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
             />
             {error && <p className="text-xs text-warning">{error}</p>}
-            <Button onClick={judge} disabled={loading || !description.trim()} className="w-full">
-              {loading ? "判断中…" : "判断计划类型"}
-            </Button>
+            {judging ? (
+              <AiWaiting variant="inline" phase={phase} estimate={estimate} onCancel={cancel} />
+            ) : (
+              <Button onClick={judge} disabled={!description.trim()} className="w-full">
+                判断计划类型
+              </Button>
+            )}
           </>
         ) : (
           <>

@@ -266,19 +266,36 @@ export default function ChatPage() {
     }
   }, [messages])
 
-  // iOS/Android 键盘遮挡：键盘弹出/收起时给输入区加底部 padding 把钉底的输入框顶上去。
-  // 用 offsetTop+height 量键盘高度（布局视口 - 可视区）：
-  //  - Android 挤压式：innerHeight 随键盘缩小 → 差值≈0 → 靠 h-dvh 原生抬升，不重复抬
-  //  - iOS 覆盖式：innerHeight 不变 → 差值=键盘高度 → padding 抬升
+  // 键盘遮挡：输入区底部 padding 把钉底的输入框顶到键盘上方。
+  //  - 优先用 visualViewport 测量（web/iOS 都稳定）
+  //  - PWA 独立模式 vv 事件不触发 → 用"输入框聚焦 + 固定键盘高度(约40%屏高)"兜底
   const [kbPad, setKbPad] = useState(0)
   useEffect(() => {
     const vv = window.visualViewport
-    if (!vv) return
-    const onVvResize = () => {
+    const signaled = { current: false }
+
+    const computeVv = () => {
+      if (!vv) return
+      signaled.current = true
+      // resize 模式(布局随键盘缩)差值≈0 不加padding 靠原生抬升；overlay 模式差值=键盘高度
       setKbPad(Math.max(0, (window.innerHeight || 0) - (vv.offsetTop || 0) - vv.height))
     }
-    vv.addEventListener('resize', onVvResize)
-    return () => vv.removeEventListener('resize', onVvResize)
+    const computeFocus = () => {
+      if (signaled.current) return // vv 已给信号，以测量为准（避免重复抬）
+      const focused = inputRef.current && document.activeElement === inputRef.current
+      setKbPad(focused ? Math.round((window.innerHeight || 800) * 0.4) : 0)
+    }
+
+    if (vv) vv.addEventListener('resize', computeVv)
+    window.addEventListener('resize', computeVv)
+    inputRef.current?.addEventListener('focus', computeFocus)
+    inputRef.current?.addEventListener('blur', computeFocus)
+    return () => {
+      if (vv) vv.removeEventListener('resize', computeVv)
+      window.removeEventListener('resize', computeVv)
+      inputRef.current?.removeEventListener('focus', computeFocus)
+      inputRef.current?.removeEventListener('blur', computeFocus)
+    }
   }, [])
 
   const saveChat = useCallback(async (msgs: Message[], cId: string | null) => {

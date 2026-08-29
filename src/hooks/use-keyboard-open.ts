@@ -2,14 +2,26 @@
 
 import { useEffect, useRef, useState } from 'react'
 
+/** 当前聚焦的元素是否为可输入的文本控件（软键盘会弹） */
+function isTextInputActive(): boolean {
+  const el = document.activeElement
+  if (!el) return false
+  const tag = el.tagName
+  if (tag === 'TEXTAREA') return true
+  if (tag === 'INPUT') {
+    const type = (el as HTMLInputElement).type
+    return !['button', 'checkbox', 'radio', 'range', 'hidden', 'submit'].includes(type)
+  }
+  return false
+}
+
 /**
- * 检测移动端软键盘是否弹出。
+ * 检测移动端软键盘是否弹出（隐藏底部导航等"不该跟着抬"的固定 UI）。
  *
- * 为什么不用简单的 `innerHeight - vv.height`：
- *  - iOS/覆盖式键盘：innerHeight 不变、vv.height 缩小 → 差值有效
- *  - Android/resizes-content：布局视口随键盘缩小，innerHeight 和 vv.height 一起缩 → 差值≈0 失效
- * 所以用"基线对比"：记录无键盘时的最大可视高度（baseline），
- * 键盘弹出时 vv.height 明显低于基线即判定开启（resize 和 overlay 两种模式都适用）。
+ * 三路信号取并集，覆盖各环境：
+ *  - 基线对比（resize 模式：布局随键盘缩小，innerHeight 与 vv 一起缩，差值失效）
+ *  - overlay 差值（iOS 覆盖式：innerHeight 不变）
+ *  - 聚焦信号（PWA 独立模式 visualViewport 事件不触发时的兜底）
  */
 export function useKeyboardOpen(threshold = 80): boolean {
   const [open, setOpen] = useState(false)
@@ -17,23 +29,31 @@ export function useKeyboardOpen(threshold = 80): boolean {
 
   useEffect(() => {
     const vv = window.visualViewport
-    if (!vv) return
-    if (baselineRef.current === null) baselineRef.current = vv.height
+    if (vv && baselineRef.current === null) baselineRef.current = vv.height
 
-    const check = () => {
-      const vh = vv.height
-      // 基线取历史最大值（无键盘、地址栏收起时可视高度最大）
-      baselineRef.current = Math.max(baselineRef.current ?? vh, vh)
-      const dropFromBaseline = (baselineRef.current - vh) > threshold
-      const overlayDiff = (window.innerHeight || 0) - vh > threshold
-      setOpen(dropFromBaseline || overlayDiff)
+    const compute = () => {
+      const focusSignal = isTextInputActive()
+      let vvSignal = false
+      if (vv) {
+        const vh = vv.height
+        baselineRef.current = Math.max(baselineRef.current ?? vh, vh)
+        const drop = (baselineRef.current - vh) > threshold
+        const overlay = (window.innerHeight || 0) - vh > threshold
+        vvSignal = drop || overlay
+      }
+      setOpen(focusSignal || vvSignal)
     }
-    vv.addEventListener('resize', check)
-    window.addEventListener('resize', check)
-    check()
+
+    vv?.addEventListener('resize', compute)
+    window.addEventListener('resize', compute)
+    document.addEventListener('focusin', compute)
+    document.addEventListener('focusout', compute)
+    compute()
     return () => {
-      vv.removeEventListener('resize', check)
-      window.removeEventListener('resize', check)
+      vv?.removeEventListener('resize', compute)
+      window.removeEventListener('resize', compute)
+      document.removeEventListener('focusin', compute)
+      document.removeEventListener('focusout', compute)
     }
   }, [threshold])
 

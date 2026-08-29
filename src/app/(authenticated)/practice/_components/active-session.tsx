@@ -38,7 +38,7 @@ export function ActiveSession({
   const progress = questions.length > 0 ? ((currentIndex + 1) / questions.length) * 100 : 0;
 
   return (
-    <div className="flex flex-col">
+    <div className="h-full flex flex-col">
       {/* Header */}
       <div className="shrink-0 border-b px-4 py-3">
         <div className="max-w-2xl mx-auto">

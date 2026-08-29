@@ -37,9 +37,9 @@ export function Shell({
       <OfflineBanner />
       <SwUpdateNotice />
       <Header daysLeft={daysLeft} daysLabel={daysLabel} />
-      {/* main 为 flex 容器：让 chat/做题等页面的内层滚动(flex-1+min-h-0)生效；
-          overscroll-contain 防止 iOS 滚动到顶/底回弹到 body */}
-      <main className="flex-1 flex flex-col overflow-y-auto overscroll-contain">
+      {/* main 保持块级滚动容器（避免全局 flex 改动影响各页移动端布局）；
+          聊天/做题页用 h-full 各自接通内层滚动 */}
+      <main className="flex-1 overflow-y-auto">
         {children}
       </main>
       {/* Desktop: ActivityBar only when active. Mobile: handled inside MobileNav */}

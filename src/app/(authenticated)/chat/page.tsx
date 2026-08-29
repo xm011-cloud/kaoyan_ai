@@ -272,7 +272,9 @@ export default function ChatPage() {
     const vv = window.visualViewport
     if (!vv) return
     const onVvResize = () => {
-      setKbPad(Math.max(0, (window.innerHeight || 0) - vv.height))
+      const pad = (window.innerHeight || 0) - vv.height
+      // 只有明显的高度差（真实键盘 >80px）才抬升，避免工具条波动给输入区加多余内边距
+      setKbPad(pad > 80 ? pad : 0)
     }
     vv.addEventListener('resize', onVvResize)
     return () => vv.removeEventListener('resize', onVvResize)
@@ -643,7 +645,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col min-h-0">
+    <div className="h-full flex flex-col min-h-0">
       {/* Header */}
       <div className="shrink-0 border-b border-border/50 px-4 lg:px-6 py-3 flex items-center justify-between">
         <div>

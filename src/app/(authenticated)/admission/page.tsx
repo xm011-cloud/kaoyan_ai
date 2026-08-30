@@ -9,6 +9,9 @@ import { AiWaiting } from "@/components/ai-waiting";
 import { useAiTask } from "@/hooks/use-ai-task";
 import { AdmissionCompare } from "@/components/admission-compare";
 import { ImportTab } from "./_components/import-tab";
+import { SearchResults } from "@/components/admission/search-results";
+import { LibraryTab } from "@/components/admission/library-tab";
+import { aggregateRows, type AggregatedEntry, type RawAggRow } from "@/lib/admission";
 
 interface AdmissionEntry {
   id: string;
@@ -29,6 +32,7 @@ interface SearchResult {
   major: string;
   year: number | null;
   entries: AdmissionEntry[];
+  aggregated?: AggregatedEntry[]; // 多来源聚合视图（搜索路由新返回）
   rawResults: { title: string; url: string; snippet: string; query: string }[];
   sources: string[];
   disclaimer: string;
@@ -82,7 +86,7 @@ const CATEGORY_LABEL: Record<string, string> = {
 };
 
 export default function AdmissionPage() {
-  const [tab, setTab] = useState<"search" | "compare" | "saved" | "import">("search");
+  const [tab, setTab] = useState<"search" | "library" | "compare" | "saved" | "import">("search");
   const searchTask = useAiTask();
 
   // Search state
@@ -145,6 +149,7 @@ export default function AdmissionPage() {
 
   // ── 认同 / 质疑 ──
   const [disputeEntry, setDisputeEntry] = useState<AdmissionEntry | null>(null);
+  const [disputeAgg, setDisputeAgg] = useState<AggregatedEntry | null>(null);
   const [disputeReason, setDisputeReason] = useState("");
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
 
@@ -204,6 +209,80 @@ export default function AdmissionPage() {
     }
   };
 
+  // ── 聚合视图反馈：对组内所有来源循环投票，成功后按返回计数回写底层 entries 并重算 aggregated ──
+  const postAggFeedback = async (agg: AggregatedEntry, type: "vouch" | "dispute") => {
+    const results: { action: string; counts?: { vouch: number; dispute: number } }[] = [];
+    for (const s of agg.sources) {
+      const res = await fetch("/api/admission/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          admissionInfoId: s.id,
+          type,
+          reason: type === "dispute" ? disputeReason.trim() : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "操作失败");
+      results.push(data);
+    }
+    setSearchResult((prev) => {
+      if (!prev) return prev;
+      const entries = prev.entries.map((e) => {
+        const idx = agg.sources.findIndex((s) => s.id === e.id);
+        if (idx < 0 || !results[idx]) return e;
+        const r = results[idx];
+        return {
+          ...e,
+          vouchCount: r.counts?.vouch ?? e.vouchCount,
+          disputeCount: r.counts?.dispute ?? e.disputeCount,
+          myFeedback: r.action === "removed" ? null : type,
+          verifyStatus:
+            type === "dispute"
+              ? "disputed"
+              : r.action === "removed" && e.verifyStatus === "disputed"
+                ? "unverified"
+                : e.verifyStatus,
+        } as AdmissionEntry;
+      });
+      return { ...prev, entries, aggregated: aggregateRows(entries as RawAggRow[]) };
+    });
+  };
+
+  const handleAggFeedback = async (agg: AggregatedEntry, type: "vouch" | "dispute") => {
+    if (submittingFeedback) return;
+    if (type === "dispute") {
+      // 复用质疑弹窗，确认后走 submitAggDispute
+      setDisputeAgg(agg);
+      setDisputeReason("");
+      return;
+    }
+    setSubmittingFeedback(true);
+    try {
+      await postAggFeedback(agg, "vouch");
+      toast.success("已认同此数据");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "操作失败");
+    } finally {
+      setSubmittingFeedback(false);
+    }
+  };
+
+  const submitAggDispute = async () => {
+    if (!disputeAgg || submittingFeedback) return;
+    setSubmittingFeedback(true);
+    try {
+      await postAggFeedback(disputeAgg, "dispute");
+      setDisputeAgg(null);
+      setDisputeReason("");
+      toast.success("已提交质疑，等待核实");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "操作失败");
+    } finally {
+      setSubmittingFeedback(false);
+    }
+  };
+
   // ── Save ──
   const handleSave = async (entry: AdmissionEntry) => {
     const year = entry.year;
@@ -220,7 +299,7 @@ export default function AdmissionPage() {
           year,
           category,
           data: entry.data,
-          source: entry.source || searchResult.sources[0] || "",
+          source: entry.source || searchResult.rawResults?.[0]?.url || "",
         }),
       });
       toast.success("已保存");
@@ -450,6 +529,7 @@ export default function AdmissionPage() {
       <div className="flex border-b border-border/50">
         {([
           ["search", "🔍 搜索"],
+          ["library", "📚 知识库"],
           ["compare", "📊 对比"],
           ["saved", "📋 收藏"],
           ["import", "📥 导入"],
@@ -591,12 +671,22 @@ export default function AdmissionPage() {
                   )}
                 </div>
 
-                {renderEntries(searchResult.entries)}
+                {searchResult.aggregated && searchResult.aggregated.length > 0 ? (
+                  <SearchResults
+                    entries={searchResult.aggregated}
+                    onFeedback={handleAggFeedback}
+                    onOpenRaw={() =>
+                      document.getElementById("raw-results")?.scrollIntoView({ behavior: "smooth" })
+                    }
+                  />
+                ) : (
+                  renderEntries(searchResult.entries)
+                )}
               </div>
 
               {/* Raw Results */}
               {searchResult.rawResults.length > 0 && (
-                <details className="bg-card rounded-2xl border border-border/50 p-5">
+                <details id="raw-results" className="bg-card rounded-2xl border border-border/50 p-5">
                   <summary className="cursor-pointer text-sm font-medium">
                     🔗 原始搜索结果 ({searchResult.rawResults.length} 条)
                   </summary>
@@ -642,6 +732,9 @@ export default function AdmissionPage() {
           )}
         </div>
       )}
+
+      {/* ── LIBRARY TAB ── */}
+      {tab === "library" && <LibraryTab />}
 
       {/* ── COMPARE TAB ── */}
       {tab === "compare" && (
@@ -836,7 +929,7 @@ export default function AdmissionPage() {
         </div>
       )}
 
-      {/* ── 质疑弹窗 ── */}
+      {/* ── 质疑弹窗：单条（旧视图）与聚合组（新视图）共用 ── */}
       {disputeEntry && (
         <Modal
           open
@@ -853,6 +946,47 @@ export default function AdmissionPage() {
               </button>
               <button
                 onClick={() => handleFeedback(disputeEntry, "dispute")}
+                disabled={!disputeReason.trim() || submittingFeedback}
+                className="rounded-full h-11 px-6 text-sm font-medium bg-warning text-white hover:bg-warning/90 disabled:opacity-50 transition-colors"
+              >
+                提交质疑
+              </button>
+            </>
+          }
+        >
+          <p className="text-sm text-muted-foreground mb-2">
+            请说明你认为数据有误的原因（如分数不对、年份错误、来源不可信等），作者会核实后处理。
+          </p>
+          <textarea
+            value={disputeReason}
+            onChange={(e) => setDisputeReason(e.target.value)}
+            rows={4}
+            maxLength={500}
+            placeholder="例如：2025 年复试线实际是 350 而不是 320…"
+            className="w-full rounded-xl border border-border/50 bg-muted/50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 resize-none"
+          />
+          <p className="text-right text-xs text-muted-foreground mt-1">
+            {disputeReason.length}/500
+          </p>
+        </Modal>
+      )}
+
+      {disputeAgg && (
+        <Modal
+          open
+          onClose={() => setDisputeAgg(null)}
+          title="⚠️ 质疑此数据"
+          description={`${disputeAgg.university} ${disputeAgg.major} ${disputeAgg.year}年 ${CATEGORY_LABEL[disputeAgg.category] || ""}（将对 ${disputeAgg.sourceCount} 个来源一并提交质疑）`}
+          footer={
+            <>
+              <button
+                onClick={() => setDisputeAgg(null)}
+                className="rounded-full h-11 px-6 text-sm font-medium border border-border/60 hover:bg-muted transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => submitAggDispute()}
                 disabled={!disputeReason.trim() || submittingFeedback}
                 className="rounded-full h-11 px-6 text-sm font-medium bg-warning text-white hover:bg-warning/90 disabled:opacity-50 transition-colors"
               >

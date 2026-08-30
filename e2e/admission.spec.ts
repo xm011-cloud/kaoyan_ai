@@ -127,4 +127,59 @@ test.describe("Admission", () => {
     expect(updated.disputeCount).toBe(1);
     expect(updated.myFeedback).toBe("dispute");
   });
+
+  test("search returns aggregated multi-source view; library API + detail page work", async ({ page }) => {
+    const uni = `聚合库${Date.now() % 1000000}`;
+    const pool = new pg.Pool({ connectionString: testDbUrl() });
+    const ids: string[] = [];
+    try {
+      // 同一院校+专业+年份+分数线，两条不同来源（总分冲突），一条 verified
+      const a = await pool.query(
+        `INSERT INTO "AdmissionInfo" ("id","userId","university","major","year","category","data","source","verifyStatus","createdAt")
+         VALUES (gen_random_uuid(), NULL, $1, '计算机', 2025, 'score_line', $2, 'https://a.example.com', 'verified', now()) RETURNING "id"`,
+        [uni, JSON.stringify({ scores: { 总分: 350, 英语: 60 } })]
+      );
+      const b = await pool.query(
+        `INSERT INTO "AdmissionInfo" ("id","userId","university","major","year","category","data","source","verifyStatus","createdAt")
+         VALUES (gen_random_uuid(), NULL, $1, '计算机', 2025, 'score_line', $2, 'https://b.example.com', 'unverified', now()) RETURNING "id"`,
+        [uni, JSON.stringify({ scores: { 总分: 348, 数学: 90 } })]
+      );
+      ids.push(a.rows[0].id, b.rows[0].id);
+    } finally {
+      await pool.end();
+    }
+    expect(ids).toHaveLength(2);
+
+    // ① 搜索返回 aggregated：同组 2 来源、总分冲突（2 variants）、合并状态取最差
+    const res = await page.request.post("/api/admission/search", { data: { university: uni } });
+    expect(res.status()).toBe(200);
+    const json = await res.json();
+    expect(json.library).toBe(true);
+    expect(json.entries.length).toBe(2); // 底层每来源一条不变
+    const agg = json.aggregated.find((e: { category: string }) => e.category === "score_line");
+    expect(agg).toBeTruthy();
+    expect(agg.sourceCount).toBe(2);
+    expect(agg.mergedStatus).toBe("unverified"); // verified + unverified → 取最差 unverified
+    expect(agg.data.scores["总分"].agreed).toBe(false);
+    expect(agg.data.scores["总分"].variants.length).toBe(2);
+    expect(agg.data.scores["英语"].agreed).toBe(true);
+    expect(agg.data.scores["英语"].value).toBe(60);
+
+    // ② 知识库列表 API 返回该院校
+    const lib = await page.request.get(
+      `/api/admission/library?university=${encodeURIComponent(uni)}`
+    );
+    expect(lib.status()).toBe(200);
+    const libJson = await lib.json();
+    const school = libJson.schools.find((s: { university: string }) => s.university === uni);
+    expect(school).toBeTruthy();
+    expect(school.sourceCount).toBe(2);
+    expect(school.majorCount).toBe(1);
+    expect(school.latestYear).toBe(2025);
+
+    // ③ 详情页可访问并渲染（登录保护内）
+    await page.goto(`/admission/library/${encodeURIComponent(uni)}`);
+    await expect(page.locator("h1").filter({ hasText: uni })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("计算机", { exact: false }).first()).toBeVisible({ timeout: 5000 });
+  });
 });

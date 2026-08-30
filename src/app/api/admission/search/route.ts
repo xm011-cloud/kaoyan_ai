@@ -6,65 +6,8 @@ import { getUserAiConfig, callAI, extractJson } from "@/lib/ai-config";
 import { searchWeb, fetchPageContent } from "@/lib/search";
 import { isRateLimited } from "@/lib/rate-limit";
 import { prisma } from "@/lib/prisma";
-
-/** 搜索条目的展示视图（含社区反馈统计） */
-export interface AdmissionEntryView {
-  id: string;
-  university: string;
-  major: string;
-  year: number;
-  category: string;
-  data: Record<string, unknown>;
-  source: string;
-  verifyStatus: string;
-  vouchCount: number;
-  disputeCount: number;
-  myFeedback: "vouch" | "dispute" | null;
-}
-
-/** 把库行聚合反馈统计 → 展示视图 */
-async function toEntryViews(
-  rows: Awaited<ReturnType<typeof findLibrary>>,
-  userId: string
-): Promise<AdmissionEntryView[]> {
-  if (rows.length === 0) return [];
-  const ids = rows.map((r) => r.id);
-  const [counts, my] = await Promise.all([
-    prisma.admissionFeedback.groupBy({
-      by: ["admissionInfoId", "type"],
-      where: { admissionInfoId: { in: ids } },
-      _count: { _all: true },
-    }),
-    prisma.admissionFeedback.findMany({
-      where: { admissionInfoId: { in: ids }, userId },
-      select: { admissionInfoId: true, type: true },
-    }),
-  ]);
-  const myMap = new Map(my.map((m) => [m.admissionInfoId, m.type]));
-  const countMap = new Map<string, { vouch: number; dispute: number }>();
-  for (const c of counts) {
-    const cur = countMap.get(c.admissionInfoId) || { vouch: 0, dispute: 0 };
-    if (c.type === "vouch") cur.vouch = c._count._all;
-    else cur.dispute = c._count._all;
-    countMap.set(c.admissionInfoId, cur);
-  }
-  return rows.map((r) => {
-    const cnt = countMap.get(r.id) || { vouch: 0, dispute: 0 };
-    return {
-      id: r.id,
-      university: r.university,
-      major: r.major,
-      year: r.year,
-      category: r.category,
-      data: (r.data as Record<string, unknown>) || {},
-      source: r.source || "",
-      verifyStatus: r.verifyStatus,
-      vouchCount: cnt.vouch,
-      disputeCount: cnt.dispute,
-      myFeedback: (myMap.get(r.id) as "vouch" | "dispute") || null,
-    };
-  });
-}
+import { toEntryViews } from "@/lib/admission-server";
+import { aggregateRows } from "@/lib/admission";
 
 function findLibrary(university: string, major: string, year?: number) {
   return prisma.admissionInfo.findMany({
@@ -108,6 +51,7 @@ export async function POST(request: NextRequest) {
           major: entries[0]?.major || major,
           year: year || null,
           entries,
+          aggregated: aggregateRows(entries),
           rawResults: [],
           disclaimer:
             "以下数据来自社区知识库（多来源并存），请以官方公布为准。对数据有疑问可点击「质疑」反馈。",
@@ -160,6 +104,7 @@ export async function POST(request: NextRequest) {
         major,
         year: year || null,
         entries: [],
+        aggregated: [],
         rawResults: allResults.flatMap((r) =>
           r.results.slice(0, 3).map((s) => ({ ...s, query: r.query }))
         ),
@@ -293,6 +238,7 @@ ${webContext.slice(0, 8000)}
       major,
       year: year || null,
       entries,
+      aggregated: aggregateRows(entries),
       rawResults: allResults.flatMap((r) =>
         r.results.slice(0, 3).map((s) => ({ ...s, query: r.query }))
       ),

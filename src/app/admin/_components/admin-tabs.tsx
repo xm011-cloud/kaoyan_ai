@@ -7,8 +7,9 @@ import AdmissionDisputes, { type DisputeItem } from './admission-disputes'
 import DeletionRequests, { type DeletionRequestItem } from './deletion-requests'
 import UserReset from './user-reset'
 import FunnelView from './funnel-view'
+import DataSeed from './data-seed'
 
-type Tab = 'funnel' | 'feedback' | 'support' | 'dispute' | 'deletion' | 'reset'
+type Tab = 'funnel' | 'data-seed' | 'feedback' | 'support' | 'dispute' | 'deletion' | 'reset'
 
 export default function AdminTabs({
   initialFeedbacks,
@@ -24,6 +25,7 @@ export default function AdminTabs({
   const [tab, setTab] = useState<Tab>('funnel')
   const tabs = [
     { id: 'funnel' as const, icon: '📊', label: '激活漏斗' },
+    { id: 'data-seed' as const, icon: '🏫', label: '数据补全' },
     { id: 'feedback' as const, icon: '💬', label: '意见反馈' },
     { id: 'support' as const, icon: '☕', label: '支持留言' },
     { id: 'dispute' as const, icon: '🏫', label: '院校质疑' },
@@ -48,6 +50,7 @@ export default function AdminTabs({
       </div>
 
       {tab === 'funnel' && <FunnelView />}
+      {tab === 'data-seed' && <DataSeed />}
       {tab === 'feedback' && <FeedbackList initial={initialFeedbacks} />}
       {tab === 'support' && <SupportList initial={initialSupporters} />}
       {tab === 'dispute' && <AdmissionDisputes initial={initialDisputes} />}

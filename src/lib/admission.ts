@@ -249,7 +249,6 @@ function mergeByCategory(group: RawAggRow[], category: string): Record<string, u
 }
 
 // ── 分数线对比表推导 ──
-
 export interface ScoreTableData {
   /** 年份降序 */
   years: number[];
@@ -284,4 +283,97 @@ export function toScoreTable(entries: AggregatedEntry[]): ScoreTableData {
     yearTrust[e.year] = e.trust;
   }
   return { years, subjects, cells, yearStatus, yearTrust };
+}
+
+// ── 管理端数据补全：粘贴文本 → 结构化行 ──
+
+export interface SeedRowInput {
+  university: string;
+  major: string;
+  year: number;
+  category: AdmissionCategory;
+  data: Record<string, unknown>;
+  source: string;
+}
+
+/**
+ * 解析粘贴的多行数据（管理端批量导入）。
+ * 每行字段用 <Tab>（或 | 或 ，）分隔：院校 / 专业 / 年份 / 分类 / 来源 / 数据
+ * 数据为「键:值」空格分隔：
+ * - score_line：总分:350 政治:60 … → { scores }
+ * - enrollment：招生人数:50 报考人数:300 → { enrollmentQuota, applicants }
+ * - subjects：科目:政治 科目:英语一 … → { subjects }
+ * - tuition：学费:15000 → { tuition }
+ * 分类可省略（按数据键自动推断）；来源可省略（默认 admin-import）。
+ */
+export function parseAdmissionSeedText(text: string): SeedRowInput[] {
+  const rows: SeedRowInput[] = [];
+  for (const raw of text.split("\n")) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#") || line.startsWith("//")) continue;
+    // 字段分隔：优先 Tab，其次 | ，其次全角逗号
+    let fields: string[];
+    if (line.includes("\t")) fields = line.split("\t");
+    else if (line.includes("|")) fields = line.split("|");
+    else fields = line.split(/[,，]/);
+    fields = fields.map((f) => f.trim());
+    const [university, major, yearStr, categoryStr, source, ...dataParts] = fields;
+    if (!university || !major || !yearStr) continue;
+
+    const year = Number(yearStr);
+    if (!Number.isFinite(year)) continue;
+
+    // 解析 键:值 数据对
+    const pairs: Record<string, string> = {};
+    const subjects: string[] = [];
+    for (const dp of (dataParts.join(" ") || "").split(/\s+/)) {
+      if (!dp) continue;
+      const m = dp.match(/^(.+?)[:：](.+)$/);
+      if (!m) continue;
+      const k = m[1].trim();
+      const v = m[2].trim();
+      if (k === "科目") subjects.push(v);
+      else pairs[k] = v;
+    }
+
+    let category = (categoryStr || "").toLowerCase() as AdmissionCategory;
+    const data: Record<string, unknown> = {};
+
+    if (!category || !(["score_line", "enrollment", "subjects", "tuition", "notes"] as string[]).includes(category)) {
+      // 按数据键推断分类
+      if (subjects.length > 0) category = "subjects";
+      else if (pairs["总分"] !== undefined) category = "score_line";
+      else if (pairs["招生人数"] !== undefined || pairs["报考人数"] !== undefined) category = "enrollment";
+      else if (pairs["学费"] !== undefined) category = "tuition";
+      else category = "notes";
+    }
+
+    if (category === "score_line") {
+      const scores: Record<string, number | string> = {};
+      for (const [k, v] of Object.entries(pairs)) {
+        const n = Number(v);
+        scores[k] = Number.isFinite(n) ? n : v;
+      }
+      data.scores = scores;
+    } else if (category === "enrollment") {
+      if (pairs["招生人数"] !== undefined) data.enrollmentQuota = Number(pairs["招生人数"]) || pairs["招生人数"];
+      if (pairs["报考人数"] !== undefined) data.applicants = Number(pairs["报考人数"]) || pairs["报考人数"];
+    } else if (category === "subjects") {
+      data.subjects = subjects;
+    } else if (category === "tuition") {
+      data.tuition = Number(pairs["学费"]) || pairs["学费"] || pairs["学费"];
+    } else {
+      data.notes = Object.entries(pairs).map(([k, v]) => `${k}:${v}`).join("；") || "admin 导入";
+    }
+
+    rows.push({
+      university,
+      major,
+      year,
+      category,
+      data,
+      source: source || "admin-import",
+    });
+  }
+  return rows;
 }

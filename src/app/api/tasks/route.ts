@@ -24,10 +24,12 @@ export async function GET(request: NextRequest) {
     }
     if (subject) where.subject = subject;
     if (weekStart) {
-      const ws = new Date(weekStart);
-      const wsEnd = new Date(weekStart);
-      wsEnd.setDate(wsEnd.getDate() + 1);
-      where.weekStartDate = { gte: ws, lt: wsEnd };
+      // 兼容新旧 weekStartDate 口径：新代码存「本地周一」，历史任务存「本地周日」(旧 UTC 串逻辑)。
+      // 用 [本地周日, 本地周二) 窗口同时覆盖两者，避免历史计划从周视图消失。
+      const ws = new Date(weekStart); // 本地周一（UTC 午夜）
+      const winStart = new Date(ws.getTime() - 86400000); // 本地周日
+      const winEnd = new Date(ws.getTime() + 86400000); // 本地周二（排除下一周）
+      where.weekStartDate = { gte: winStart, lt: winEnd };
     }
 
     const tasks = await prisma.task.findMany({

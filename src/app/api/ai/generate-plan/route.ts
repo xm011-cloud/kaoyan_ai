@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { normalizeSubject } from "@/lib/subject-standards";
 import { derivePrepStage, stageToPlanPhase } from "@/lib/prep-stage";
 import { getEffectiveStage, STAGE_LABELS, needsConfirmation, type SubjectProgress } from "@/lib/completion";
+import { addLocalDays, toLocalDateString } from "@/lib/date-utils";
 
 interface PlanTask {
   title: string;
@@ -29,9 +30,11 @@ interface StudyLoad {
 }
 
 // ── 本地生成周计划（无需 AI Key）──
+// weekStartStr 是本地历法周一日期串（"2026-08-24"），任务日期按本地日历日推进；
+// 不能用 UTC 串（toISOString），否则 UTC+8 用户整体错位一天。
 function generateLocalWeeklyPlan(
   subjects: string[],
-  weekStart: Date,
+  weekStartStr: string,
   opts: { phase: string; capacity: number | null; foundationMode: boolean; minDateStr?: string }
 ): PlanTask[] {
   const { phase, capacity, foundationMode, minDateStr } = opts;
@@ -65,11 +68,11 @@ function generateLocalWeeklyPlan(
 
   let templateIdx = 0;
   for (let d = 0; d < 7; d++) {
-    const date = new Date(weekStart.getTime() + d * 86400000);
-    const dateStr = date.toISOString().split("T")[0];
+    const dateStr = addLocalDays(weekStartStr, d);
     // 本周今天以前已过去（按日期字符串比较，与前端周槽位口径一致）
     if (minDateStr && dateStr < minDateStr) continue;
-    const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+    const dow = new Date(`${dateStr}T00:00:00`).getDay();
+    const isWeekend = dow === 0 || dow === 6;
 
     // 容量：每周小时 → 每天约 hours/7 小时；按每任务约 45 分钟折算任务数
     const baseTasks = isWeekend ? 3 : Math.min(4 + Math.floor(d / 3), subjects.length * 2);
@@ -94,7 +97,7 @@ function generateLocalWeeklyPlan(
     }
 
     // 周日加复盘
-    if (date.getDay() === 0) {
+    if (dow === 0) {
       tasks.push({
         title: "本周复盘与总结",
         description: "回顾本周所有科目的学习进度，标记薄弱环节，整理错题本；规划下周学习重点",
@@ -176,12 +179,12 @@ export async function POST(request: NextRequest) {
     const phase = stageToPlanPhase(stage.id, daysRemaining);
     const foundationMode = stage.id === "foundation" || stage.id === "explore";
 
-    // 周范围
+    // 周范围（用本地历法日期串：weekStartLocal 来自前端本地周一，避免 UTC 串错位一天）
     const weekEnd = new Date(weekStartDate.getTime() + 7 * 86400000);
-    const weekStartStr = weekStartDate.toISOString().split("T")[0];
-    // 本周今天以前已过去，不生成任务（用前端传来的"本地今天"字符串，与周槽位口径一致）
-    const todayLocalStr = (body.todayLocal as string) || today.toISOString().split("T")[0];
-    const weekLastStr = new Date(weekStartDate.getTime() + 6 * 86400000).toISOString().split("T")[0]; // 本周最后一天（周日槽位）
+    const weekStartStr = (body.weekStartLocal as string) || toLocalDateString(weekStartDate);
+    // 本周今天以前已过去，不生成任务（前端传"本地今天"字符串，与周槽位口径一致）
+    const todayLocalStr = (body.todayLocal as string) || toLocalDateString(today);
+    const weekLastStr = addLocalDays(weekStartStr, 6); // 本周最后一天（周日槽位）
     const pastSkip = todayLocalStr > weekStartStr;
 
     // ── 增量删除 ──
@@ -302,10 +305,10 @@ ${sprintContext}${regenerateContext}${pastSkipContext}
         }
       } catch (e) {
         console.error("Plan generation AI fallback:", e instanceof Error ? e.message : String(e));
-        planTasks = generateLocalWeeklyPlan(subjects, weekStartDate, { phase, capacity: weeklyHours, foundationMode, minDateStr: todayLocalStr });
+        planTasks = generateLocalWeeklyPlan(subjects, weekStartStr, { phase, capacity: weeklyHours, foundationMode, minDateStr: todayLocalStr });
       }
     } else {
-      planTasks = generateLocalWeeklyPlan(subjects, weekStartDate, { phase, capacity: weeklyHours, foundationMode, minDateStr: todayLocalStr });
+      planTasks = generateLocalWeeklyPlan(subjects, weekStartStr, { phase, capacity: weeklyHours, foundationMode, minDateStr: todayLocalStr });
     }
 
     // 规范化 + 添加周标识；并对 AI 返回的任务做日期清洗：

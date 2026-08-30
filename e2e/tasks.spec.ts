@@ -38,14 +38,16 @@ test.describe("Tasks", () => {
   });
 
   test("completing a task toggles checkbox without opening edit modal", async ({ page }) => {
-    // 造一个本周任务（weekStart 与页面 getWeekStart 同口径 = 本周一）
+    // 造一个本周任务（用本地日期串：app 现在按本地历法分组/过滤，UTC 串会错位一天）
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const localDate = (dt: Date) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
     const d = new Date();
     const day = d.getDay();
     const ws = new Date(d);
     ws.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
     ws.setHours(0, 0, 0, 0);
-    const wsStr = ws.toISOString().split("T")[0];
-    const todayStr = new Date().toISOString().split("T")[0];
+    const wsStr = localDate(ws); // 本地周一
+    const todayStr = localDate(new Date()); // 本地今天
     const title = `E2E勾选测试${Date.now()}`;
     const create = await page.request.post("/api/tasks", {
       data: { title, date: todayStr, weekStartDate: wsStr, duration: 30, phase: "基础阶段" },
@@ -112,14 +114,16 @@ test.describe("Tasks", () => {
   });
 
   test("failed completion PATCH rolls back optimistic state (no UI/DB fork)", async ({ page }) => {
-    // 造一个本周任务
+    // 造一个本周任务（本地日期串）
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const localDate = (dt: Date) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
     const d = new Date();
     const day = d.getDay();
     const ws = new Date(d);
     ws.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
     ws.setHours(0, 0, 0, 0);
-    const wsStr = ws.toISOString().split("T")[0];
-    const todayStr = new Date().toISOString().split("T")[0];
+    const wsStr = localDate(ws);
+    const todayStr = localDate(new Date());
     const title = `E2E失败回滚${Date.now()}`;
     const create = await page.request.post("/api/tasks", {
       data: { title, date: todayStr, weekStartDate: wsStr, duration: 30, phase: "基础阶段" },

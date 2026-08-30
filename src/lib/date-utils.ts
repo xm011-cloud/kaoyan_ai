@@ -46,6 +46,14 @@ export function toLocalDateString(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+/** 在 YYYY-MM-DD 本地日期串上加减 N 天，仍返回本地日期串。
+ * 用 "T00:00:00" 无 Z 构造(本地午夜)保证与服务器时区无关地按"日历日"推进。 */
+export function addLocalDays(dateStr: string, n: number): string {
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setDate(d.getDate() + n);
+  return toLocalDateString(d);
+}
+
 /** Date → YYYY-MM-DD HH:MM 字符串 */
 export function toDateTimeString(d: Date): string {
   const ds = toDateString(d);

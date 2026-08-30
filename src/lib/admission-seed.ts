@@ -32,6 +32,19 @@ export interface SeedResult {
 
 const CATEGORIES = ["score_line", "enrollment", "subjects", "tuition", "notes"];
 
+/** 质量过滤：只有空 notes、没有实际数字/科目/学费的条目不入库（避免噪音污染知识库） */
+function isUsableEntry(e: SeedEntry): boolean {
+  const d = e.data || {};
+  if (e.category === "score_line") {
+    const scores = d.scores as Record<string, unknown> | undefined;
+    return !!scores && Object.keys(scores).length > 0;
+  }
+  if (e.category === "enrollment") return d.enrollmentQuota != null || d.applicants != null;
+  if (e.category === "subjects") return Array.isArray(d.subjects) && (d.subjects as unknown[]).length > 0;
+  if (e.category === "tuition") return d.tuition != null;
+  return !!d.notes;
+}
+
 /** 同源去重：完全相同的 (university, major, year, category, source) 已存在则跳过 */
 async function entryExists(e: SeedEntry, university: string, major: string): Promise<boolean> {
   const found = await prisma.admissionInfo.findFirst({
@@ -147,9 +160,12 @@ ${webContext.slice(0, 8000)}
         source: String(e.source || sources[0] || ""),
       }));
 
-    // 去重落库
+    // 质量过滤 + 去重落库
     let saved = 0;
+    let usable = 0;
     for (const e of entries) {
+      if (!isUsableEntry(e)) continue;
+      usable++;
       if (await entryExists(e, university, major)) continue;
       try {
         await prisma.admissionInfo.create({
@@ -169,7 +185,7 @@ ${webContext.slice(0, 8000)}
         // 并发冲突等，跳过
       }
     }
-    log(`  ✅ ${university} ${major} 新增 ${saved} 条（共提取 ${entries.length}）`);
+    log(`  ✅ ${university} ${major} 新增 ${saved} 条（提取 ${entries.length}，有效 ${usable}）`);
     return { university, major, saved, entries };
   } catch (e) {
     log(`  ⚠️ ${university} ${major} 失败: ${e instanceof Error ? e.message : String(e)}`);

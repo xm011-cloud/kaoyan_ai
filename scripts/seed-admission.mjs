@@ -1,7 +1,7 @@
 // 批量补全院校情报数据：对目标院校×专业 跑「搜索+AI提取+入库」(全局共享)。
 // 用法:
-//   node --import ./scripts/ts-alias-loader.mjs scripts/seed-admission.mjs              # 跑默认清单
-//   node --import ./scripts/ts-alias-loader.mjs scripts/seed-admission.mjs --university 浙大 --major 计算机科学与技术  # 指定单校
+//   node --import ./scripts/load-env.mjs --experimental-loader ./scripts/ts-alias-loader.mjs scripts/seed-admission.mjs  # 默认清单(前8个任务)
+//   node ... --university 浙大 --major 计算机科学与技术  # 指定单校
 //   node ... --major "计算机科学与技术 软件工程" --delay 3000 --limit 5
 // 需 env: OPENAI_API_KEY(+BASE_URL/MODEL) 与 TAVILY_API_KEY(见 .env.local)
 import dotenv from "dotenv";
@@ -77,7 +77,7 @@ async function main() {
     await sleep(o.delay);
   }
   console.log(`\n✅ 完成: 本次新增 ${savedTotal} 条（成功任务 ${okCount}/${runNow.length}）`);
-  console.log(`  跑剩余: node --import ./scripts/ts-alias-loader.mjs scripts/seed-admission.mjs --university 指定校 --major "计算机科学与技术 软件工程"`);
+  console.log(`  跑剩余: node --import ./scripts/load-env.mjs --experimental-loader ./scripts/ts-alias-loader.mjs scripts/seed-admission.mjs --university 指定校 --major "计算机科学与技术 软件工程"`);
 }
 
 main().catch((e) => {

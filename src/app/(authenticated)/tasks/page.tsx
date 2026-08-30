@@ -310,21 +310,30 @@ export default function TasksPage() {
 
   const handleToggleComplete = async (task: Task) => {
     const next = !task.completed;
-    // 乐观更新 UI（原实现等请求完成才更新；改为立即更新，离线入队也不会让勾选丢失）
+    // 乐观更新 UI（失败时回滚，避免 UI 与 DB 分叉 → dashboard 不同步）
     setWeekTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, completed: next } : t)));
+    const rollback = () =>
+      setWeekTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, completed: task.completed } : t)));
     const init = (): RequestInit => ({
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ completed: next }),
     });
-    // 离线 → 入队（dedupeKey 归并同一任务最新状态）
+    // 离线 → 入队（联网后补传），保留乐观状态
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       await enqueueWrite(`/api/tasks/${task.id}`, init(), { dedupeKey: `task:${task.id}` });
       return;
     }
     try {
-      await fetch(`/api/tasks/${task.id}`, init());
+      const res = await fetch(`/api/tasks/${task.id}`, init());
+      if (!res.ok) {
+        // 服务器明确拒绝（4xx/5xx）→ 回滚乐观状态 + 提示；业务错重放也没用，不入队
+        rollback();
+        const data = await res.json().catch(() => null);
+        toast.error(data?.error || "任务状态更新失败，请重试");
+      }
     } catch {
+      // 网络错误 → 入队，联网补传（保留乐观状态，队列补传成功后两端一致）
       await enqueueWrite(`/api/tasks/${task.id}`, init(), { dedupeKey: `task:${task.id}` });
     }
   };

@@ -110,8 +110,9 @@ export async function flushQueue(): Promise<number> {
         headers: w.headers ?? { "Content-Type": "application/json" },
         body: w.body,
       });
-      // 成功(2xx)或业务拒绝(4xx) → 出队；网络错误/5xx → 保留并停止本轮
-      if (res.ok || (res.status >= 400 && res.status < 500)) {
+      // 出队：成功(2xx) / 请求无效(400) / 资源已不存在(404) —— 重放无意义
+      // 保留并停：认证失败(401/403，需重新登录) / 服务器错误(5xx) —— 等下次重试
+      if (res.ok || res.status === 400 || res.status === 404) {
         await txDone(db, "readwrite", (store) => store.delete(w.id));
         flushed++;
       } else {

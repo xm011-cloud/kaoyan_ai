@@ -110,4 +110,59 @@ test.describe("Tasks", () => {
     // 清理
     await page.request.delete(`/api/tasks/${task.id}`);
   });
+
+  test("failed completion PATCH rolls back optimistic state (no UI/DB fork)", async ({ page }) => {
+    // 造一个本周任务
+    const d = new Date();
+    const day = d.getDay();
+    const ws = new Date(d);
+    ws.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
+    ws.setHours(0, 0, 0, 0);
+    const wsStr = ws.toISOString().split("T")[0];
+    const todayStr = new Date().toISOString().split("T")[0];
+    const title = `E2E失败回滚${Date.now()}`;
+    const create = await page.request.post("/api/tasks", {
+      data: { title, date: todayStr, weekStartDate: wsStr, duration: 30, phase: "基础阶段" },
+    });
+    expect(create.status()).toBe(200);
+    const { task } = await create.json();
+
+    // 拦截完成态 PATCH → 500（模拟服务器错误），其它请求放行
+    await page.route("**/api/tasks/*", (route) => {
+      if (route.request().method() === "PATCH") {
+        return route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({}),
+        });
+      }
+      return route.continue();
+    });
+
+    await page.goto("/tasks");
+    await page.waitForTimeout(1500);
+
+    const row = page
+      .locator("div")
+      .filter({ hasText: title })
+      .filter({ has: page.locator('input[type="checkbox"]') })
+      .last();
+    const checkbox = row.locator('input[type="checkbox"]');
+    await checkbox.click();
+    await page.waitForTimeout(800);
+
+    // 服务器失败 → 乐观状态应回滚（不能停在"已勾选"与 DB 分叉）
+    await expect(checkbox).not.toBeChecked({ timeout: 2000 });
+    // 且应提示用户失败
+    await expect(page.locator("text=任务状态更新失败").first()).toBeVisible({ timeout: 2000 });
+
+    // dashboard 也应保持一致（未完成）
+    await page.goto("/dashboard");
+    await page.waitForTimeout(1500);
+    const dashRow = page.locator("div").filter({ hasText: title }).last();
+    await expect(dashRow.locator("span.line-through").first()).not.toBeVisible({ timeout: 3000 });
+
+    // 清理
+    await page.request.delete(`/api/tasks/${task.id}`);
+  });
 });

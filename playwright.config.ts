@@ -103,8 +103,10 @@ export default defineConfig({
     },
   ],
   webServer: {
-    // 每次启动:确保测试库存在 → 同步 schema → 用测试库跑 dev server
-    command: `node e2e/create-test-db.mjs && npx prisma db push --skip-generate --accept-data-loss && npm run dev -- -p ${TEST_PORT}`,
+    // 每次启动:确保测试库存在 → 同步 schema(尽力而为) → 用测试库跑 dev server。
+    // 注意:本机 prisma db push(rust engine)连 Neon 端点持续 P1001(node pg 却正常)，
+    // 故 db push 失败只告警不阻塞 —— app 运行时走 driver adapter(node pg)，schema 已存在即可跑。
+    command: `node e2e/create-test-db.mjs && (npx prisma db push --skip-generate --accept-data-loss || echo "WARN: db push 失败(rust engine 连不上 Neon)，沿用现有测试库 schema") && npm run dev -- -p ${TEST_PORT}`,
     url: BASE_URL,
     reuseExistingServer: false,
     // 链式启动(建库 + schema push 约 30s + Turbopack 首编译)较慢,放宽超时

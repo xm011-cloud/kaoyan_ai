@@ -38,6 +38,14 @@ export function toDateString(d: Date): string {
   return d.toISOString().split("T")[0];
 }
 
+/** Date → 本地时区 YYYY-MM-DD 字符串。
+ * 注意: toDateString 是 UTC 串;对 UTC+8 用户,本地午夜在 UTC 是前一天 16:00,
+ * 用 UTC 串做"天"的分组会错位一天。本地历法分组(周视图日列等)必须用本函数。 */
+export function toLocalDateString(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 /** Date → YYYY-MM-DD HH:MM 字符串 */
 export function toDateTimeString(d: Date): string {
   const ds = toDateString(d);

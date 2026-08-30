@@ -10,6 +10,9 @@ import { getDueCount } from "@/lib/sm2"
 import { derivePrepStage } from "@/lib/prep-stage"
 import type { SubjectProgress } from "@/lib/completion"
 
+// 每次请求服务端渲染，避免客户端软导航时命中 RSC 缓存显示旧任务状态（勾选后 dashboard 需实时同步）
+export const dynamic = "force-dynamic"
+
 export default async function DashboardPage({
   searchParams,
 }: {

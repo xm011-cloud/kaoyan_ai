@@ -24,12 +24,19 @@ export function useOnlineStatus(): boolean {
 
 /**
  * 全局挂载一次：跟踪在线状态，联网（含恢复网络）时自动补传离线队列。
+ * 兜底：online 事件只在"断→连"转换时触发；联网但请求失败（抖动）时队列会卡住，
+ * 故在线状态下每 30s 周期重试一次（空队列近乎零开销）。
  * 返回当前是否在线。
  */
 export function useOfflineSync(): boolean {
   const online = useOnlineStatus();
   useEffect(() => {
-    if (online) void flushQueue();
+    if (!online) return;
+    void flushQueue();
+    const timer = setInterval(() => {
+      void flushQueue();
+    }, 30_000);
+    return () => clearInterval(timer);
   }, [online]);
   return online;
 }

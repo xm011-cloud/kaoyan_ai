@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { AiWaiting } from "@/components/ai-waiting";
-import { toDateString, startOfDay } from "@/lib/date-utils";
+import { toDateString, startOfDay, toLocalDateString } from "@/lib/date-utils";
 import type { AiWaitPhase } from "@/hooks/use-ai-task";
 
 interface WeekTask {
@@ -70,10 +70,12 @@ export function WeeklyPlanner({
 }: WeeklyPlannerProps) {
   const [showJudge, setShowJudge] = useState(false);
 
-  // Group tasks by day of week
+  // Group tasks by day of week。
+  // 日列必须用「本地历法日期串」:任务 date 存的是 UTC 午夜(new Date("YYYY-MM-DD")),
+  // 若用 d.toISOString()(UTC 串)分组,UTC+8 用户会整体错位一天、跨午夜的甚至落进下周不可见。
   const tasksByDay: WeekTask[][] = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart.getTime() + i * 86400000);
-    const ds = d.toISOString().split("T")[0];
+    const ds = toLocalDateString(d);
     return weekTasks.filter((t) => t.date.startsWith(ds));
   });
 

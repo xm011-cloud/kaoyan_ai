@@ -375,6 +375,15 @@ src/
 - **ADR 战略收口**：3.6 卡片 DIY = 技能工具页宿主（共用布局引擎+组件契约）；3.7 能力出口与本地分层（MCP/CLI/桌面壳，不站队薄适配层双出口，阶段0不做）；D6 改接 MCP（数据/工具走标准、表现层自研对齐 MCP Apps）；特色定位修正（真差异化 = 考研垂直深度 × 温柔性格，非三个签名）
 - **AGENTS.md/CLAUDE.md 梳理**（/init）：补阶段完成度/工作台卡片/文档索引 + SW 版本 v4→v5
 
+### 第 30 轮 — 院校情报整改：知识库共享浏览 + 分数线对比表 + 多来源聚合（2026-08-30，已部署）
+- **共享浏览**：「📚 知识库」Tab（`library-tab.tsx`）—— 全局数据（userId:null）院校卡片列表，筛选(院校/专业) + 排序(最新/数据/信任) + 分页；新 API `GET /api/admission/library` 返回 `SchoolSummary`（专业/年份/来源/信任/latestScore）
+- **独立可分享详情页** `/admission/library/[school]`（server component，登录保护）：专业选择 + 分类Tab（分数线/招生/科目/其他）+ 对比表 + 反馈，`generateMetadata`
+- **分数线对比表**（`score-table.tsx`）：行=年份、列=科目并集、多来源并列（一致标注×N、冲突琥珀并排）、被质疑/驳回置灰、每行 👍/⚠️
+- **多来源聚合**（`src/lib/admission.ts` 纯函数，客户端可复用乐观重算）：按(校/专/年/类)聚合；`mergeScalar` 数值归一优先；verifyStatus 取最差 + statusCounts 透出；trust=Σ认同−Σ质疑；聚合视图投票对组内所有来源循环 POST + 本地重算
+- **搜索路由**：三处 return 加 `aggregated`（entries 结构不变，零破坏）；`toEntryViews` 迁移到 `admission-server.ts` 复用
+- **顺带修**：`handleSave` 的 `searchResult.sources[0]` 潜在崩溃（路由从未返回 sources）
+- **测试**：admission.spec 7/7（新增聚合多来源/知识库API/详情页用例）；tsc/build 全绿；零 schema 变更
+
 ### 第 10 轮 — 对话→任务落地（事务边界）（2026-08-13）
 - **schema**：Task `proposalId/chatId` + `@@index([userId, proposalId])`；Chat `pendingProposal Json?`
 - **propose_tasks 工具**（writes:false 草稿不落库）：批量建议挂到对话 pendingProposal；`create_task` description 引导勿批量直写；chat 路由读 body.chatId → 提案时无对话则先建 → 返回 `chatId + proposal`

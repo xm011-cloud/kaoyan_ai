@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import type { AiTool } from "@/lib/ai-config";
 import { appendSkillNote, skillFinish } from "@/lib/skills";
 import { searchWeb } from "@/lib/search";
+import { getDaysToGoal, getGoalLabel } from "@/lib/goal-model";
 
 // ── 工具执行结果 ──
 
@@ -128,15 +129,17 @@ const TOOL_ENTRIES: ToolEntry[] = [
       if (!goal) {
         return { writes: false, result: JSON.stringify({ hasGoal: false }) };
       }
-      const today = startOfDay(new Date());
-      const daysRemaining = Math.max(1, Math.ceil((goal.examDate.getTime() - today.getTime()) / 86400000));
+      const daysRemaining = getDaysToGoal(goal);
       return {
         writes: false,
         result: JSON.stringify({
           hasGoal: true,
+          status: goal.status,
+          direction: goal.direction,
+          label: getGoalLabel(goal),
           university: goal.university,
           major: goal.major,
-          examDate: toDateString(goal.examDate),
+          examDate: goal.examDate ? toDateString(goal.examDate) : null,
           daysRemaining,
           subjects: goal.subjects,
           targetScores: goal.targetScores,

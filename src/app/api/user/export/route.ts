@@ -18,7 +18,9 @@ export async function GET() {
       wrongQuestions,
       practiceSessions,
       pomodoroSessions,
-      studyPath,
+      studyPaths,
+      weeklyPlans,
+      studyProfileFacts,
       knowledgeNodes,
       importedQuestions,
     ] = await Promise.all([
@@ -33,9 +35,21 @@ export async function GET() {
       prisma.wrongQuestion.findMany({ where: { userId: user!.id }, orderBy: { createdAt: "asc" } }),
       prisma.practiceSession.findMany({ where: { userId: user!.id }, orderBy: { createdAt: "asc" } }),
       prisma.pomodoroSession.findMany({ where: { userId: user!.id }, orderBy: { createdAt: "asc" } }),
-      prisma.studyPath.findUnique({
+      prisma.studyPath.findMany({
         where: { userId: user!.id },
-        include: { milestones: { orderBy: { order: "asc" } } },
+        orderBy: { version: "asc" },
+        include: {
+          stages: { orderBy: { order: "asc" } },
+          milestones: { orderBy: { order: "asc" } },
+        },
+      }),
+      prisma.weeklyPlan.findMany({
+        where: { userId: user!.id },
+        orderBy: [{ weekStart: "asc" }, { version: "asc" }],
+      }),
+      prisma.studyProfileFact.findMany({
+        where: { userId: user!.id },
+        orderBy: [{ key: "asc" }, { observedAt: "asc" }],
       }),
       prisma.knowledgeNode.findMany({ where: { userId: user!.id }, orderBy: { createdAt: "asc" } }),
       prisma.importedQuestion.findMany({ where: { userId: user!.id }, orderBy: { createdAt: "asc" } }),
@@ -54,7 +68,9 @@ export async function GET() {
         wrongQuestions,
         practiceSessions,
         pomodoroSessions,
-        studyPath,
+        studyPaths,
+        weeklyPlans,
+        studyProfileFacts,
         knowledgeNodes,
         importedQuestions,
       },

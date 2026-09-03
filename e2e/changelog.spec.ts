@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { CHANGELOG } from "../src/lib/changelog";
 
 // 更新日志页 + dashboard 更新告示 + 产品教练模板播种（已登录）
 
@@ -21,7 +22,7 @@ test.describe("更新日志与告示", () => {
   test("dashboard shows changelog banner when unread, dismiss hides it", async ({ page }) => {
     await page.goto("/dashboard");
     // 未读（lastSeenChangelog 为空）→ 告示可见（最新条目）
-    await expect(page.getByText(/新更新：开放注册/)).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText(`📢 新更新：${CHANGELOG[0].title}`)).toBeVisible({ timeout: 20000 });
     // 关闭 → 告示消失（已读）
     await page.getByRole("button", { name: "关闭更新告示" }).click();
     await expect(page.getByText(/新更新：/)).toHaveCount(0, { timeout: 5000 });
@@ -29,7 +30,7 @@ test.describe("更新日志与告示", () => {
 
   test("dashboard banner stays hidden after being read (persisted)", async ({ page }) => {
     await page.goto("/dashboard");
-    await expect(page.getByText(/新更新：开放注册/)).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText(`📢 新更新：${CHANGELOG[0].title}`)).toBeVisible({ timeout: 20000 });
     await page.getByRole("button", { name: "关闭更新告示" }).click();
     await page.reload();
     await expect(page.getByText(/新更新：/)).toHaveCount(0, { timeout: 10000 });

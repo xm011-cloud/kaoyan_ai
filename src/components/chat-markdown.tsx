@@ -5,6 +5,30 @@ import ReactMarkdown from "react-markdown";
 import { MermaidRenderer } from "@/components/mermaid-renderer";
 import { AiThinking } from "@/components/ai-thinking";
 
+function MarkdownImage({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) {
+  const [broken, setBroken] = useState(false);
+
+  if (broken || !src) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-1 my-1 rounded border border-border/50 bg-muted/50 text-xs text-muted-foreground">
+        <span>🖼️</span>
+        {alt || "图片无法显示"}
+      </span>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt || ""}
+      className="max-w-full rounded-lg my-2 border border-border/50"
+      onError={() => setBroken(true)}
+      loading="lazy"
+      {...props}
+    />
+  );
+}
+
 const components = {
   h1: ({ ...props }: React.HTMLAttributes<HTMLElement>) => (
     <h2 className="text-lg font-bold mt-4 mb-2 first:mt-0" {...props} />
@@ -59,29 +83,7 @@ const components = {
       </div>
     );
   },
-  img: ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => {
-    const [broken, setBroken] = useState(false);
-
-    if (broken || !src) {
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-1 my-1 rounded border border-border/50 bg-muted/50 text-xs text-muted-foreground">
-          <span>🖼️</span>
-          {alt || "图片无法显示"}
-        </span>
-      );
-    }
-
-    return (
-      <img
-        src={src}
-        alt={alt || ""}
-        className="max-w-full rounded-lg my-2 border border-border/50"
-        onError={() => setBroken(true)}
-        loading="lazy"
-        {...props}
-      />
-    );
-  },
+  img: MarkdownImage,
   a: ({ ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
     <a className="text-blue-500 hover:underline" target="_blank" rel="noopener noreferrer" {...props} />
   ),

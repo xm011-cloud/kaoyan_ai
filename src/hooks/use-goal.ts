@@ -3,11 +3,16 @@
 import { useQuery } from "@tanstack/react-query";
 import type { SubjectProgress } from "@/lib/completion";
 
-interface GoalData {
+export interface GoalData {
   id: string;
-  university: string;
-  major: string;
-  examDate: string;
+  type: string;
+  status: "exploring" | "tentative" | "confirmed" | "paused";
+  direction?: string | null;
+  university?: string | null;
+  major?: string | null;
+  examDate?: string | null;
+  examYear?: number | null;
+  certainty?: "low" | "medium" | "high";
   subjects: string[];
   targetScores?: Record<string, number>;
   progress?: Record<string, SubjectProgress>;

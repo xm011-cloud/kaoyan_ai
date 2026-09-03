@@ -5,10 +5,11 @@ import { WorkbenchGrid } from "@/components/workbench/workbench-grid"
 import { ChangelogBanner } from "@/components/changelog-banner"
 import { OnboardingModal } from "@/components/onboarding-modal"
 import { OnboardingCard } from "@/components/onboarding-card"
-import { startOfDay, endOfDay, toDateString, getWeekStart, getWeekEnd, daysAgo } from "@/lib/date-utils"
+import { startOfDay, endOfDay, toDateString, toLocalDateString, getWeekStart, getWeekEnd, daysAgo } from "@/lib/date-utils"
 import { getDueCount } from "@/lib/sm2"
 import { derivePrepStage } from "@/lib/prep-stage"
 import type { SubjectProgress } from "@/lib/completion"
+import { getDaysToGoal, getGoalLabel } from "@/lib/goal-model"
 
 // 每次请求服务端渲染，避免客户端软导航时命中 RSC 缓存显示旧任务状态（勾选后 dashboard 需实时同步）
 export const dynamic = "force-dynamic"
@@ -36,6 +37,7 @@ export default async function DashboardPage({
   const weekEnd = getWeekEnd()
   const weekStartStr = toDateString(weekStart)
   const weekEndStr = toDateString(weekEnd)
+  const planningWeekStartStr = toLocalDateString(weekStart)
 
   // 90 天数据范围
   const chartStart = daysAgo(90)
@@ -45,6 +47,8 @@ export default async function DashboardPage({
     todayTasks,
     taskStats,
     goal,
+    formalStage,
+    weeklyPlans,
     recentChecks,
     allCheckIns,
     allTasks,
@@ -64,6 +68,21 @@ export default async function DashboardPage({
     }),
     // 目标
     prisma.goal.findUnique({ where: { userId } }),
+    // 正式长期路线的当前阶段（存在时优先于算法建议）
+    prisma.studyPathStage.findFirst({
+      where: { studyPath: { userId, status: "active" }, status: "active" },
+      orderBy: { order: "asc" },
+    }),
+    // 当前自然周的周计划版本：草稿优先展示，提醒用户确认；否则展示活动版本。
+    prisma.weeklyPlan.findMany({
+      where: {
+        userId,
+        weekStart: new Date(planningWeekStartStr),
+        status: { in: ["draft", "active"] },
+      },
+      orderBy: { version: "desc" },
+      select: { id: true, status: true, objective: true, plannedMinutes: true, weekStart: true },
+    }),
     // 最近打卡（5 条用于显示）
     prisma.checkIn.findMany({
       where: { userId },
@@ -144,9 +163,8 @@ export default async function DashboardPage({
   const completionRate = totalAll > 0 ? Math.round((completedAll / totalAll) * 100) : 0
 
   // 距考试天数
-  const daysLeft = goal
-    ? Math.max(0, Math.ceil((new Date(goal.examDate).getTime() - today.getTime()) / 86400000)) || 0
-    : 0
+  const goalDaysLeft = goal ? getDaysToGoal(goal, today) : null
+  const daysLeft = goalDaysLeft ?? 0
 
   // 备考阶段（0.3）：探索/基础/备考/冲刺
   const stage = derivePrepStage({
@@ -156,6 +174,9 @@ export default async function DashboardPage({
     subjectProgress: (goal?.progress as Record<string, SubjectProgress> | null) || null,
     weeklyHours: (goal?.studyLoad as { weeklyHours?: number } | undefined)?.weeklyHours ?? null,
   })
+  const stageHint = formalStage
+    ? `当前阶段：${formalStage.title} · ${formalStage.objective}`
+    : stage.hint
 
   // 本周柱状图
   const weekDayNames = ["日", "一", "二", "三", "四", "五", "六"]
@@ -188,6 +209,9 @@ export default async function DashboardPage({
 
   // 所有可用科目
   const subjects = goal?.subjects || []
+  const projectedWeeklyPlan = weeklyPlans.find((plan) => plan.status === "draft")
+    ?? weeklyPlans.find((plan) => plan.status === "active")
+    ?? null
 
   // ── 重入判断：今日未打卡 + 距上次打卡 > 3 天 → 显示温柔重入卡 ──
   const checkedInToday = Boolean(todayCheckin)
@@ -199,6 +223,30 @@ export default async function DashboardPage({
 
   // ── 组装 Props ──
   const workbenchData = {
+    planning: {
+      goal: goal ? { label: getGoalLabel(goal), status: goal.status } : null,
+      stage: formalStage ? {
+        title: formalStage.title,
+        objective: formalStage.objective,
+        exitCriteriaCount: Array.isArray(formalStage.exitCriteria) ? formalStage.exitCriteria.length : 0,
+      } : null,
+      weeklyPlan: projectedWeeklyPlan ? {
+        status: projectedWeeklyPlan.status as "draft" | "active",
+        objective: projectedWeeklyPlan.objective,
+        plannedMinutes: projectedWeeklyPlan.plannedMinutes,
+        weekStart: planningWeekStartStr,
+      } : {
+        status: "none" as const,
+        objective: null,
+        plannedMinutes: 0,
+        weekStart: planningWeekStartStr,
+      },
+      today: {
+        completed: todayCompleted,
+        total: todayTotal,
+        nextTask: todayTasks.find((task) => !task.completed)?.title ?? null,
+      },
+    },
     stats: {
       todayTasks: { completed: todayCompleted, total: todayTotal, minutes: todayMinutes },
       weekStudy: { hours: weekMinutes / 60, days: weekDays },
@@ -232,7 +280,7 @@ export default async function DashboardPage({
         nextReviewDate: w.nextReviewDate?.toISOString() || null,
       })
     ),
-    goal: goal ? { university: goal.university, major: goal.major } : null,
+    goal: goal ? { label: getGoalLabel(goal), status: goal.status } : null,
     daysLeft,
     reentry: { show: showReentry, daysSinceLastCheckin },
   }
@@ -261,11 +309,17 @@ export default async function DashboardPage({
           {goal ? (
             <div className="mt-3 flex items-center justify-between flex-wrap gap-3">
               <p className="text-lg lg:text-xl font-semibold tracking-tight">
-                🎯 {goal.university} · {goal.major}
+                🎯 {getGoalLabel(goal)}
               </p>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/15 text-sm font-bold tabular-nums">
-                ⏳ 距考试 {daysLeft} 天
-              </span>
+              {goalDaysLeft == null ? (
+                <a href="/goal" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/15 text-sm font-medium hover:bg-white/25">
+                  完善目标 →
+                </a>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/15 text-sm font-bold tabular-nums">
+                  ⏳ 距考试 {daysLeft} 天
+                </span>
+              )}
             </div>
           ) : (
             <div className="mt-3">
@@ -281,7 +335,7 @@ export default async function DashboardPage({
           )}
 
           {/* 阶段提示 */}
-          <p className="mt-2 text-xs text-white/60">{stage.hint}</p>
+          <p className="mt-2 text-xs text-white/60">{stageHint}</p>
 
           {/* 内联统计（今日任务 / 打卡 / 连续） */}
           <div className="mt-3 flex items-center gap-4 text-sm">
@@ -348,7 +402,7 @@ export default async function DashboardPage({
         </div>
       </div>
 
-      <WorkbenchGrid data={workbenchData} isExploration={!goal} />
+      <WorkbenchGrid data={workbenchData} isExploration={!goal || goal.status === "exploring"} />
     </div>
   )
 }

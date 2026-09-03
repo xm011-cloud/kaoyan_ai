@@ -22,7 +22,19 @@ test.describe("Dashboard", () => {
 
   test("today tasks section is visible", async ({ page }) => {
     // The section title
-    const section = page.locator("h3").filter({ hasText: "今日任务" });
+    const section = page.getByRole("link", { name: "📋 今日任务" });
     await expect(section).toBeVisible({ timeout: 10000 });
+  });
+
+  test("planning overview links goal, stage, week and today to actionable pages", async ({ page }) => {
+    const overview = page.locator("section").filter({ hasText: "你的学习计划" }).first();
+    await expect(overview).toBeVisible({ timeout: 10000 });
+    await expect(overview.locator('a[href="/goal"]')).toBeVisible();
+    await expect(overview.locator('a[href^="/study-path"]').first()).toBeVisible();
+    const taskLinks = overview.locator('a[href^="/tasks?week="]');
+    await expect(taskLinks.first()).toBeVisible();
+    expect(await taskLinks.count()).toBeGreaterThanOrEqual(2);
+    await expect(overview.getByText(/查看或调整阶段|建立路线/)).toBeVisible();
+    await expect(overview.getByText(/查看今日任务|安排今天/)).toBeVisible();
   });
 });

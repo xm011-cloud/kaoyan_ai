@@ -24,6 +24,9 @@ export async function PATCH(request: NextRequest) {
     if (!milestone || milestone.studyPath.userId !== user!.id) {
       return jsonNoStore({ error: "里程碑不存在" }, { status: 404 });
     }
+    if (milestone.studyPath.status !== "active") {
+      return jsonNoStore({ error: "只能更新当前已激活路线的进度" }, { status: 409 });
+    }
 
     const data: Record<string, unknown> = {};
     if (progress !== undefined) data.progress = Math.min(1, Math.max(0, progress));

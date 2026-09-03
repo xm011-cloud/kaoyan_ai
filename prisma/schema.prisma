@@ -10,72 +10,104 @@ datasource db {
 
 // 用户表
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  name      String?
-  avatar    String?
-  aiKey     String?  // 用户自己的 AI API Key
-  aiUrl     String?  // 用户自定义 API Base URL
-  aiModel   String?  // 用户选择的模型
+  id      String  @id @default(uuid())
+  email   String  @unique
+  name    String?
+  avatar  String?
+  aiKey   String? // 用户自己的 AI API Key
+  aiUrl   String? // 用户自定义 API Base URL
+  aiModel String? // 用户选择的模型
 
   // 驾驶模式三档：auto=自动 / assisted=辅助（默认）/ manual=手动
-  drivingMode String  @default("assisted")
+  drivingMode String @default("assisted")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // 番茄钟设置
-  pomodoroFocusMinutes       Int      @default(25)
-  pomodoroShortBreakMinutes  Int      @default(5)
-  pomodoroLongBreakMinutes   Int      @default(15)
-  pomodoroLongBreakInterval  Int      @default(4)
+  pomodoroFocusMinutes      Int @default(25)
+  pomodoroShortBreakMinutes Int @default(5)
+  pomodoroLongBreakMinutes  Int @default(15)
+  pomodoroLongBreakInterval Int @default(4)
 
   // 学习提醒设置
   reminderEnabled Boolean  @default(false)
-  reminderTime    String?  // "HH:MM" 格式
+  reminderTime    String? // "HH:MM" 格式
   reminderDays    String[] // ["1","2","3","4","5"] 周一到周五
 
   // UI 偏好设置
-  navPreferences      Json?   // 导航分组可见性偏好
-  practicePreferences Json?   // 出题默认偏好
+  navPreferences      Json? // 导航分组可见性偏好
+  practicePreferences Json? // 出题默认偏好
 
   // 关联
-  goal              Goal?
-  tasks             Task[]
-  checkIns          CheckIn[]
-  materials         Material[]
-  chats             Chat[]
-  feedbacks         Feedback[]
-  wrongQuestions    WrongQuestion[]
-  practiceSessions  PracticeSession[]
-  pomodoroSessions  PomodoroSession[]
-  admissionInfos    AdmissionInfo[]
+  goal               Goal?
+  tasks              Task[]
+  checkIns           CheckIn[]
+  materials          Material[]
+  chats              Chat[]
+  feedbacks          Feedback[]
+  wrongQuestions     WrongQuestion[]
+  practiceSessions   PracticeSession[]
+  pomodoroSessions   PomodoroSession[]
+  admissionInfos     AdmissionInfo[]
   admissionFeedbacks AdmissionFeedback[]
-  importedQuestions ImportedQuestion[]
-  schoolComparisons SchoolComparison[]
-  knowledgeNodes    KnowledgeNode[]
-  studyPath         StudyPath?
-  supporters        Supporter[]
-  authorFeedbacks   AuthorFeedback[]
-  skills            Skill[]
+  importedQuestions  ImportedQuestion[]
+  schoolComparisons  SchoolComparison[]
+  knowledgeNodes     KnowledgeNode[]
+  studyPaths         StudyPath[]
+  weeklyPlans        WeeklyPlan[]
+  studyProfileFacts  StudyProfileFact[]
+  supporters         Supporter[]
+  authorFeedbacks    AuthorFeedback[]
+  skills             Skill[]
+}
+
+// 学习档案事实：保留用户陈述、自评、测评与行为证据的来源和版本。
+// 同一 key 可以有历史版本；当前有效事实由 status=confirmed/proposed 表示。
+model StudyProfileFact {
+  id             String    @id @default(uuid())
+  userId         String
+  key            String
+  label          String
+  value          Json
+  source         String // user_statement | self_assessment | assessment | behavior | ai_inference
+  confidence     String    @default("medium") // low | medium | high
+  status         String    @default("confirmed") // proposed | confirmed | superseded | expired | rejected
+  observedAt     DateTime  @default(now())
+  reviewAt       DateTime?
+  supersededBy   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([userId, key, status])
 }
 
 // 考研目标
 model Goal {
-  id          String   @id @default(uuid())
-  userId      String   @unique
-  university  String   // 目标院校
-  major       String   // 目标专业
-  examDate    DateTime // 考试日期
-  subjects    String[] // 考试科目
-  targetScores Json?    // 目标分数 {"政治":70, "英语":65, ...}
-  progress    Json?    // 各科进度 {"数学一":{"percent":80,"note":"高数第三章", "stage":"learning", "confidence":"low", "calibratedStage":null}} — 完成度模型 v3
-  studyLoad   Json?    // 课业/可投入时间 {"weeklyHours":12}（阶段 0 轻量标记）
-  subjectsEdited Boolean @default(false) // 科目是否被用户手动调整过（是则专业→科目不再自动覆盖）
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String    @id @default(uuid())
+  userId         String    @unique
+  type           String    @default("postgraduate") // postgraduate | final_exam | self_study | certificate
+  status         String    @default("confirmed") // exploring | tentative | confirmed | paused
+  direction      String? // 大致方向，如“计算机类”；目标未确定时也可开始
+  university     String? // 目标院校（探索期可空）
+  major          String? // 目标专业（探索期可空）
+  examDate       DateTime? // 考试日期（探索期可空）
+  examYear       Int? // 只知道年份时使用
+  certainty      String    @default("medium") // low | medium | high
+  confirmedAt    DateTime?
+  subjects       String[] // 考试科目
+  targetScores   Json? // 目标分数 {"政治":70, "英语":65, ...}
+  progress       Json? // 各科进度 {"数学一":{"percent":80,"note":"高数第三章", "stage":"learning", "confidence":"low", "calibratedStage":null}} — 完成度模型 v3
+  studyLoad      Json? // 课业/可投入时间 {"weeklyHours":12}（阶段 0 轻量标记）
+  subjectsEdited Boolean   @default(false) // 科目是否被用户手动调整过（是则专业→科目不再自动覆盖）
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studyPaths StudyPath[]
 }
 
 // 学习任务
@@ -84,34 +116,37 @@ model Task {
   userId        String
   title         String
   description   String?
-  date          DateTime  // 任务日期
+  date          DateTime // 任务日期
   completed     Boolean   @default(false)
-  duration      Int?      // 学习时长(分钟)
-  phase         String?   // 所属阶段
-  subject       String?   // 所属科目
+  duration      Int? // 学习时长(分钟)
+  phase         String? // 所属阶段
+  subject       String? // 所属科目
   weekStartDate DateTime? // 所属周的开始日期
-  source        String?   // "ai" | "manual" | "ai_confirmed"
-  proposalId    String?   // 关联的提案 ID（对话→任务落地：确认采纳后落库的批次标记）
-  chatId        String?   // 来源对话 ID
+  source        String? // "ai" | "manual" | "ai_confirmed"
+  proposalId    String? // 关联的提案 ID（对话→任务落地：确认采纳后落库的批次标记）
+  chatId        String? // 来源对话 ID
+  weeklyPlanId  String? // 所属周计划版本；手动任务可为空
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weeklyPlan WeeklyPlan? @relation(fields: [weeklyPlanId], references: [id], onDelete: SetNull)
 
   @@index([userId, date])
   @@index([userId, weekStartDate])
   @@index([userId, proposalId])
+  @@index([weeklyPlanId])
 }
 
 // 每日打卡
 model CheckIn {
-  id          String   @id @default(uuid())
-  userId      String
-  date        DateTime // 打卡日期
-  duration    Int      // 学习时长(分钟)
-  status      String   // 状态: good/normal/tired
-  note        String?  // 备注
-  createdAt   DateTime @default(now())
+  id        String   @id @default(uuid())
+  userId    String
+  date      DateTime // 打卡日期
+  duration  Int // 学习时长(分钟)
+  status    String // 状态: good/normal/tired
+  note      String? // 备注
+  createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -121,16 +156,16 @@ model CheckIn {
 
 // 学习资料
 model Material {
-  id          String   @id @default(uuid())
-  userId      String
-  name        String
-  type        String   // pdf/word/image/text
-  url         String   // 存储路径
-  size        Int      // 文件大小(字节)
-  content     String?  // 提取的文本内容
-  embedding   Unsupported("vector(1536)")? // 向量嵌入 — 需安装 pgvector 扩展
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String                       @id @default(uuid())
+  userId    String
+  name      String
+  type      String // pdf/word/image/text
+  url       String // 存储路径
+  size      Int // 文件大小(字节)
+  content   String? // 提取的文本内容
+  embedding Unsupported("vector(1536)")? // 向量嵌入 — 需安装 pgvector 扩展
+  createdAt DateTime                     @default(now())
+  updatedAt DateTime                     @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -141,9 +176,9 @@ model Material {
 model Chat {
   id              String   @id @default(uuid())
   userId          String
-  messages        Json     // 消息列表
-  pendingProposal Json?    // 待确认的任务提案（对话→任务落地，草稿不落 Task）
-  skillId         String?  // 非空 = 这是一次技能运行会话（AI 技能系统）
+  messages        Json // 消息列表
+  pendingProposal Json? // 待确认的任务提案（对话→任务落地，草稿不落 Task）
+  skillId         String? // 非空 = 这是一次技能运行会话（AI 技能系统）
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -161,8 +196,8 @@ model Skill {
   description     String?
   icon            String    @default("⚡")
   triggerKeywords String    @default("[]") // JSON array，供 AI 主动提议匹配
-  steps           Json      // [{type:"data"|"ask"|"ai"|"note"|"finish", ...}]
-  note            Json      // 技能档案 { entries: [{at,label,content}], meta? } 默认 {}
+  steps           Json // [{type:"data"|"ask"|"ai"|"note"|"finish", ...}]
+  note            Json // 技能档案 { entries: [{at,label,content}], meta? } 默认 {}
   usageCount      Int       @default(0)
   source          String    @default("user") // "template" | "user"
   lastRunAt       DateTime?
@@ -181,9 +216,10 @@ model Feedback {
   userId      String
   weekStart   DateTime // 周开始日期
   weekEnd     DateTime // 周结束日期
-  content     String   // 反馈内容
+  content     String // 反馈内容
   suggestions String[] // 建议列表
-  stats       Json?    // { prevWeek, thisWeek } 打卡/任务对比（前端渲染"上周 vs 本周"进度条）
+  stats       Json? // { prevWeek, thisWeek } 打卡/任务对比（前端渲染"上周 vs 本周"进度条）
+  review      Json? // 用户补充的复盘原因、备注与调整范围；只作为下一步提案的依据
   createdAt   DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -195,17 +231,17 @@ model Feedback {
 model WrongQuestion {
   id             String    @id @default(uuid())
   userId         String
-  subject        String    // 科目名称
-  question       String    // 题目内容
-  answer         String    // 正确答案/解析
-  source         String    // 来源: "chat" | "manual" | "practice"
-  sourceChatId   String?   // 关联的 Chat ID
-  tags           String[]  // 标签
+  subject        String // 科目名称
+  question       String // 题目内容
+  answer         String // 正确答案/解析
+  source         String // 来源: "chat" | "manual" | "practice"
+  sourceChatId   String? // 关联的 Chat ID
+  tags           String[] // 标签
   reviewed       Boolean   @default(false)
   reviewCount    Int       @default(0)
   lastReviewDate DateTime? // 上次复习日期
   easeFactor     Float     @default(2.5) // SM-2 ease factor
-  interval       Int       @default(0)   // SM-2 复习间隔（天）
+  interval       Int       @default(0) // SM-2 复习间隔（天）
   nextReviewDate DateTime? // 下次复习日期
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
@@ -221,15 +257,15 @@ model WrongQuestion {
 model PracticeSession {
   id          String    @id @default(uuid())
   userId      String
-  type        String    // "daily" | "mock"
-  subject     String    // 科目名称
+  type        String // "daily" | "mock"
+  subject     String // 科目名称
   status      String    @default("in_progress")
-  questions   Json      // 题目列表
+  questions   Json // 题目列表
   answers     Json      @default("{}")
   scores      Json      @default("{}")
-  totalScore  Int?      // 总分
-  maxScore    Int?      // 满分
-  duration    Int?      // 考试时长（分钟）
+  totalScore  Int? // 总分
+  maxScore    Int? // 满分
+  duration    Int? // 考试时长（分钟）
   startedAt   DateTime?
   completedAt DateTime?
   createdAt   DateTime  @default(now())
@@ -245,9 +281,9 @@ model PracticeSession {
 model PomodoroSession {
   id             String   @id @default(uuid())
   userId         String
-  type           String   // "focus" | "short_break" | "long_break"
-  plannedMinutes Int      // 计划时长（分钟）
-  actualSeconds  Int      // 实际完成秒数
+  type           String // "focus" | "short_break" | "long_break"
+  plannedMinutes Int // 计划时长（分钟）
+  actualSeconds  Int // 实际完成秒数
   status         String   @default("completed") // "completed" | "interrupted"
   startedAt      DateTime
   endedAt        DateTime
@@ -261,13 +297,13 @@ model PomodoroSession {
 // 院校录取信息（按年份存储，数据可跨用户共享；同一院校专业年份允许多来源并存）
 model AdmissionInfo {
   id           String   @id @default(uuid())
-  userId       String?  // null = 系统全局数据（搜索自动落库）
+  userId       String? // null = 系统全局数据（搜索自动落库）
   university   String
   major        String
-  year         Int      // 数据年份
-  category     String   // "score_line" | "enrollment" | "subjects" | "tuition" | "notes"
-  data         Json     // 结构化数据
-  source       String   // 来源 URL
+  year         Int // 数据年份
+  category     String // "score_line" | "enrollment" | "subjects" | "tuition" | "notes"
+  data         Json // 结构化数据
+  source       String // 来源 URL
   verifyStatus String   @default("unverified") // unverified | verified | disputed | rejected
   createdAt    DateTime @default(now())
 
@@ -283,8 +319,8 @@ model AdmissionFeedback {
   id              String   @id @default(cuid())
   admissionInfoId String
   userId          String
-  type            String   // "vouch" | "dispute"
-  reason          String?  // 质疑时必填
+  type            String // "vouch" | "dispute"
+  reason          String? // 质疑时必填
   status          String   @default("pending") // 仅 dispute：pending | accepted（确认错误） | rejected（驳回）
   createdAt       DateTime @default(now())
 
@@ -297,11 +333,11 @@ model AdmissionFeedback {
 
 // 账号注销请求（轻量：用户申请 → 作者后台手动处理删除）
 model DeletionRequest {
-  id        String   @id @default(cuid())
-  userId    String   @unique
-  email     String   // 邮箱快照（处理后用户可能已被删除）
-  status    String   @default("pending") // pending | done
-  createdAt DateTime @default(now())
+  id        String    @id @default(cuid())
+  userId    String    @unique
+  email     String // 邮箱快照（处理后用户可能已被删除）
+  status    String    @default("pending") // pending | done
+  createdAt DateTime  @default(now())
   handledAt DateTime?
 }
 
@@ -309,7 +345,7 @@ model DeletionRequest {
 model AdmissionSearchCache {
   id        String   @id @default(cuid())
   queryKey  String   @unique // 规范化查询键 university|major|year
-  payload   Json     // 完整响应载荷（含 data/rawResults/sources/disclaimer）
+  payload   Json // 完整响应载荷（含 data/rawResults/sources/disclaimer）
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -321,12 +357,12 @@ model ImportedQuestion {
   id              String   @id @default(uuid())
   userId          String
   subject         String
-  year            Int      // 真题年份
-  source          String   // 来源 URL
-  sourceName      String?  // 来源描述
+  year            Int // 真题年份
+  source          String // 来源 URL
+  sourceName      String? // 来源描述
   question        String
-  type            String   // "choice" | "essay"
-  options         Json?    // 选择题选项
+  type            String // "choice" | "essay"
+  options         Json? // 选择题选项
   answer          String
   explanation     String
   tags            String[]
@@ -343,8 +379,8 @@ model ImportedQuestion {
 model SchoolComparison {
   id        String   @id @default(uuid())
   userId    String
-  schools   Json     // 对比的院校列表
-  analysis  String?  // AI 分析结果
+  schools   Json // 对比的院校列表
+  analysis  String? // AI 分析结果
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -354,17 +390,17 @@ model SchoolComparison {
 model KnowledgeNode {
   id        String   @id @default(uuid())
   userId    String
-  name      String   // 知识点名称，如 "极限"
-  subject   String   // 所属科目
+  name      String // 知识点名称，如 "极限"
+  subject   String // 所属科目
   category  String   @default("concept") // "concept" | "formula" | "method" | "theorem"
   weight    Float    @default(1.0) // 权重（根据错题数量等）
   mastery   Float    @default(0.0) // 掌握度 0-1
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  fromEdges  KnowledgeEdge[] @relation("from")
-  toEdges    KnowledgeEdge[] @relation("to")
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fromEdges KnowledgeEdge[] @relation("from")
+  toEdges   KnowledgeEdge[] @relation("to")
 
   @@unique([userId, name, subject])
   @@index([userId])
@@ -376,7 +412,7 @@ model KnowledgeEdge {
   fromId    String
   toId      String
   relation  String   @default("related") // "prerequisite" | "related" | "extends"
-  label     String?  // 边标签
+  label     String? // 边标签
   createdAt DateTime @default(now())
 
   from KnowledgeNode @relation("from", fields: [fromId], references: [id], onDelete: Cascade)
@@ -387,41 +423,119 @@ model KnowledgeEdge {
 
 // AI 学习路径
 model StudyPath {
-  id            String   @id @default(uuid())
-  userId        String   @unique
-  title         String   // 路径名称，如 "2026 考研冲刺路径"
-  description   String?  // 路径描述
-  subjects      String[] // 覆盖科目
-  targetScores  Json?    // 目标分数
-  currentScores Json?    // 当前估分
-  status        String   @default("active") // "active" | "completed" | "paused"
-  generatedBy   String   @default("ai") // "ai" | "manual"
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                String    @id @default(uuid())
+  userId            String
+  goalId            String?
+  title             String // 路径名称，如 "2026 考研冲刺路径"
+  description       String? // 路径描述
+  subjects          String[] // 覆盖科目
+  targetScores      Json? // 目标分数
+  currentScores     Json? // 当前估分
+  version           Int       @default(1)
+  status            String    @default("active") // draft | active | paused | completed | superseded
+  confirmedAt       DateTime?
+  supersedesId      String?
+  generatedBy       String    @default("ai") // "ai" | "manual"
+  adjustmentRequest String? // 阶段/路线调整原文；非空表示由当前路线克隆出的变更提案
+  changeImpact      Json? // 新旧路线差异、下游影响和成果保留摘要
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  milestones StudyPathMilestone[]
+  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goal         Goal?                @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  stages       StudyPathStage[]
+  milestones   StudyPathMilestone[]
+  weeklyPlans  WeeklyPlan[]
+  supersedes   StudyPath?           @relation("StudyPathVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy StudyPath[]          @relation("StudyPathVersions")
+
+  @@unique([userId, version])
+  @@index([userId, status])
+  @@index([goalId])
+}
+
+// 学习路径正式阶段：阶段目标与退出标准的唯一真相源
+model StudyPathStage {
+  id           String    @id @default(uuid())
+  studyPathId  String
+  key          String
+  title        String
+  order        Int
+  objective    String
+  exitCriteria Json
+  status       String    @default("pending") // pending | active | completed | skipped
+  startDate    DateTime?
+  endDate      DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  studyPath   StudyPath            @relation(fields: [studyPathId], references: [id], onDelete: Cascade)
+  milestones  StudyPathMilestone[]
+  weeklyPlans WeeklyPlan[]
+
+  @@unique([studyPathId, key])
+  @@unique([studyPathId, order])
+  @@index([studyPathId, status])
+}
+
+// 周计划是长期路线的可替换执行切片；草稿确认前不会创建正式任务。
+model WeeklyPlan {
+  id                String    @id @default(uuid())
+  userId            String
+  studyPathId       String?
+  stageId           String?
+  weekStart         DateTime
+  weekEnd           DateTime
+  version           Int
+  status            String    @default("draft") // draft | active | completed | archived
+  objective         String
+  rationale         String
+  successCriteria   Json
+  plannedMinutes    Int       @default(0)
+  items             Json // 待确认任务快照；确认后复制到 Task 并建立 weeklyPlanId
+  adjustmentRequest String? // 用户本次自然语言调整原文
+  constraints       Json? // 从调整原文解析出的容量、不可用日和科目倾向
+  generatedBy       String    @default("ai") // ai | local | manual
+  confirmedAt       DateTime?
+  supersedesId      String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studyPath    StudyPath?      @relation(fields: [studyPathId], references: [id], onDelete: SetNull)
+  stage        StudyPathStage? @relation(fields: [stageId], references: [id], onDelete: SetNull)
+  tasks        Task[]
+  supersedes   WeeklyPlan?     @relation("WeeklyPlanVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy WeeklyPlan[]    @relation("WeeklyPlanVersions")
+
+  @@unique([userId, weekStart, version])
+  @@index([userId, weekStart, status])
+  @@index([studyPathId])
+  @@index([stageId])
 }
 
 // 学习路径里程碑
 model StudyPathMilestone {
   id          String    @id @default(uuid())
   studyPathId String
-  title       String    // 里程碑标题
-  description String?   // 详细描述
-  phase       String    // 阶段: "基础" | "强化" | "冲刺" | "查漏补缺"
-  subject     String    // 科目
+  stageId     String?
+  title       String // 里程碑标题
+  description String? // 详细描述
+  phase       String // 阶段: "基础" | "强化" | "冲刺" | "查漏补缺"
+  subject     String // 科目
   order       Int       @default(0) // 排序
   targetDate  DateTime? // 目标完成日期
   completedAt DateTime? // 实际完成日期
   progress    Float     @default(0.0) // 进度 0-1
-  tips        String?   // AI 学习建议
+  tips        String? // AI 学习建议
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  studyPath StudyPath @relation(fields: [studyPathId], references: [id], onDelete: Cascade)
+  studyPath StudyPath       @relation(fields: [studyPathId], references: [id], onDelete: Cascade)
+  stage     StudyPathStage? @relation(fields: [stageId], references: [id], onDelete: SetNull)
 
   @@index([studyPathId, order])
+  @@index([stageId])
 }
 
 // 支持作者 — 感谢墙留言（审核通过后才展示）

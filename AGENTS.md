@@ -46,6 +46,7 @@ npx playwright test --ui                     # UI 模式
 3. **独立端口 3100** 起 dev server（避开 :3000），注入测试库环境变量
 4. 认证态：`authenticated` project 复用 `e2e/.auth/user.json` 的登录会话（由 `e2e/global-setup.ts` 用 `E2E_TEST_USER`/`E2E_TEST_PASSWORD` 环境变量登录 UI 生成）；`unauthenticated` project 无登录态
 5. Playwright 不自动读 `.env.local`，`playwright.config.ts` 和 `global-setup.ts` 都手动加载它
+6. 全套用例共享认证账号与测试库，默认固定为单 worker，避免并发数据互扰；可信基线见 `docs/test-baseline.md`
 
 改 schema 后跑 E2E，测试库会自动重建；若加了新模块的 spec，记得把它登记到 `playwright.config.ts` 的 `authenticated` project 的 `testMatch` 列表。
 
@@ -103,6 +104,9 @@ npx playwright test --ui                     # UI 模式
 - `docs/architecture-decisions.md` — **架构决策记录（ADR）**：产品定位 + D1-D6 接口决策 + 阶段 0-3 路线。写新功能前先看这里对齐方向，避免推倒重来
 - `docs/completion-model.md` — 完成度模型设计（五档 + 科目感知 + 对话校准 + 保守门控）
 - `docs/usage-notes.md` — 狗粮测试日志（开发者真实"用不下去"记录 → 产品 backlog）
+- `docs/task-template.md` — 统一开发任务模板（目标/范围/非目标/验收条件/测试范围）
+- `docs/lint-baseline.md` — ESLint 历史 warning 基线与偿还规则
+- `docs/test-baseline.md` — 开工前 TypeScript / Lint / Build / E2E 验证结果
 - `docs/edgeone-deploy.md` — 国内 EdgeOne 部署方案（Cloud SSR 函数包超限，暂缓）
 - `docs/memfire-migration.md` — MemFire 迁移说明
 - `PROJECT_STATUS.md` — 已实现功能清单；`README.md` — 产品介绍

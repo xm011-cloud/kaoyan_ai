@@ -137,8 +137,11 @@ export async function buildSkillDataSnapshot(
   if (sources.includes("goal")) {
     const goal = await prisma.goal.findUnique({ where: { userId } });
     if (goal) {
-      const daysRemaining = Math.max(1, Math.ceil((goal.examDate.getTime() - today.getTime()) / 86400000));
-      lines.push(`【目标】${goal.university} ${goal.major} · ${toDateString(goal.examDate)} · 剩 ${daysRemaining} 天`);
+      const goalLabel = [goal.university, goal.major].filter(Boolean).join(" ") || goal.direction || "目标探索中";
+      const daysRemaining = goal.examDate
+        ? Math.max(0, Math.ceil((goal.examDate.getTime() - today.getTime()) / 86400000))
+        : null;
+      lines.push(`【目标】${goalLabel}${goal.examDate ? ` · ${toDateString(goal.examDate)} · 剩 ${daysRemaining} 天` : " · 日期待确定"}`);
       if (goal.subjects.length) lines.push(`科目：${goal.subjects.join("、")}`);
     } else {
       lines.push("【目标】用户还没有设置考研目标");

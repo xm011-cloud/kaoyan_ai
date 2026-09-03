@@ -57,10 +57,12 @@ export function WeeklyPlanReminder() {
     }
 
     // 下周是否已有计划
-    fetch(`/api/tasks?weekStart=${nmCheck}`)
-      .then((res) => res.json())
-      .then(async (data) => {
-        if ((data.tasks || []).length > 0) {
+    Promise.all([
+      fetch(`/api/tasks?weekStart=${nmCheck}`).then((res) => res.json()),
+      fetch(`/api/weekly-plans?weekStart=${nmNav}`).then((res) => res.json()),
+    ])
+      .then(async ([taskData, planData]) => {
+        if ((taskData.tasks || []).length > 0 || planData.draft || planData.active) {
           checkedRef.current = true;
           return; // 下周已有计划
         }
@@ -76,7 +78,7 @@ export function WeeklyPlanReminder() {
         }
 
         if (mode === "auto") {
-          // 自动驾驶：用户已预授权，周日在无计划时直接生成下周（写入保留 manual，不删）
+          // 自动驾驶只负责提前生成草稿；仍需用户查看并确认后才写入正式任务。
           try {
             const gRes = await fetch("/api/ai/generate-plan", {
               method: "POST",

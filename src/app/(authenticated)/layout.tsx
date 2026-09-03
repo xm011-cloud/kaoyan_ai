@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma"
 import { redirect } from "next/navigation"
 import { derivePrepStage } from "@/lib/prep-stage"
 import type { SubjectProgress } from "@/lib/completion"
+import { getDaysToGoal } from "@/lib/goal-model"
 
 export default async function AuthenticatedLayout({
   children,
@@ -25,10 +26,19 @@ export default async function AuthenticatedLayout({
   let daysLeft = 0
   let daysLabel = ""
   try {
-    const goal = await prisma.goal.findUnique({ where: { userId: user.id } })
+    const [goal, formalStage] = await Promise.all([
+      prisma.goal.findUnique({ where: { userId: user.id } }),
+      prisma.studyPathStage.findFirst({
+        where: { studyPath: { userId: user.id, status: "active" }, status: "active" },
+        orderBy: { order: "asc" },
+      }),
+    ])
     if (goal) {
-      daysLeft = Math.max(0, Math.ceil((new Date(goal.examDate).getTime() - Date.now()) / 86400000)) || 0
-      try {
+      const computedDays = getDaysToGoal(goal)
+      daysLeft = computedDays ?? 0
+      if (formalStage) {
+        daysLabel = computedDays == null ? formalStage.title : `${formalStage.title} · ${daysLeft} 天`
+      } else try {
         const stage = derivePrepStage({
           examDate: goal.examDate,
           hasGoal: true,
@@ -37,9 +47,11 @@ export default async function AuthenticatedLayout({
           weeklyHours: (goal.studyLoad as { weeklyHours?: number } | undefined)?.weeklyHours ?? null,
         })
         // 冲刺期显示冲刺；其他阶段显示"阶段 · 距考试 N 天"（长线期不再只有刺眼的倒计时）
-        daysLabel = stage.id === "sprint" ? `冲刺 · ${daysLeft} 天` : `${stage.label} · ${daysLeft} 天`
+        daysLabel = computedDays == null
+          ? stage.label
+          : stage.id === "sprint" ? `冲刺 · ${daysLeft} 天` : `${stage.label} · ${daysLeft} 天`
       } catch {
-        daysLabel = `距考试 ${daysLeft} 天`
+        daysLabel = computedDays == null ? "目标探索中" : `距考试 ${daysLeft} 天`
       }
     }
   } catch { /* ignore */ }

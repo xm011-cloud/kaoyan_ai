@@ -7,12 +7,15 @@ import { PageHeader } from '@/components/ui/page-header'
 import { SubjectSelector } from './_components/subject-selector'
 import { isCustomSubject, formatCustomSubjectLabel, normalizeSubject } from '@/lib/subject-standards'
 import { MAJOR_SUBJECT_MAP, normalizeMajor, mergeMissingCorePublic } from '@/lib/major-subject-map'
+import { PlanningIntakeCard } from './_components/planning-intake-card'
 
 function displaySubject(subj: string): string {
   return isCustomSubject(subj) ? formatCustomSubjectLabel(subj) : subj
 }
 
 export default function GoalPage() {
+  const [direction, setDirection] = useState('')
+  const [goalStatus, setGoalStatus] = useState<'exploring' | 'tentative' | 'confirmed' | 'paused'>('exploring')
   const [university, setUniversity] = useState('')
   const [major, setMajor] = useState('')
   const [examDate, setExamDate] = useState('')
@@ -30,9 +33,11 @@ export default function GoalPage() {
       const res = await fetch('/api/goal')
       const data = await res.json()
       if (data.goal) {
-        setUniversity(data.goal.university)
-        setMajor(data.goal.major)
-        setExamDate(data.goal.examDate.split('T')[0])
+        setDirection(data.goal.direction || '')
+        setGoalStatus(data.goal.status || 'confirmed')
+        setUniversity(data.goal.university || '')
+        setMajor(data.goal.major || '')
+        setExamDate(data.goal.examDate ? data.goal.examDate.split('T')[0] : '')
         setSubjects(Array.isArray(data.goal.subjects) ? data.goal.subjects.map(normalizeSubject) : [])
         setSubjectsEdited(data.goal.subjectsEdited ?? false)
         if (data.goal.targetScores && typeof data.goal.targetScores === 'object') {
@@ -67,7 +72,7 @@ export default function GoalPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          university, major, examDate,
+          direction, university, major, examDate: examDate || null,
           subjects: subjectList,
           targetScores: Object.keys(targetScores).length > 0 ? targetScores : undefined,
           studyLoad: { weeklyHours: weeklyHours ?? null },
@@ -77,6 +82,7 @@ export default function GoalPage() {
 
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || '保存失败')
+      setGoalStatus(data.goal.status)
       setSaved(true)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : '保存失败')
@@ -90,28 +96,41 @@ export default function GoalPage() {
   return (
     <div className="flex flex-1 flex-col p-4 lg:p-6">
       <div className="max-w-3xl mx-auto w-full space-y-6">
-        <PageHeader title="考研目标" subtitle="填写你的目标信息，然后在学习计划中生成每周计划" />
+        <PageHeader title="考研方向" subtitle="不必一次确定院校和日期，先保存方向，后续再逐步完善" />
 
         <form onSubmit={handleSubmit} className="space-y-4 bg-card p-6 rounded-2xl border border-border/50">
+          <div className="rounded-xl bg-brand/5 border border-brand/15 p-4">
+            <p className="text-sm font-medium">
+              {goalStatus === 'confirmed' ? '目标已确认' : goalStatus === 'tentative' ? '目标暂定中' : goalStatus === 'paused' ? '目标已暂停' : '目标探索中'}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">院校、专业和考试日期可以稍后补充；未知信息不会由 AI 自动猜测。</p>
+          </div>
           <div>
-            <label htmlFor="goal-university" className="block text-sm font-medium mb-1">目标院校</label>
+            <label htmlFor="goal-direction" className="block text-sm font-medium mb-1">学习方向</label>
+            <input id="goal-direction" type="text" value={direction} onChange={(e) => setDirection(e.target.value)}
+              placeholder="例如：计算机类考研"
+              className="w-full h-11 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20" />
+            <p className="text-xs text-muted-foreground mt-1">还没确定学校时，先填写大致方向即可。</p>
+          </div>
+          <div>
+            <label htmlFor="goal-university" className="block text-sm font-medium mb-1">目标院校（可选）</label>
             <input id="goal-university" type="text" value={university} onChange={(e) => setUniversity(e.target.value)}
               placeholder="例如：北京大学"
               className="w-full h-11 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20" />
           </div>
           <div>
-            <label htmlFor="goal-major" className="block text-sm font-medium mb-1">目标专业</label>
+            <label htmlFor="goal-major" className="block text-sm font-medium mb-1">目标专业（可选）</label>
             <input id="goal-major" type="text" value={major} onChange={(e) => setMajor(e.target.value)}
               placeholder="例如：计算机科学与技术"
               className="w-full h-11 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20" />
           </div>
           <div>
-            <label htmlFor="goal-exam-date" className="block text-sm font-medium mb-1">考试日期</label>
+            <label htmlFor="goal-exam-date" className="block text-sm font-medium mb-1">考试日期（可选）</label>
             <input id="goal-exam-date" type="date" value={examDate} onChange={(e) => setExamDate(e.target.value)}
               className="w-full h-11 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20" />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-2">考试科目</label>
+            <label className="block text-sm font-medium mb-2">考试科目（可稍后完善）</label>
             <SubjectSelector
               selected={subjects}
               onChange={setSubjects}
@@ -153,19 +172,24 @@ export default function GoalPage() {
           {error && <p className="text-sm text-destructive">{error}</p>}
 
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? '保存中...' : saved ? '更新目标' : '保存目标'}
+            {loading ? '保存中...' : saved ? '更新方向' : '保存并开始探索'}
           </Button>
         </form>
 
         {saved && (
-          <div className="bg-card p-6 rounded-2xl border border-border/50 text-center space-y-3">
-            <div className="text-4xl">✅</div>
-            <h3 className="text-lg font-bold text-success">目标已保存</h3>
-            <p className="text-sm text-muted-foreground">进入学习计划页面，设置各科进度并生成每周学习计划</p>
-            <Button onClick={() => router.push('/tasks')} className="w-full">
-              🚀 去生成周计划
-            </Button>
-          </div>
+          <>
+            <PlanningIntakeCard />
+            <div className="bg-card p-6 rounded-2xl border border-border/50 text-center space-y-3">
+              <div className="text-4xl">✅</div>
+              <h3 className="text-lg font-bold text-success">{goalStatus === 'confirmed' ? '目标已确认' : '方向已保存'}</h3>
+              <p className="text-sm text-muted-foreground">
+                {goalStatus === 'confirmed' ? '接下来先设计并确认长期路线，再从当前阶段拆出本周行动' : '可以先建立探索路线，院校和考试科目之后再逐步确认'}
+              </p>
+              <Button onClick={() => router.push('/study-path')} className="w-full">
+                🧭 去设计长期路线
+              </Button>
+            </div>
+          </>
         )}
       </div>
     </div>

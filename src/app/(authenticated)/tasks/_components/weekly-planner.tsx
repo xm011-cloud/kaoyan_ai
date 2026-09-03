@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { AiWaiting } from "@/components/ai-waiting";
 import { toLocalDateString } from "@/lib/date-utils";
@@ -26,9 +26,50 @@ interface JudgeResult {
   summary: string;
 }
 
+interface WeeklyPlanDraftView {
+  id: string;
+  version: number;
+  objective: string;
+  rationale: string;
+  successCriteria: string[];
+  plannedMinutes: number;
+  items: Array<Omit<WeekTask, "id" | "completed">>;
+  adjustmentRequest?: string | null;
+  constraints?: {
+    weeklyHours?: number | null;
+    unavailableWeekdays?: number[];
+    reduceSubjects?: string[];
+    increaseSubjects?: string[];
+  } | null;
+  impact: {
+    added: Array<{ title: string }>;
+    removed: Array<{ title: string }>;
+    moved: Array<{ title: string; fromDate?: string; toDate?: string }>;
+    durationChanged: Array<{ title: string; fromDuration?: number; toDuration?: number }>;
+    unchangedCount: number;
+    previousMinutes: number;
+    nextMinutes: number;
+    minuteDelta: number;
+    requiresConfirmation: boolean;
+  };
+}
+
+interface WeeklyPlanVersionView {
+  id: string;
+  version: number;
+  status: string;
+  objective: string;
+  plannedMinutes: number;
+  adjustmentRequest?: string | null;
+  confirmedAt?: string | null;
+  createdAt: string;
+}
+
 interface WeeklyPlannerProps {
   weekStart: Date;
   weekTasks: WeekTask[];
+  draftPlan: WeeklyPlanDraftView | null;
+  planVersions: WeeklyPlanVersionView[];
   loading: boolean;
   generating: boolean;
   subjects: string[];
@@ -52,6 +93,10 @@ interface WeeklyPlannerProps {
   judgingPhase: AiWaitPhase;
   judgingEstimate: string;
   onCancelJudge: () => void;
+  onConfirmDraft: () => void;
+  onDiscardDraft: () => void;
+  onAdjust: (request: string) => Promise<void>;
+  initialAdjustment?: string;
 }
 
 const DAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
@@ -61,14 +106,21 @@ function formatDate(d: Date): string {
 }
 
 export function WeeklyPlanner({
-  weekStart, weekTasks, loading, generating, subjects, examDate, daysRemaining, sprintMode,
+  weekStart, weekTasks, draftPlan, planVersions, loading, generating, subjects, examDate, daysRemaining, sprintMode,
   onWeekChange, onGenerate, onRegenerateDay, onToggleComplete,
   onEditTask, onDeleteTask, onAddTask, onJudge, onRegenerateWithFeedback,
   judgeResult, judging,
   generatingPhase, generatingEstimate, onCancelGenerate,
   judgingPhase, judgingEstimate, onCancelJudge,
+  onConfirmDraft, onDiscardDraft, onAdjust,
+  initialAdjustment = "",
 }: WeeklyPlannerProps) {
   const [showJudge, setShowJudge] = useState(false);
+  const [adjustment, setAdjustment] = useState("");
+
+  useEffect(() => {
+    if (initialAdjustment) setAdjustment(initialAdjustment);
+  }, [initialAdjustment]);
 
   // Group tasks by day of week。
   // 日列必须用「本地历法日期串」:任务 date 存的是 UTC 午夜(new Date("YYYY-MM-DD")),
@@ -122,6 +174,130 @@ export function WeeklyPlanner({
           </>
         )}
       </div>
+
+      <div id="weekly-plan-adjustment" className="scroll-mt-20 rounded-2xl border border-border/50 bg-card p-4">
+        <label htmlFor="weekly-plan-adjustment-input" className="text-sm font-medium">直接告诉我这周怎么调整</label>
+        <p className="mt-1 text-xs text-muted-foreground">例如：这周只有 10 小时，周三没空，数学少一点，英语重点加强。</p>
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+          <textarea
+            id="weekly-plan-adjustment-input"
+            value={adjustment}
+            onChange={(event) => setAdjustment(event.target.value)}
+            placeholder="描述你的时间变化、不可用日期或科目侧重……"
+            rows={2}
+            className="min-h-16 flex-1 rounded-xl border border-border/60 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
+          />
+          <Button
+            variant="outline"
+            disabled={generating || !adjustment.trim()}
+            onClick={async () => {
+              await onAdjust(adjustment.trim());
+            }}
+          >
+            按要求生成草稿
+          </Button>
+        </div>
+      </div>
+
+      {draftPlan && (
+        <div className="rounded-2xl border-2 border-brand/30 bg-brand/5 p-5 space-y-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-brand/10 px-2 py-0.5 text-xs font-medium text-brand">待确认草稿 v{draftPlan.version}</span>
+                <span className="text-xs text-muted-foreground">{draftPlan.items.length} 项 · 约 {Math.round(draftPlan.plannedMinutes / 60)} 小时</span>
+              </div>
+              <h3 className="mt-2 font-bold">本周目标：{draftPlan.objective}</h3>
+              <p className="mt-1 text-sm text-muted-foreground">生成依据：{draftPlan.rationale}</p>
+              {draftPlan.adjustmentRequest && (
+                <p className="mt-2 rounded-lg bg-muted/60 px-3 py-2 text-sm">你的调整要求：{draftPlan.adjustmentRequest}</p>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={onDiscardDraft}>废弃草稿</Button>
+              <Button onClick={onConfirmDraft}>确认并应用</Button>
+            </div>
+          </div>
+
+          {draftPlan.constraints && (
+            <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+              {draftPlan.constraints.weeklyHours && <span className="rounded-full bg-muted px-2.5 py-1">容量：{draftPlan.constraints.weeklyHours} 小时</span>}
+              {(draftPlan.constraints.unavailableWeekdays ?? []).map((day) => <span key={`day-${day}`} className="rounded-full bg-muted px-2.5 py-1">周{["日", "一", "二", "三", "四", "五", "六"][day]}不安排</span>)}
+              {(draftPlan.constraints.reduceSubjects ?? []).map((subject) => <span key={`reduce-${subject}`} className="rounded-full bg-muted px-2.5 py-1">减少：{subject}</span>)}
+              {(draftPlan.constraints.increaseSubjects ?? []).map((subject) => <span key={`increase-${subject}`} className="rounded-full bg-muted px-2.5 py-1">加强：{subject}</span>)}
+            </div>
+          )}
+
+          <div>
+            <p className="text-sm font-medium">本周做到什么算完成</p>
+            <ul className="mt-1 space-y-1 text-sm text-muted-foreground">
+              {draftPlan.successCriteria.map((criterion) => <li key={criterion}>• {criterion}</li>)}
+            </ul>
+          </div>
+
+          <div className="rounded-xl border border-border/50 bg-card/70 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-medium">与当前计划相比</p>
+              <span className={`text-xs ${draftPlan.impact.requiresConfirmation ? "text-amber-600" : "text-muted-foreground"}`}>
+                {draftPlan.impact.requiresConfirmation ? "应用前需要确认影响" : "没有高风险调整"}
+              </span>
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-2 text-sm sm:grid-cols-5">
+              <span>新增 {draftPlan.impact.added.length}</span>
+              <span>移除 {draftPlan.impact.removed.length}</span>
+              <span>改期 {draftPlan.impact.moved.length}</span>
+              <span>改时长 {draftPlan.impact.durationChanged.length}</span>
+              <span className={draftPlan.impact.minuteDelta > 0 ? "text-amber-600" : "text-muted-foreground"}>
+                容量 {draftPlan.impact.minuteDelta >= 0 ? "+" : ""}{draftPlan.impact.minuteDelta} 分钟
+              </span>
+            </div>
+            {(draftPlan.impact.removed.length > 0 || draftPlan.impact.moved.length > 0) && (
+              <details className="mt-2 text-sm">
+                <summary className="cursor-pointer text-muted-foreground">查看受影响任务</summary>
+                <ul className="mt-2 space-y-1 text-muted-foreground">
+                  {draftPlan.impact.removed.map((item, index) => <li key={`removed-${index}`}>移除：{item.title}</li>)}
+                  {draftPlan.impact.moved.map((item, index) => <li key={`moved-${index}`}>改期：{item.title}（{item.fromDate?.slice(5)} → {item.toDate?.slice(5)}）</li>)}
+                </ul>
+              </details>
+            )}
+          </div>
+
+          <details className="rounded-xl border border-border/50 bg-card/70 p-3">
+            <summary className="cursor-pointer text-sm font-medium">预览 {draftPlan.items.length} 个任务（确认前不会写入正式任务）</summary>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {draftPlan.items.map((task, index) => (
+                <div key={`${task.date}-${task.title}-${index}`} className="rounded-lg bg-muted/50 p-2.5 text-sm">
+                  <div className="font-medium">{task.title}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">{task.date.slice(5)} · {task.subject || "未分类"} · {task.duration || 0} 分钟</div>
+                </div>
+              ))}
+            </div>
+          </details>
+        </div>
+      )}
+
+      {planVersions.length > 0 && (
+        <details className="rounded-2xl border border-border/50 bg-card p-4">
+          <summary className="cursor-pointer text-sm font-semibold">本周计划版本（{planVersions.length}）</summary>
+          <div className="mt-3 space-y-2">
+            {planVersions.map((version) => (
+              <div key={version.id} className="flex flex-wrap items-start justify-between gap-3 rounded-xl bg-muted/40 px-3 py-2.5 text-sm">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">V{version.version}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] ${version.status === "active" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" : version.status === "draft" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" : "bg-muted text-muted-foreground"}`}>
+                      {version.status === "active" ? "当前使用" : version.status === "draft" ? "待确认" : version.status === "archived" ? "历史版本" : version.status}
+                    </span>
+                  </div>
+                  <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{version.objective} · 约 {Math.round(version.plannedMinutes / 60)} 小时</p>
+                  {version.adjustmentRequest && <p className="mt-1 text-xs">调整来源：{version.adjustmentRequest}</p>}
+                </div>
+                <time className="text-xs text-muted-foreground">{new Date(version.createdAt).toLocaleDateString("zh-CN")}</time>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
 
       {/* Judge result */}
       {showJudge && judgeResult && (

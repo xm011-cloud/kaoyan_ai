@@ -16,4 +16,10 @@ test("settings export button downloads JSON", async ({ page }) => {
 test("export API requires auth", async ({ request }) => {
   const response = await request.get("/api/user/export");
   expect([200, 401, 307]).toContain(response.status());
+  if (response.status() === 200) {
+    const body = await response.json();
+    expect(Array.isArray(body.data.studyPaths)).toBe(true);
+    expect(Array.isArray(body.data.weeklyPlans)).toBe(true);
+    expect(Array.isArray(body.data.studyProfileFacts)).toBe(true);
+  }
 });

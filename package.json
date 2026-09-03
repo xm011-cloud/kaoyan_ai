@@ -8,6 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "test:e2e": "playwright test",
+    "planning:backfill": "node scripts/backfill-planning.mjs",
+    "planning:backfill:test": "node scripts/backfill-planning.mjs --test-db",
+    "planning:backfill:apply": "node scripts/backfill-planning.mjs --apply --confirm-planning-backfill",
     "icons": "node scripts/generate-icons.mjs",
     "postinstall": "prisma generate"
   },

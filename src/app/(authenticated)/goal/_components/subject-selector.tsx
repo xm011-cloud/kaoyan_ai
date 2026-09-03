@@ -180,7 +180,7 @@ export function SubjectSelector({ selected, onChange, majorValue, edited, onManu
           </button>
         </div>
         <p className="text-xs text-gray-400 mt-1">
-          输入院校名称和科目名称，如"北京大学 数据结构与算法"
+          输入院校名称和科目名称，如“北京大学 数据结构与算法”
         </p>
       </div>
 

@@ -22,8 +22,8 @@ export async function GET(request: NextRequest) {
     const subjects = goal.subjects;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const examDate = new Date(goal.examDate);
-    const daysLeft = Math.max(0, Math.ceil((examDate.getTime() - today.getTime()) / 86400000));
+    const examDate = goal.examDate ? new Date(goal.examDate) : null;
+    const daysLeft = examDate ? Math.max(0, Math.ceil((examDate.getTime() - today.getTime()) / 86400000)) : null;
 
     const bySubject: Record<string, Record<string, unknown>> = {};
 
@@ -75,41 +75,9 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    // 阶段计算
-    const phases = computePhases(examDate, today);
-
-    return jsonNoStore({ bySubject, daysLeft, examDate: goal.examDate.toISOString(), phases });
+    return jsonNoStore({ bySubject, daysLeft, examDate: goal.examDate?.toISOString() ?? null });
   } catch (err) {
     console.error("Progress summary error:", err);
     return jsonNoStore({ error: "获取进度数据失败" }, { status: 500 });
   }
-}
-
-function computePhases(examDate: Date, today: Date) {
-  const totalDays = Math.max(1, Math.ceil((examDate.getTime() - today.getTime()) / 86400000));
-
-  const phaseDefs = [
-    { name: "基础阶段", ratio: 0.4, goal: "系统学习教材，完成课后习题，打牢基础" },
-    { name: "强化阶段", ratio: 0.35, goal: "专题突破，真题训练，提升解题能力" },
-    { name: "冲刺阶段", ratio: 0.25, goal: "模拟冲刺，查漏补缺，调整状态" },
-  ];
-
-  let start = new Date(today);
-  const now = new Date();
-  const result: { name: string; start: string; end: string; goal: string; isCurrent: boolean }[] = [];
-
-  for (const p of phaseDefs) {
-    const days = Math.ceil(totalDays * p.ratio);
-    const end = new Date(start.getTime() + days * 86400000);
-    result.push({
-      name: p.name,
-      start: start.toISOString().split("T")[0],
-      end: end.toISOString().split("T")[0],
-      goal: p.goal,
-      isCurrent: now >= start && now < end,
-    });
-    start = new Date(end.getTime() + 86400000);
-  }
-
-  return result;
 }

@@ -127,6 +127,7 @@ export const DEFAULT_NAV_GROUPS: NavGroup[] = [
 ]
 
 export const DEFAULT_WORKSPACE_CARDS = [
+  'planning-overview',
   'stats',
   'today-tasks',
   'quick-practice',
@@ -200,7 +201,7 @@ export const useUIStore = create<UIState>()(
     }),
     {
       name: 'ui-store',
-      version: 6,
+      version: 7,
       // 保留老存储里已有的偏好，只补新字段，避免升级清空用户的自定义
       migrate: (persistedState) => {
         const p = (persistedState ?? {}) as Partial<UIState>
@@ -222,9 +223,16 @@ export const useUIStore = create<UIState>()(
             i.href === '/admission' ? { ...i, visible: true } : i
           )
         }
+        // v7：计划总览成为首页主链。迁移时为老用户补一次，之后仍可在界面定制中隐藏。
+        const persistedCards = p.workspaceCards && p.workspaceCards.length > 0
+          ? p.workspaceCards
+          : DEFAULT_WORKSPACE_CARDS
+        const workspaceCards = persistedCards.includes('planning-overview')
+          ? persistedCards
+          : ['planning-overview', ...persistedCards]
         return {
           navGroups,
-          workspaceCards: p.workspaceCards || DEFAULT_WORKSPACE_CARDS,
+          workspaceCards,
           practiceDefaults: p.practiceDefaults || DEFAULT_PRACTICE_DEFAULTS,
           showAiThinking: p.showAiThinking ?? DEFAULT_SHOW_AI_THINKING,
           lastSeenChangelog: p.lastSeenChangelog ?? null,

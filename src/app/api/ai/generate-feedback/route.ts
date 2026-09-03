@@ -4,6 +4,7 @@ import { getAuthUser } from "@/lib/api-auth";
 import { getUserAiConfig, callAI, truncateReasoning } from "@/lib/ai-config";
 import { prisma } from "@/lib/prisma";
 import { startOfDay, getWeekStart, getWeekEnd } from "@/lib/date-utils";
+import { getDaysToGoal, getGoalLabel } from "@/lib/goal-model";
 
 export async function POST(request: NextRequest) {
   const { user, error } = await getAuthUser(request);
@@ -94,7 +95,7 @@ export async function POST(request: NextRequest) {
 - 任务完成：${taskCompleted}/${taskTotal}
 ${prevWeekStats}
 - 状态分布：${Object.entries(moodCounts).map(([k,v]) => `${k === 'good' ? '状态好' : k === 'normal' ? '一般' : '疲惫'} ${v}天`).join('，')}${scoreGap}
-${goal ? `- 目标院校：${goal.university} ${goal.major}，考试日期：${goal.examDate.toISOString().split("T")[0]}` : ''}`;
+${goal ? `- 学习目标：${getGoalLabel(goal)}${goal.examDate ? `，考试日期：${goal.examDate.toISOString().split("T")[0]}` : "，考试日期待确定"}` : ''}`;
 
     const aiConfig = await getUserAiConfig(user!.id);
     let content = "";
@@ -141,8 +142,8 @@ ${goal ? `- 目标院校：${goal.university} ${goal.major}，考试日期：${g
       if (checkInDays < 5) suggestions.push("尽量每天坚持学习打卡，即使只学30分钟也很有价值");
       if (taskTotal > 0 && taskCompleted / taskTotal < 0.7) suggestions.push("任务完成率偏低，建议合理规划每天的任务量，留出缓冲时间");
       if (totalMinutes < 600) suggestions.push("本周总学习时长不足10小时，建议下周增加到每天至少2小时");
-      if (goal) {
-        const daysLeft = Math.max(0, Math.ceil((new Date(goal.examDate).getTime() - today.getTime()) / 86400000));
+      const daysLeft = goal ? getDaysToGoal(goal, today) : null;
+      if (daysLeft != null) {
         if (daysLeft < 90) suggestions.push(`距离考试仅剩${daysLeft}天，建议进入冲刺阶段，重点刷真题`);
         else if (daysLeft < 180) suggestions.push(`距离考试${daysLeft}天，建议进入强化阶段，突破薄弱科目`);
         else suggestions.push(`距离考试还有${daysLeft}天，打好基础是关键`);

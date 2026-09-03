@@ -135,3 +135,4 @@
 - 产品设计原则见 [PROJECT_STATUS.md](./PROJECT_STATUS.md) 与产品讨论记忆（驾驶模式 / AI 角色宪章 / 心路成长表达规范）
 - 技能系统 V1 实现细节见 PROJECT_STATUS「第 11/12 轮」与 [docs/](./)
 - **掌握度设计见 [completion-model.md](./completion-model.md)**（阶段 0 的 0.1/0.2：五档 + 科目感知 + 对话校准 + 保守软门控）
+- **计划领域地基见 [planning-domain.md](./planning-domain.md)**：复用 StudyPath 作为唯一长期路线，定义渐进目标、长期档案、阶段、周计划、任务和安全变更。配套见 [planning-user-flow.md](./planning-user-flow.md)、[planning-migration.md](./planning-migration.md)、[planning-acceptance.md](./planning-acceptance.md)。

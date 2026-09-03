@@ -7,6 +7,7 @@ test.describe("Tasks", () => {
 
   test("page loads with content", async ({ page }) => {
     await expect(page.locator("h1").filter({ hasText: /计划|规划|任务/ })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByLabel("直接告诉我这周怎么调整")).toBeVisible();
   });
 
   test("week navigation works", async ({ page }) => {
@@ -35,6 +36,103 @@ test.describe("Tasks", () => {
     if (await related.isVisible({ timeout: 5000 }).catch(() => false)) {
       await expect(page.locator('a[href="/knowledge-graph"]').first()).toBeVisible();
     }
+  });
+
+  test("weekly plan stays draft until confirmed and activation is idempotent", async ({ page }) => {
+    test.setTimeout(60000);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const localDate = (dt: Date) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+    const future = new Date();
+    future.setDate(future.getDate() + 700);
+    const day = future.getDay();
+    future.setDate(future.getDate() + (day === 0 ? -6 : 1 - day));
+    future.setHours(0, 0, 0, 0);
+    const weekStart = localDate(future);
+    const manualTitle = `E2E手动任务${Date.now()}`;
+
+    const manual = await page.request.post("/api/tasks", {
+      data: { title: manualTitle, date: weekStart, weekStartDate: weekStart, source: "manual" },
+    });
+    expect(manual.status()).toBe(200);
+    const manualTask = (await manual.json()).task;
+
+    const before = await page.request.get(`/api/tasks?weekStart=${weekStart}`);
+    const beforeTasks = (await before.json()).tasks;
+    const generated = await page.request.post("/api/ai/generate-plan", {
+      data: {
+        weekStartDate: weekStart,
+        weekStartLocal: weekStart,
+        todayLocal: weekStart,
+        generationMode: "local",
+      },
+    });
+    expect(generated.status()).toBe(200);
+    const generatedBody = await generated.json();
+    expect(generatedBody.draft.status).toBe("draft");
+    expect(generatedBody.draft.rationale).toBeTruthy();
+    expect(generatedBody.draft.successCriteria.length).toBeGreaterThan(0);
+
+    await page.goto(`/tasks?week=${weekStart}`);
+    await expect(page.getByText(/待确认草稿/).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/生成依据：/).first()).toBeVisible();
+    await expect(page.getByText(/本周计划版本/).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "确认并应用" })).toBeVisible();
+
+    const stillUnchanged = await page.request.get(`/api/tasks?weekStart=${weekStart}`);
+    expect((await stillUnchanged.json()).tasks).toHaveLength(beforeTasks.length);
+
+    const activate = await page.request.patch("/api/weekly-plans", {
+      data: { id: generatedBody.draft.id, action: "activate", confirmImpact: true },
+    });
+    expect(activate.status()).toBe(200);
+    const activeTasks = (await (await page.request.get(`/api/tasks?weekStart=${weekStart}`)).json()).tasks;
+    expect(activeTasks.some((task: { title: string }) => task.title === manualTitle)).toBe(true);
+    expect(activeTasks.some((task: { weeklyPlanId: string | null }) => task.weeklyPlanId === generatedBody.draft.id)).toBe(true);
+
+    const repeated = await page.request.patch("/api/weekly-plans", {
+      data: { id: generatedBody.draft.id, action: "activate" },
+    });
+    expect(repeated.status()).toBe(200);
+    expect((await repeated.json()).alreadyActive).toBe(true);
+    const afterRepeated = (await (await page.request.get(`/api/tasks?weekStart=${weekStart}`)).json()).tasks;
+    expect(afterRepeated).toHaveLength(activeTasks.length);
+
+    const generatedTask = activeTasks.find((task: { weeklyPlanId: string | null }) => task.weeklyPlanId === generatedBody.draft.id);
+    expect(generatedTask).toBeTruthy();
+    await page.request.patch(`/api/tasks/${generatedTask.id}`, {
+      data: { title: `已调整旧任务${Date.now()}` },
+    });
+    const changedDraftResponse = await page.request.post("/api/ai/generate-plan", {
+      data: {
+        weekStartDate: weekStart,
+        weekStartLocal: weekStart,
+        todayLocal: weekStart,
+        generationMode: "local",
+        adjustmentRequest: "本周只有 5 小时，周三没空，数学一少一点，英语一重点加强",
+      },
+    });
+    expect(changedDraftResponse.status()).toBe(200);
+    const changedDraft = (await changedDraftResponse.json()).draft;
+    const planState = await (await page.request.get(`/api/weekly-plans?weekStart=${weekStart}`)).json();
+    expect(planState.draft.adjustmentRequest).toContain("5 小时");
+    expect(planState.draft.constraints.weeklyHours).toBe(5);
+    expect(planState.draft.constraints.unavailableWeekdays).toContain(3);
+    expect(planState.draft.plannedMinutes).toBeLessThanOrEqual(300);
+    expect(planState.draft.items.every((task: { date: string }) => new Date(`${task.date}T00:00:00`).getDay() !== 3)).toBe(true);
+    expect(planState.draft.impact.removed.length).toBeGreaterThan(0);
+    expect(planState.draft.impact.requiresConfirmation).toBe(true);
+
+    const blocked = await page.request.patch("/api/weekly-plans", {
+      data: { id: changedDraft.id, action: "activate" },
+    });
+    expect(blocked.status()).toBe(409);
+    expect((await blocked.json()).requiresConfirmation).toBe(true);
+    const confirmed = await page.request.patch("/api/weekly-plans", {
+      data: { id: changedDraft.id, action: "activate", confirmImpact: true },
+    });
+    expect(confirmed.status()).toBe(200);
+
+    await page.request.delete(`/api/tasks/${manualTask.id}`);
   });
 
   test("completing a task toggles checkbox without opening edit modal", async ({ page }) => {

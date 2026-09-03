@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 
 interface MermaidRendererProps {
   chart: string
@@ -13,7 +13,7 @@ interface MermaidRendererProps {
 export function MermaidRenderer({ chart }: MermaidRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [error, setError] = useState(false)
-  const idRef = useRef(`mermaid-${Math.random().toString(36).slice(2, 9)}`)
+  const mermaidId = `mermaid-${useId().replace(/:/g, '')}`
 
   useEffect(() => {
     let cancelled = false
@@ -34,7 +34,7 @@ export function MermaidRenderer({ chart }: MermaidRendererProps) {
           fontFamily: 'inherit',
         })
 
-        const { svg } = await mermaid.render(idRef.current, chart)
+        const { svg } = await mermaid.render(mermaidId, chart)
         if (!cancelled && containerRef.current) {
           containerRef.current.innerHTML = svg
         }
@@ -50,7 +50,7 @@ export function MermaidRenderer({ chart }: MermaidRendererProps) {
     return () => {
       cancelled = true
     }
-  }, [chart])
+  }, [chart, mermaidId])
 
   if (error) {
     return (

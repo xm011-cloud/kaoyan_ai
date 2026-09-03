@@ -8,6 +8,7 @@ import { QuickPracticeCard } from './quick-practice-card'
 import { StudyTrendCard } from './study-trend-card'
 import { RecentMaterialsCard } from './recent-materials-card'
 import { WrongOverviewCard } from './wrong-overview-card'
+import { PlanningOverviewCard } from './planning-overview-card'
 
 /**
  * 工作台卡片单一注册表（DIY/插件化的地基）：
@@ -20,6 +21,7 @@ import { WrongOverviewCard } from './wrong-overview-card'
 export type WorkbenchCardSize = 'full' | 'half' | 'quarter'
 
 const CARD_REGISTRY: Record<string, { label: string; sizes: WorkbenchCardSize[]; render: (data: WorkbenchData) => ReactNode }> = {
+  'planning-overview': { label: '🧭 计划总览', sizes: ['full'], render: (d) => <PlanningOverviewCard {...d.planning} /> },
   stats: { label: '📊 统计', sizes: ['full'], render: (d) => <StatsCards {...d.stats} /> },
   'today-tasks': { label: '📋 任务', sizes: ['half'], render: (d) => <TodayTasksCard tasks={d.todayTasks} dateStr={d.dateStr} /> },
   'quick-practice': { label: '✏️ 练习', sizes: ['full'], render: (d) => <QuickPracticeCard subjects={d.subjects} todaySubjects={d.todaySubjects} dueWrongCount={d.dueWrongCount} /> },
@@ -37,6 +39,17 @@ export const WORKBENCH_CARD_LABELS: Record<string, string> = Object.fromEntries(
 )
 
 export interface WorkbenchData {
+  planning: {
+    goal: { label: string; status: string } | null
+    stage: { title: string; objective: string; exitCriteriaCount: number } | null
+    weeklyPlan: {
+      status: 'draft' | 'active' | 'none'
+      objective: string | null
+      plannedMinutes: number
+      weekStart: string
+    }
+    today: { completed: number; total: number; nextTask: string | null }
+  }
   stats: {
     todayTasks: { completed: number; total: number; minutes: number }
     weekStudy: { hours: number; days: number }
@@ -68,7 +81,7 @@ export interface WorkbenchData {
     interval: number
     nextReviewDate: string | null
   }>
-  goal: { university: string; major: string } | null
+  goal: { label: string; status: string } | null
   daysLeft: number
   reentry: { show: boolean; daysSinceLastCheckin: number | null }
 }

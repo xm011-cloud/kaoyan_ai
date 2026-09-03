@@ -251,7 +251,7 @@ export default function WrongQuestionsPage() {
           <div className="text-center py-16 text-muted-foreground">
             <div className="text-5xl mb-4">🔴</div>
             <p className="font-medium">还没有错题</p>
-            <p className="text-sm mt-1">去 AI 问答提问后把没掌握的加入错题本，或点击"添加错题"手动添加</p>
+            <p className="text-sm mt-1">去 AI 问答提问后把没掌握的加入错题本，或点击“添加错题”手动添加</p>
           </div>
         ) : (
           <div className="space-y-3">

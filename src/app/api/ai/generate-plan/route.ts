@@ -7,6 +7,8 @@ import { normalizeSubject } from "@/lib/subject-standards";
 import { derivePrepStage, stageToPlanPhase } from "@/lib/prep-stage";
 import { getEffectiveStage, STAGE_LABELS, needsConfirmation, type SubjectProgress } from "@/lib/completion";
 import { addLocalDays, toLocalDateString } from "@/lib/date-utils";
+import type { Prisma } from "@prisma/client";
+import { applyWeeklyAdjustment, parseWeeklyAdjustment } from "@/lib/weekly-plan-adjustment";
 
 interface PlanTask {
   title: string;
@@ -125,9 +127,24 @@ export async function POST(request: NextRequest) {
     const judgeFeedback = body.judgeFeedback as string | undefined;
     const regenerateDay = body.regenerateDay as string | undefined;
     const planContext = body.planContext as PlanContext | undefined;
+    const generationMode = body.generationMode === "local" ? "local" : "auto";
+    const adjustmentRequest = typeof body.adjustmentRequest === "string"
+      ? body.adjustmentRequest.trim().slice(0, 1000)
+      : "";
 
     // 获取目标（可能没有 → 探索期用 planContext）
-    const goal = await prisma.goal.findUnique({ where: { userId: user!.id } });
+    const [goal, activeStage, profileFacts] = await Promise.all([
+      prisma.goal.findUnique({ where: { userId: user!.id } }),
+      prisma.studyPathStage.findFirst({
+        where: { studyPath: { userId: user!.id, status: "active" }, status: "active" },
+        include: { studyPath: { select: { id: true, title: true, subjects: true } } },
+        orderBy: { order: "asc" },
+      }),
+      prisma.studyProfileFact.findMany({
+        where: { userId: user!.id, status: "confirmed" },
+        orderBy: { observedAt: "desc" },
+      }),
+    ]);
     const studyLoad = (goal?.studyLoad as StudyLoad) || undefined;
 
     // ── 统一计划上下文：有 goal 用 goal，否则用 planContext（探索期）──
@@ -137,10 +154,13 @@ export async function POST(request: NextRequest) {
     let targetScores: Record<string, number> = {};
 
     if (goal) {
-      ctxLabel = `${goal.university} · ${goal.major}`;
+      ctxLabel = [goal.university, goal.major].filter(Boolean).join(" · ") || goal.direction || "当前学习目标";
       ctxExamDate = goal.examDate;
       subjects = (Array.isArray(goal.subjects) ? goal.subjects : [])
         .map(normalizeSubject).filter(Boolean);
+      if (subjects.length === 0 && activeStage?.studyPath.subjects.length) {
+        subjects = activeStage.studyPath.subjects.map(normalizeSubject).filter(Boolean);
+      }
       targetScores = (goal.targetScores as Record<string, number>) || {};
     } else if (planContext) {
       ctxLabel = planContext.label || "你的自定义学习计划";
@@ -160,13 +180,14 @@ export async function POST(request: NextRequest) {
     if (subjects.length === 0) {
       return jsonNoStore({ error: "请设置学习科目" }, { status: 400 });
     }
+    const adjustmentConstraints = parseWeeklyAdjustment(adjustmentRequest, subjects);
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const daysRemaining = ctxExamDate
       ? Math.max(1, Math.ceil((ctxExamDate.getTime() - today.getTime()) / 86400000))
       : null;
-    const weeklyHours = studyLoad?.weeklyHours || null;
+    const weeklyHours = adjustmentConstraints.weeklyHours ?? studyLoad?.weeklyHours ?? null;
 
     // ── 阶段推导（0.3）──
     const stage = derivePrepStage({
@@ -176,8 +197,10 @@ export async function POST(request: NextRequest) {
       subjectProgress: progress,
       weeklyHours,
     });
-    const phase = stageToPlanPhase(stage.id, daysRemaining);
-    const foundationMode = stage.id === "foundation" || stage.id === "explore";
+    const phase = activeStage?.title ?? stageToPlanPhase(stage.id, daysRemaining);
+    const foundationMode = activeStage
+      ? activeStage.key === "foundation" || activeStage.key === "explore"
+      : stage.id === "foundation" || stage.id === "explore";
 
     // 周范围（用本地历法日期串：weekStartLocal 来自前端本地周一，避免 UTC 串错位一天）
     const weekEnd = new Date(weekStartDate.getTime() + 7 * 86400000);
@@ -187,26 +210,12 @@ export async function POST(request: NextRequest) {
     const weekLastStr = addLocalDays(weekStartStr, 6); // 本周最后一天（周日槽位）
     const pastSkip = todayLocalStr > weekStartStr;
 
-    // ── 增量删除 ──
-    const deleteWhere: Record<string, unknown> = {
-      userId: user!.id,
-      completed: false,
-      date: { gte: weekStartDate, lt: weekEnd },
-    };
-    if (regenerateDay) {
-      const dayStart = new Date(regenerateDay); dayStart.setHours(0, 0, 0, 0);
-      const dayEnd = new Date(regenerateDay); dayEnd.setHours(23, 59, 59, 999);
-      deleteWhere.date = { gte: dayStart, lte: dayEnd };
-    }
-    await prisma.task.deleteMany({
-      where: { ...deleteWhere, source: { notIn: ["manual", "ai_confirmed"] } },
-    });
-
     const aiConfig = await getUserAiConfig(user!.id);
     let planTasks: PlanTask[];
     let planReasoning: string | undefined;
 
-    if (aiConfig) {
+    const keepProfileLocal = profileFacts.length > 0 && activeStage?.key === "explore";
+    if (aiConfig && generationMode !== "local" && !keepProfileLocal) {
       const scoreContext = Object.keys(targetScores).length > 0
         ? `\n- 目标分数：${Object.entries(targetScores).map(([k, v]) => `${k}: ${v}分`).join("、")}`
         : "";
@@ -232,6 +241,9 @@ export async function POST(request: NextRequest) {
       const regenerateContext = regenerateDay
         ? `\n## 注意\n只需要生成 ${regenerateDay} 这一天的任务（3-5个），不要生成其他日期。\n`
         : "";
+      const adjustmentContext = adjustmentRequest
+        ? `\n## 用户本周调整要求（必须遵守）\n${adjustmentRequest}\n不要自行扩大要求的影响范围；只调整本周尚未开始的安排。\n`
+        : "";
 
       // 本周今天以前已过去，不要生成过去的任务；也不要超出本周
       const pastSkipContext = pastSkip
@@ -256,13 +268,15 @@ export async function POST(request: NextRequest) {
         ? `每天任务总时长控制在 ${Math.round(weeklyHours / 7)} 小时左右（不超 ${Math.round(weeklyHours / 7) + 1} 小时）`
         : "每天任务总时长控制在 3-6 小时";
 
-      const stageFocusContext = `\n## 当前备考阶段\n${stage.label}（${stage.hint}）。本阶段焦点：${stage.focus}。本周计划跨度提示：${stage.planSpanHint}。任务 phase 统一用「${phase}」。\n`;
+      const stageFocusContext = activeStage
+        ? `\n## 当前正式阶段\n${activeStage.title}。阶段目标：${activeStage.objective}。本周任务必须服务于这个阶段目标，任务 phase 统一用「${phase}」。\n`
+        : `\n## 当前备考阶段\n${stage.label}（${stage.hint}）。本阶段焦点：${stage.focus}。本周计划跨度提示：${stage.planSpanHint}。任务 phase 统一用「${phase}」。\n`;
 
       const prompt = `你是一名资深的考研/学习辅导专家。请为用户的接下来一周（${weekStartStr} 至 ${weekEnd.toISOString().split("T")[0]}）生成详细的学习计划。
 
 ## 用户目标
 ${goalBlock}
-${progressContext}${feedbackContext}${capacityContext}${stageFocusContext}
+${progressContext}${feedbackContext}${capacityContext}${stageFocusContext}${adjustmentContext}
 ## 要求
 1. 当前阶段判定：${stage.label}，任务 phase 统一用「${phase}」
 2. 每天安排 **3-5 个**具体可执行的学习任务，${durationGuidance}
@@ -322,37 +336,108 @@ ${sprintContext}${regenerateContext}${pastSkipContext}
       }))
       .filter((t) => t.date >= todayLocalStr && t.date <= weekLastStr);
 
-    // 批量创建任务（带 weekStartDate 和 source）
-    const created = await Promise.all(
-      planTasks.map((t) =>
-        prisma.task.create({
-          data: {
-            userId: user!.id,
-            title: t.title,
-            description: t.description,
-            date: new Date(t.date),
-            duration: Math.min(Math.max(t.duration || 60, 15), 480),
-            phase: t.phase,
-            subject: t.subject,
-            weekStartDate: new Date(weekStartStr),
-            source: "ai",
+    // 单日重排仍然产生“完整周草稿”：保留当前生效计划中其他日期的未完成任务，
+    // 只替换用户指定日期，避免确认后整周只剩一天。
+    if (regenerateDay) {
+      const retained = await prisma.task.findMany({
+        where: {
+          userId: user!.id,
+          weeklyPlan: { weekStart: new Date(weekStartStr), status: "active" },
+          completed: false,
+          date: { gte: new Date(todayLocalStr), lte: new Date(weekLastStr) },
+          NOT: {
+            date: {
+              gte: new Date(`${regenerateDay}T00:00:00`),
+              lte: new Date(`${regenerateDay}T23:59:59.999`),
+            },
           },
-        }).catch(() => null)
-      )
-    );
+        },
+      });
+      planTasks = [
+        ...retained.map((task) => ({
+          title: task.title,
+          description: task.description ?? "",
+          date: toLocalDateString(task.date),
+          duration: task.duration ?? 60,
+          phase: task.phase ?? phase,
+          subject: task.subject ?? subjects[0],
+        })),
+        ...planTasks,
+      ].sort((a, b) => a.date.localeCompare(b.date));
+    }
 
-    const succeeded = created.filter(Boolean);
+    if (adjustmentRequest) {
+      planTasks = applyWeeklyAdjustment(planTasks, adjustmentConstraints, weekStartStr);
+    }
+
+    const plannedMinutes = planTasks.reduce(
+      (total, task) => total + Math.min(Math.max(task.duration || 60, 15), 480),
+      0,
+    );
+    const objective = activeStage?.objective
+      ?? `围绕${phase}推进${subjects.slice(0, 3).join("、")}，形成可复盘的一周学习闭环。`;
+    const profileBasis = keepProfileLocal ? `，并在本地参考 ${profileFacts.length} 条已确认学习档案` : "";
+    const rationale = activeStage
+      ? `本周计划来自长期路线「${activeStage.studyPath.title}」的当前阶段「${activeStage.title}」，并结合每周容量${weeklyHours ? ` ${weeklyHours} 小时` : "与当前科目进度"}${profileBasis}安排。`
+      : `当前还没有已确认的正式阶段，本草稿依据目标信息、科目进度和${weeklyHours ? `每周 ${weeklyHours} 小时容量` : "默认学习容量"}${profileBasis}生成。`;
+    const fullRationale = adjustmentRequest
+      ? `${rationale} 本次还应用了你的调整要求：「${adjustmentRequest}」。`
+      : rationale;
+    const successCriteria = [
+      `完成本周计划中的核心任务，计划总量约 ${Math.round(plannedMinutes / 60)} 小时`,
+      "至少完成一次本周复盘，记录未完成原因与下周调整项",
+      activeStage ? `能够说明本周任务如何支持阶段目标：${activeStage.objective}` : `明确下一周在${phase}中的具体推进重点`,
+    ];
+
+    // 生成只落草稿；用户确认后，/api/weekly-plans 才会创建正式 Task。
+    const draft = await prisma.$transaction(async (tx) => {
+      await tx.weeklyPlan.updateMany({
+        where: { userId: user!.id, weekStart: new Date(weekStartStr), status: "draft" },
+        data: { status: "archived" },
+      });
+      const latest = await tx.weeklyPlan.findFirst({
+        where: { userId: user!.id, weekStart: new Date(weekStartStr) },
+        orderBy: { version: "desc" },
+        select: { version: true },
+      });
+      const active = await tx.weeklyPlan.findFirst({
+        where: { userId: user!.id, weekStart: new Date(weekStartStr), status: "active" },
+        select: { id: true },
+      });
+      return tx.weeklyPlan.create({
+        data: {
+          userId: user!.id,
+          studyPathId: activeStage?.studyPath.id ?? null,
+          stageId: activeStage?.id ?? null,
+          weekStart: new Date(weekStartStr),
+          weekEnd: new Date(weekLastStr),
+          version: (latest?.version ?? 0) + 1,
+          objective,
+          rationale: fullRationale,
+          successCriteria,
+          plannedMinutes,
+          items: planTasks as unknown as Prisma.InputJsonValue,
+          adjustmentRequest: adjustmentRequest || null,
+          constraints: adjustmentRequest
+            ? adjustmentConstraints as unknown as Prisma.InputJsonValue
+            : undefined,
+          generatedBy: aiConfig && generationMode !== "local" ? "ai" : "local",
+          supersedesId: active?.id ?? null,
+        },
+      });
+    });
     const phaseStats: Record<string, number> = {};
     for (const t of planTasks) { phaseStats[t.phase] = (phaseStats[t.phase] || 0) + 1; }
 
     return jsonNoStore({
-      tasks: succeeded,
-      totalTasks: succeeded.length,
+      draft,
+      tasks: planTasks,
+      totalTasks: planTasks.length,
       planned: planTasks.length,
       daysRemaining,
       weekRange: { start: weekStartStr, end: weekEnd.toISOString().split("T")[0] },
       phases: phaseStats,
-      generatedBy: aiConfig ? "ai" : "local",
+      generatedBy: aiConfig && generationMode !== "local" ? "ai" : "local",
       reasoning: truncateReasoning(planReasoning),
       stage: { id: stage.id, label: stage.label, hint: stage.hint, planSpanHint: stage.planSpanHint },
     });

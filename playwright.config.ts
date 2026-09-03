@@ -42,10 +42,12 @@ const BASE_URL = `http://localhost:${TEST_PORT}`;
 
 export default defineConfig({
   testDir: "./e2e",
-  fullyParallel: true,
+  // 全套用例共享一个认证账号和测试库；并发执行会互相争用数据并造成随机失败。
+  // 保持单 worker，优先保证发布基线可复现。
+  fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: 1,
   reporter: "list",
   globalSetup: "./e2e/global-setup.ts",
   use: {

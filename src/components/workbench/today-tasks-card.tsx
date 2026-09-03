@@ -14,7 +14,7 @@ export function TodayTasksCard({ tasks, dateStr }: { tasks: TodayTask[]; dateStr
   return (
     <div className="rounded-2xl bg-card border border-border/50 shadow-sm overflow-hidden">
       <div className="flex items-center justify-between px-5 py-3.5 border-b border-border/50">
-        <h3 className="text-sm font-semibold">📋 今日任务</h3>
+        <Link href="/tasks" className="text-sm font-semibold hover:text-brand">📋 今日任务</Link>
         <span className="text-[11px] text-muted-foreground">{dateStr}</span>
       </div>
 
@@ -30,7 +30,7 @@ export function TodayTasksCard({ tasks, dateStr }: { tasks: TodayTask[]; dateStr
         ) : (
           <div className="divide-y divide-border/30">
             {tasks.slice(0, 6).map((task) => (
-              <div key={task.id} className="flex items-center gap-3 px-3 py-2.5 group hover:bg-muted/50 rounded-xl transition-colors">
+              <Link key={task.id} href="/tasks" className="flex items-center gap-3 px-3 py-2.5 group hover:bg-muted/50 rounded-xl transition-colors">
                 <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${task.completed ? 'bg-success border-success' : 'border-muted-foreground/30 group-hover:border-muted-foreground/50'}`}>
                   {task.completed && <span className="text-white text-[10px]">✓</span>}
                 </div>
@@ -41,7 +41,7 @@ export function TodayTasksCard({ tasks, dateStr }: { tasks: TodayTask[]; dateStr
                   {task.duration ? `${task.duration}min` : ''}
                   {task.phase ? ` · ${task.phase}` : ''}
                 </span>
-              </div>
+              </Link>
             ))}
           </div>
         )}

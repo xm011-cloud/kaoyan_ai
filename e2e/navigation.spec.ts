@@ -39,30 +39,22 @@ test.describe("Navigation & Module Linking", () => {
 
   test("wrong-questions related links exist", async ({ page }) => {
     await page.goto("/wrong-questions");
-    await page.waitForTimeout(2000);
-    // Related links section should exist
-    const related = page.getByText("继续学习").first();
-    if (await related.isVisible({ timeout: 5000 }).catch(() => false)) {
-      // Use last() to get the related link (not sidebar)
-      await expect(page.locator('a[href="/practice"]').last()).toBeVisible();
-    }
+    const related = page.getByRole("heading", { name: "继续学习" });
+    await expect(related).toBeVisible();
+    await expect(related.locator("..").locator('a[href="/practice"]')).toBeVisible();
   });
 
   test("tasks related links exist", async ({ page }) => {
     await page.goto("/tasks");
-    await page.waitForTimeout(2000);
-    const related = page.getByText("继续学习").first();
-    if (await related.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await expect(page.locator('a[href="/knowledge-graph"]').last()).toBeVisible();
-    }
+    const related = page.getByRole("heading", { name: "继续学习" });
+    await expect(related).toBeVisible();
+    await expect(related.locator("..").locator('a[href="/knowledge-graph"]')).toBeVisible();
   });
 
   test("feedback related links exist", async ({ page }) => {
     await page.goto("/feedback");
-    await page.waitForTimeout(2000);
-    const related = page.getByText("继续学习").first();
-    if (await related.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await expect(page.locator('a[href="/tasks"]').last()).toBeVisible();
-    }
+    const related = page.getByRole("heading", { name: "继续学习" });
+    await expect(related).toBeVisible();
+    await expect(related.locator("..").locator('a[href="/tasks"]')).toBeVisible();
   });
 });

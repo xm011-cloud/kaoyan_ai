@@ -37,6 +37,46 @@ interface Task {
   source?: string | null;
 }
 
+interface WeeklyPlanDraft {
+  id: string;
+  version: number;
+  status: string;
+  objective: string;
+  rationale: string;
+  successCriteria: string[];
+  plannedMinutes: number;
+  items: Array<Omit<Task, "id" | "completed">>;
+  adjustmentRequest?: string | null;
+  constraints?: {
+    weeklyHours?: number | null;
+    unavailableWeekdays?: number[];
+    reduceSubjects?: string[];
+    increaseSubjects?: string[];
+  } | null;
+  impact: {
+    added: Array<{ title: string }>;
+    removed: Array<{ title: string }>;
+    moved: Array<{ title: string; fromDate?: string; toDate?: string }>;
+    durationChanged: Array<{ title: string; fromDuration?: number; toDuration?: number }>;
+    unchangedCount: number;
+    previousMinutes: number;
+    nextMinutes: number;
+    minuteDelta: number;
+    requiresConfirmation: boolean;
+  };
+}
+
+interface WeeklyPlanVersion {
+  id: string;
+  version: number;
+  status: string;
+  objective: string;
+  plannedMinutes: number;
+  adjustmentRequest?: string | null;
+  confirmedAt?: string | null;
+  createdAt: string;
+}
+
 type ProgressEntry = SubjectProgress;
 interface SystemStats {
   knowledgeMastery: number | null;
@@ -49,12 +89,6 @@ interface JudgeResult {
   issues: { severity: string; description: string; fix: string }[];
   verdict: string; summary: string;
 }
-
-const PHASE_COLORS: Record<string, string> = {
-  "基础阶段": "border-blue-300 bg-blue-50 dark:bg-blue-900/20",
-  "强化阶段": "border-yellow-300 bg-yellow-50 dark:bg-yellow-900/20",
-  "冲刺阶段": "border-red-300 bg-red-50 dark:bg-red-900/20",
-};
 
 export default function TasksPage() {
   const searchParams = useSearchParams();
@@ -94,8 +128,11 @@ export default function TasksPage() {
     return getWeekStart(new Date());
   });
   const [weekTasks, setWeekTasks] = useState<Task[]>([]);
+  const [weeklyPlanDraft, setWeeklyPlanDraft] = useState<WeeklyPlanDraft | null>(null);
+  const [weeklyPlanVersions, setWeeklyPlanVersions] = useState<WeeklyPlanVersion[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const autoAdjustmentRef = useRef(false);
   const { phase: genPhase, estimate: genEstimate, start: genStart, stop: genStop, cancel: genCancel } = useAiTask();
   const { phase: judgePhase, estimate: judgeEstimate, start: judgeStart, stop: judgeStop, cancel: judgeCancel } = useAiTask();
 
@@ -134,33 +171,20 @@ export default function TasksPage() {
     : 365;
   const sprintMode = daysRemaining < 30;
 
-  const phases = useMemo(() => {
-    const totalDays = daysRemaining;
-    const phaseDefs = [
-      { name: "基础阶段", ratio: 0.4, goal: "系统学习教材，完成课后习题，打牢基础" },
-      { name: "强化阶段", ratio: 0.35, goal: "专题突破，真题训练，提升解题能力" },
-      { name: "冲刺阶段", ratio: 0.25, goal: "模拟冲刺，查漏补缺，调整状态" },
-    ];
-    let start = new Date(today);
-    const now = new Date();
-    return phaseDefs.map((p) => {
-      const days = Math.ceil(totalDays * p.ratio);
-      const end = new Date(start.getTime() + days * 86400000);
-      const r = { name: p.name, start: toLocalDateString(start), end: toLocalDateString(end), goal: p.goal, isCurrent: now >= start && now < end };
-      start = new Date(end.getTime() + 86400000);
-      return r;
-    });
-  }, [daysRemaining]);
-
   // ── Data loading ──
   const loadWeekTasks = useCallback(async () => {
     const ws = toLocalDateString(weekStart); // 本地周一日期串（与 generate-plan 存 weekStartDate 口径一致）
     try {
-      const res = await fetch(`/api/tasks?weekStart=${ws}`);
-      const data = await res.json();
-      setWeekTasks(data.tasks || []);
+      const [taskRes, planRes] = await Promise.all([
+        fetch(`/api/tasks?weekStart=${ws}`),
+        fetch(`/api/weekly-plans?weekStart=${ws}`),
+      ]);
+      const [taskData, planData] = await Promise.all([taskRes.json(), planRes.json()]);
+      setWeekTasks(taskData.tasks || []);
+      setWeeklyPlanDraft(planData.draft || null);
+      setWeeklyPlanVersions(planData.versions || []);
     } catch { /* ignore */ } finally { setLoading(false); }
-  }, [weekStart]);
+  }, [weekStart, setWeekTasks, setWeeklyPlanDraft, setWeeklyPlanVersions]);
 
   useEffect(() => { loadWeekTasks(); }, [loadWeekTasks]);
 
@@ -216,6 +240,7 @@ export default function TasksPage() {
       });
       if (res.ok) {
         await loadWeekTasks();
+        toast.success("周计划草稿已生成，确认后才会替换本周未完成任务");
       } else {
         // 失败不静默：把后端错误提示给用户
         const d = await res.json().catch(() => ({}));
@@ -230,6 +255,52 @@ export default function TasksPage() {
     }
   };
 
+  const handleConfirmWeeklyPlan = async () => {
+    if (!weeklyPlanDraft) return;
+    const apply = async (confirmImpact: boolean) => {
+      const res = await fetch("/api/weekly-plans", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: weeklyPlanDraft.id, action: "activate", confirmImpact }),
+      });
+      return { res, data: await res.json().catch(() => ({})) };
+    };
+    let result = await apply(false);
+    if (result.res.status === 409 && result.data.requiresConfirmation) {
+      const impact = result.data.impact as WeeklyPlanDraft["impact"];
+      const confirmed = await confirmDialog({
+        title: "确认调整本周计划？",
+        message: `这次调整会移除 ${impact.removed.length} 项、改期 ${impact.moved.length} 项，学习容量${impact.minuteDelta >= 0 ? "增加" : "减少"} ${Math.abs(impact.minuteDelta)} 分钟。已完成和手动任务不会受影响。`,
+        confirmLabel: "确认调整",
+        danger: impact.removed.length > 0,
+      });
+      if (!confirmed) return;
+      result = await apply(true);
+    }
+    if (!result.res.ok) return toast.error(result.data.error || "确认周计划失败");
+    setWeeklyPlanDraft(null);
+    await loadWeekTasks();
+    toast.success("周计划已确认，本周任务已更新");
+  };
+
+  const handleDiscardWeeklyPlan = async () => {
+    if (!weeklyPlanDraft) return;
+    const ok = await confirmDialog({
+      title: "废弃这份周计划草稿？",
+      message: "当前已生效的任务不会受到影响。",
+      confirmLabel: "废弃草稿",
+      danger: true,
+    });
+    if (!ok) return;
+    const res = await fetch("/api/weekly-plans", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: weeklyPlanDraft.id, action: "archive" }),
+    });
+    if (!res.ok) return toast.error("废弃草稿失败");
+    setWeeklyPlanDraft(null);
+  };
+
   const handleGenerate = () => {
     // 探索期（无目标）→ 先描述需求、判断计划类型（0.4b）
     if (!goal) {
@@ -237,6 +308,10 @@ export default function TasksPage() {
       return;
     }
     return runGenerate({});
+  };
+
+  const handleAdjustWeeklyPlan = async (request: string) => {
+    await runGenerate({ adjustmentRequest: request });
   };
 
   const handleIntentConfirm = async (intent: PlanIntent) => {
@@ -255,6 +330,18 @@ export default function TasksPage() {
     generateRef.current();
     const week = searchParams.get("week") || toLocalDateString(getWeekStart(new Date()));
     router.replace(`${pathname}?week=${week}`, { scroll: false });
+  }, [searchParams, pathname, router]);
+
+  // 周报中的显式操作只生成周计划草稿；用户仍需在草稿中确认，才会更新正式任务。
+  useEffect(() => {
+    const request = searchParams.get("adjustment")?.trim();
+    if (searchParams.get("generateAdjustment") !== "1" || !request || autoAdjustmentRef.current) return;
+    autoAdjustmentRef.current = true;
+    void handleAdjustWeeklyPlan(request);
+    const week = searchParams.get("week") || toLocalDateString(getWeekStart(new Date()));
+    router.replace(pathname + "?week=" + week, { scroll: false });
+  // handleAdjustWeeklyPlan 依赖生成状态；此 effect 只应处理一次 URL 明确触发的操作。
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, pathname, router]);
 
   const handleRegenerateDay = async (dateStr: string) => {
@@ -482,26 +569,8 @@ export default function TasksPage() {
           </div>
         )}
 
-        {/* Zone 1: 阶段总览（备考期显示三阶段卡；探索/基础/冲刺显示阶段卡） */}
-        {stage.id === "prep" ? (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {phases.map((p) => (
-              <div key={p.name} className={`p-4 rounded-xl border-2 ${p.isCurrent ? "ring-2 ring-blue-400 " + (PHASE_COLORS[p.name] || "border-border/50") : "border-border/50 bg-card"}`}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-bold text-sm">{p.name}</span>
-                  {p.isCurrent && <span className="text-[10px] bg-blue-500 text-white px-1.5 py-0.5 rounded-full">当前</span>}
-                </div>
-                <p className="text-xs text-gray-500 mb-2">{p.goal}</p>
-                <div className="flex justify-between text-[11px] text-gray-400">
-                  <span>{p.start}</span>
-                  <span>→</span>
-                  <span>{p.end}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-2xl border-2 border-brand/30 bg-brand/5 p-4">
+        {/* 阶段摘要：这里只展示统一阶段建议；正式阶段目标与退出标准由长期路线维护。 */}
+        <div className="rounded-2xl border-2 border-brand/30 bg-brand/5 p-4">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <span className="font-bold text-sm">{stage.label}</span>
               <span className="text-[10px] rounded-full bg-brand/10 px-2 py-0.5 text-brand font-medium">
@@ -511,13 +580,17 @@ export default function TasksPage() {
             <p className="text-xs text-muted-foreground mt-1">{stage.hint}</p>
             <p className="text-xs mt-1.5">🎯 本阶段焦点：{stage.focus}</p>
             <p className="text-xs mt-1.5">📅 本周计划：{stage.planSpanHint}</p>
+            {goal && (
+              <button type="button" onClick={() => router.push("/study-path")} className="text-xs text-brand font-medium mt-2 hover:underline">
+                查看长期路线、阶段目标和退出标准 →
+              </button>
+            )}
             {!goal && (
               <p className="text-[11px] text-muted-foreground/80 mt-1.5">
                 还没设考研目标——可以先生成一份自定义学习计划（点「生成本周计划」），或去「目标」页设置。
               </p>
             )}
-          </div>
-        )}
+        </div>
 
         {/* Zone 2: Subject progress */}
         {subjects.length > 0 && (
@@ -608,6 +681,8 @@ export default function TasksPage() {
           <h2 className="font-bold mb-3">📅 本周计划</h2>
           <WeeklyPlanner
             weekStart={weekStart} weekTasks={weekTasks} loading={loading}
+            draftPlan={weeklyPlanDraft}
+            planVersions={weeklyPlanVersions}
             generating={generating} subjects={subjects} examDate={examDate}
             daysRemaining={daysRemaining} sprintMode={sprintMode} onWeekChange={handleWeekChange}
             onGenerate={handleGenerate} onRegenerateDay={handleRegenerateDay}
@@ -618,6 +693,9 @@ export default function TasksPage() {
             judgeResult={judgeResult} judging={judging}
             generatingPhase={genPhase} generatingEstimate={genEstimate} onCancelGenerate={genCancel}
             judgingPhase={judgePhase} judgingEstimate={judgeEstimate} onCancelJudge={judgeCancel}
+            onConfirmDraft={handleConfirmWeeklyPlan} onDiscardDraft={handleDiscardWeeklyPlan}
+            onAdjust={handleAdjustWeeklyPlan}
+            initialAdjustment={searchParams.get("adjustment") || ""}
           />
         </div>
 

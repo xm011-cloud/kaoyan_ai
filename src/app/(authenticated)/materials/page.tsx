@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Modal } from '@/components/ui/modal'
 import { confirmDialog } from '@/stores/confirm-store'
 import { cn } from '@/lib/utils'
+import { useStudyContext } from '@/components/study-context'
 
 interface Material {
   id: string
@@ -18,6 +19,7 @@ interface Material {
 }
 
 export default function MaterialsPage() {
+  const { setContext } = useStudyContext()
   const [materials, setMaterials] = useState<Material[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
@@ -43,6 +45,20 @@ export default function MaterialsPage() {
   useEffect(() => {
     loadMaterials()
   }, [loadMaterials])
+
+  useEffect(() => {
+    if (!viewing) {
+      setContext(null)
+      return
+    }
+    setContext({
+      kind: 'material',
+      materialId: viewing.id,
+      title: `正在查看：${viewing.name}`,
+      detail: `${viewing.type.toUpperCase()} · AI 将只按当前资料回答`,
+    })
+    return () => setContext(null)
+  }, [setContext, viewing])
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -131,8 +147,8 @@ export default function MaterialsPage() {
   }
 
   return (
-    <div className="p-4 lg:p-6">
-      <div className="max-w-3xl mx-auto space-y-6">
+    <div className="workspace-page">
+      <div className="mx-auto max-w-4xl space-y-7">
         <PageHeader
           title="学习资料"
           subtitle="上传资料后可以在线查看，也可以让 AI 基于资料回答"
@@ -163,7 +179,7 @@ export default function MaterialsPage() {
         {uploadError && <p className="text-sm text-destructive">{uploadError}</p>}
 
         {/* Material list */}
-        <div className="space-y-3">
+        <section className="space-y-3">
           {loading ? (
             <div className="text-center py-8 text-muted-foreground">加载中...</div>
           ) : materials.length === 0 ? (
@@ -176,7 +192,7 @@ export default function MaterialsPage() {
             materials.map((material) => (
               <div
                 key={material.id}
-                className="flex items-center gap-4 p-4 rounded-2xl border border-border/50 bg-card hover:shadow-sm transition-shadow"
+                className="workspace-surface flex items-center gap-4 p-4 transition-shadow hover:shadow-md"
               >
                 <div className="text-2xl">{typeIcon(material.type)}</div>
                 <div className="flex-1 min-w-0">
@@ -205,7 +221,7 @@ export default function MaterialsPage() {
               </div>
             ))
           )}
-        </div>
+        </section>
       </div>
 
       {/* ── 内容查看弹窗 ── */}

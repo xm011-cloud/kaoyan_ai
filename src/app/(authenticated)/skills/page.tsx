@@ -99,7 +99,7 @@ export default function SkillsPage() {
   }
 
   return (
-    <div className="p-4 lg:p-6 max-w-4xl mx-auto space-y-6">
+    <div className="workspace-page max-w-5xl space-y-7">
       <PageHeader
         title="⚡ 我的技能"
         action={

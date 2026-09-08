@@ -9,6 +9,7 @@ interface ResultViewProps {
   resultSession: PracticeSession;
   addingWrongId: string | null;
   wrongCount: number;
+  addedWrongIds: Set<string>;
   onAddToWrongBook: (question: PracticeQuestion) => void;
   onBack: () => void;
   onRetry: () => void;
@@ -18,6 +19,7 @@ export function ResultView({
   resultSession,
   addingWrongId,
   wrongCount,
+  addedWrongIds,
   onAddToWrongBook,
   onBack,
   onRetry,
@@ -86,9 +88,9 @@ export function ResultView({
                       <button
                         onClick={() => onAddToWrongBook(q)}
                         className="text-xs text-destructive hover:text-destructive/80 transition-colors"
-                        disabled={addingWrongId === q.id}
+                        disabled={addingWrongId === q.id || addedWrongIds.has(q.id)}
                       >
-                        {addingWrongId === q.id ? "✅ 已加入" : "🔴 加入错题本"}
+                        {addedWrongIds.has(q.id) ? "✅ 已收录" : addingWrongId === q.id ? "收录中..." : "🔴 收录错题"}
                       </button>
                     )}
                   </div>

@@ -92,6 +92,8 @@ export default defineConfig({
         "compliance.spec.ts",
         "onboarding.spec.ts",
         "offline.spec.ts",
+        "courses.spec.ts",
+        "workspace-shell.spec.ts",
       ],
     },
     // Unauthenticated tests (no storage state)

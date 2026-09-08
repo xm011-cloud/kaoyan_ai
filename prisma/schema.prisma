@@ -44,6 +44,9 @@ model User {
   tasks              Task[]
   checkIns           CheckIn[]
   materials          Material[]
+  courses            Course[]
+  studySessions      StudySession[]
+  studyNotes         StudyNote[]
   chats              Chat[]
   feedbacks          Feedback[]
   wrongQuestions     WrongQuestion[]
@@ -65,19 +68,19 @@ model User {
 // 学习档案事实：保留用户陈述、自评、测评与行为证据的来源和版本。
 // 同一 key 可以有历史版本；当前有效事实由 status=confirmed/proposed 表示。
 model StudyProfileFact {
-  id             String    @id @default(uuid())
-  userId         String
-  key            String
-  label          String
-  value          Json
-  source         String // user_statement | self_assessment | assessment | behavior | ai_inference
-  confidence     String    @default("medium") // low | medium | high
-  status         String    @default("confirmed") // proposed | confirmed | superseded | expired | rejected
-  observedAt     DateTime  @default(now())
-  reviewAt       DateTime?
-  supersededBy   String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id           String    @id @default(uuid())
+  userId       String
+  key          String
+  label        String
+  value        Json
+  source       String // user_statement | self_assessment | assessment | behavior | ai_inference
+  confidence   String    @default("medium") // low | medium | high
+  status       String    @default("confirmed") // proposed | confirmed | superseded | expired | rejected
+  observedAt   DateTime  @default(now())
+  reviewAt     DateTime?
+  supersededBy String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -129,13 +132,19 @@ model Task {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  weeklyPlan WeeklyPlan? @relation(fields: [weeklyPlanId], references: [id], onDelete: SetNull)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weeklyPlan    WeeklyPlan?    @relation(fields: [weeklyPlanId], references: [id], onDelete: SetNull)
+  courseLesson  CourseLesson?  @relation(fields: [courseLessonId], references: [id], onDelete: SetNull)
+  studySessions StudySession[]
+  studyNotes    StudyNote[]
+
+  courseLessonId String?
 
   @@index([userId, date])
   @@index([userId, weekStartDate])
   @@index([userId, proposalId])
   @@index([weeklyPlanId])
+  @@index([courseLessonId])
 }
 
 // 每日打卡
@@ -167,9 +176,127 @@ model Material {
   createdAt DateTime                     @default(now())
   updatedAt DateTime                     @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseLessons CourseLesson[]
+  studyNotes    StudyNote[]
 
   @@index([userId])
+}
+
+// 用户自己的课程入口。C6 管理学习路径与学习证据，不托管未经授权的课程内容。
+model Course {
+  id          String   @id @default(uuid())
+  userId      String
+  title       String
+  subject     String?
+  description String?
+  sourceType  String   @default("manual") // manual | external | material
+  sourceUrl   String?
+  status      String   @default("active") // active | paused | completed | archived
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  units CourseUnit[]
+
+  @@index([userId, status])
+}
+
+// 课程章节。章节与课时都由用户或未来的受控导入创建，不能由 AI 凭空假定。
+model CourseUnit {
+  id        String   @id @default(uuid())
+  courseId  String
+  title     String
+  order     Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  course  Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons CourseLesson[]
+
+  @@unique([courseId, order])
+  @@index([courseId])
+}
+
+// 可进入的最小课程学习单元；可关联外部链接或用户私有资料。
+model CourseLesson {
+  id                  String   @id @default(uuid())
+  courseUnitId        String
+  title               String
+  order               Int
+  sourceType          String   @default("manual") // manual | external | material
+  sourceUrl           String?
+  materialId          String?
+  plannedMinutes      Int?
+  status              String   @default("not_started") // not_started | in_progress | completed
+  lastPositionSeconds Int?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  unit     CourseUnit     @relation(fields: [courseUnitId], references: [id], onDelete: Cascade)
+  material Material?      @relation(fields: [materialId], references: [id], onDelete: SetNull)
+  tasks    Task[]
+  sessions StudySession[]
+  notes    StudyNote[]
+
+  @@unique([courseUnitId, order])
+  @@index([courseUnitId, status])
+  @@index([materialId])
+}
+
+// 一次真实学习过程。完成与掌握度是不同概念，selfAssessment 只记录用户当次感受。
+model StudySession {
+  id             String    @id @default(uuid())
+  userId         String
+  courseLessonId String
+  taskId         String?
+  status         String    @default("in_progress") // in_progress | completed | abandoned
+  startedAt      DateTime  @default(now())
+  endedAt        DateTime?
+  actualMinutes  Int?
+  selfAssessment String? // clear | needs_practice | blocked
+  blocker        String?
+  nextStep       String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson CourseLesson @relation(fields: [courseLessonId], references: [id], onDelete: Cascade)
+  task   Task?        @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  notes  StudyNote[]
+
+  @@index([userId, status])
+  @@index([courseLessonId, startedAt])
+  @@index([taskId])
+}
+
+// 关联型笔记：内容留在用户学习上下文中，而不是成为孤立文档。
+model StudyNote {
+  id              String   @id @default(uuid())
+  userId          String
+  content         String   @db.Text
+  kind            String   @default("note") // note | question | key_point | error
+  courseLessonId  String?
+  studySessionId  String?
+  taskId          String?
+  materialId      String?
+  wrongQuestionId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson        CourseLesson?  @relation(fields: [courseLessonId], references: [id], onDelete: SetNull)
+  session       StudySession?  @relation(fields: [studySessionId], references: [id], onDelete: SetNull)
+  task          Task?          @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  material      Material?      @relation(fields: [materialId], references: [id], onDelete: SetNull)
+  wrongQuestion WrongQuestion? @relation(fields: [wrongQuestionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([courseLessonId])
+  @@index([studySessionId])
+  @@index([taskId])
+  @@index([materialId])
+  @@index([wrongQuestionId])
 }
 
 // AI 对话记录
@@ -246,7 +373,8 @@ model WrongQuestion {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studyNotes StudyNote[]
 
   @@index([userId, subject])
   @@index([userId, reviewed])

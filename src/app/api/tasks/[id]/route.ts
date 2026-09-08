@@ -22,6 +22,14 @@ export async function PATCH(
       return jsonNoStore({ error: "任务不存在" }, { status: 404 });
     }
 
+    if (body.courseLessonId) {
+      const lesson = await prisma.courseLesson.findFirst({
+        where: { id: body.courseLessonId, unit: { course: { userId: user!.id } } },
+        select: { id: true },
+      });
+      if (!lesson) return jsonNoStore({ error: "关联课时不存在" }, { status: 400 });
+    }
+
     const updated = await prisma.task.update({
       where: { id },
       data: {
@@ -32,6 +40,7 @@ export async function PATCH(
         ...(body.phase !== undefined && { phase: body.phase }),
         ...(body.subject !== undefined && { subject: body.subject }),
         ...(body.date && { date: new Date(body.date) }),
+        ...(body.courseLessonId !== undefined && { courseLessonId: body.courseLessonId || null }),
       },
     });
 

@@ -69,7 +69,7 @@ export default function LeaderboardPage() {
   const rest = rows.slice(3)
 
   return (
-    <div className="p-4 lg:p-6 max-w-3xl mx-auto space-y-6">
+    <div className="workspace-page max-w-4xl space-y-7">
       <PageHeader
         title="🏆 排行榜"
         action={

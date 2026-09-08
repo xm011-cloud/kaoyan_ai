@@ -15,6 +15,7 @@ import { confirmDialog } from "@/stores/confirm-store";
 import { PageHeader } from "@/components/ui/page-header";
 import { AiWaiting } from "@/components/ai-waiting";
 import { useAiTask } from "@/hooks/use-ai-task";
+import { useStudyContext } from "@/components/study-context";
 
 // ── sessionStorage helpers for answers ──
 const ANSWERS_KEY_PREFIX = "practice-answers-";
@@ -41,6 +42,7 @@ export default function PracticePage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+  const { setContext } = useStudyContext();
 
   // ── State ──
   const [view, setView] = useState<"main" | "active" | "result">("main");
@@ -71,6 +73,23 @@ export default function PracticePage() {
   const [session, setSession] = useState<PracticeSession | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const questions = session?.questions ?? [];
+    const question = view === "active" ? questions[currentIndex] : null;
+    if (!session || !question) {
+      setContext(null);
+      return;
+    }
+    setContext({
+      kind: "practice_question",
+      sessionId: session.id,
+      questionId: question.id,
+      title: `正在练习：${session.subject}`,
+      detail: `第 ${currentIndex + 1} / ${questions.length} 题 · ${question.type === "choice" ? "选择题" : "主观题"}`,
+    });
+    return () => setContext(null);
+  }, [currentIndex, session, setContext, view]);
 
   // ── Sync to practice-store so ActivityBar/MobileNav can see ──
   const practiceStore = usePracticeStore;
@@ -321,9 +340,9 @@ export default function PracticePage() {
   // MAIN VIEW
   if (view === "main") {
     return (
-      <div className="p-4 lg:p-6">
-        <div className="max-w-3xl mx-auto space-y-6">
-          <PageHeader title="练习" />
+      <div className="workspace-page">
+        <div className="mx-auto max-w-4xl space-y-7">
+          <PageHeader title="练习" subtitle="从一次短练开始，完成后把不稳的知识点带进错题复习。" />
 
           <SessionCreator
             subjects={subjects}
@@ -402,8 +421,8 @@ export default function PracticePage() {
           )}
 
           {/* History */}
-          <div>
-            <h2 className="text-lg font-semibold mb-3">练习记录</h2>
+          <section>
+            <div className="mb-3 flex items-end justify-between gap-3"><div><p className="workspace-kicker">学习轨迹</p><h2 className="mt-1 text-lg font-semibold tracking-[-0.02em]">练习记录</h2></div></div>
             {loadingSessions ? (
               <p className="text-muted-foreground text-sm">加载中...</p>
             ) : sessions.length === 0 ? (
@@ -449,7 +468,7 @@ export default function PracticePage() {
                 ))}
               </div>
             )}
-          </div>
+          </section>
         </div>
       </div>
     );
@@ -497,6 +516,7 @@ export default function PracticePage() {
         resultSession={resultSession}
         addingWrongId={addingWrongId}
         wrongCount={addedWrongIds.size}
+        addedWrongIds={addedWrongIds}
         onAddToWrongBook={handleAddToWrongBook}
         onBack={() => {
           setView("main");

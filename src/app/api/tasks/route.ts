@@ -24,12 +24,19 @@ export async function GET(request: NextRequest) {
     }
     if (subject) where.subject = subject;
     if (weekStart) {
-      // 兼容新旧 weekStartDate 口径：新代码存「本地周一」，历史任务存「本地周日」(旧 UTC 串逻辑)。
-      // 用 [本地周日, 本地周二) 窗口同时覆盖两者，避免历史计划从周视图消失。
-      const ws = new Date(weekStart); // 本地周一（UTC 午夜）
-      const winStart = new Date(ws.getTime() - 86400000); // 本地周日
-      const winEnd = new Date(ws.getTime() + 86400000); // 本地周二（排除下一周）
-      where.weekStartDate = { gte: winStart, lt: winEnd };
+      // 任务归属周的事实来源是 date。weekStartDate 是计划关联/索引字段，
+      // 不能让缺失该字段的旧任务或 AI 直建任务在周视图中消失。
+      const ws = new Date(`${weekStart}T00:00:00`);
+      const weekEnd = new Date(ws);
+      weekEnd.setDate(weekEnd.getDate() + 7);
+
+      // 同时保留旧 weekStartDate 的周日/周一兼容窗口，避免历史数据丢失。
+      const legacyStart = new Date(ws.getTime() - 86400000);
+      const legacyEnd = new Date(ws.getTime() + 86400000);
+      where.OR = [
+        { date: { gte: ws, lt: weekEnd } },
+        { weekStartDate: { gte: legacyStart, lt: legacyEnd } },
+      ];
     }
 
     const tasks = await prisma.task.findMany({
@@ -50,10 +57,18 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { title, description, date, duration, phase, subject, weekStartDate, source } = body;
+    const { title, description, date, duration, phase, subject, weekStartDate, source, courseLessonId } = body;
 
     if (!title || !date) {
       return jsonNoStore({ error: "标题和日期为必填项" }, { status: 400 });
+    }
+
+    if (courseLessonId) {
+      const lesson = await prisma.courseLesson.findFirst({
+        where: { id: courseLessonId, unit: { course: { userId: user!.id } } },
+        select: { id: true },
+      });
+      if (!lesson) return jsonNoStore({ error: "关联课时不存在" }, { status: 400 });
     }
 
     const task = await prisma.task.create({
@@ -67,6 +82,7 @@ export async function POST(request: NextRequest) {
         subject: subject || null,
         weekStartDate: weekStartDate ? new Date(weekStartDate) : null,
         source: source || null,
+        courseLessonId: courseLessonId || null,
       },
     });
 

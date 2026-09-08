@@ -354,8 +354,8 @@ export default function StudyPathPage() {
   // Empty state
   if (!data?.path) {
     return (
-      <div className="p-4 lg:p-6">
-        <div className="max-w-3xl mx-auto text-center py-16 space-y-4">
+      <div className="workspace-page">
+        <div className="mx-auto max-w-3xl space-y-4 py-16 text-center">
           <div className="text-6xl">🗺️</div>
           <h1 className="text-2xl font-bold">AI 学习路径</h1>
           <p className="text-muted-foreground max-w-md mx-auto">
@@ -383,8 +383,8 @@ export default function StudyPathPage() {
   }
 
   return (
-    <div className="p-4 lg:p-6">
-      <div className="max-w-3xl mx-auto space-y-6">
+    <div className="workspace-page">
+      <div className="mx-auto max-w-4xl space-y-7">
         <PageHeader
           title="🗺️ 学习路径"
           subtitle={data.path.description}

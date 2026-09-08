@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { AiWaiting } from "@/components/ai-waiting";
 import { toLocalDateString } from "@/lib/date-utils";
@@ -116,11 +116,8 @@ export function WeeklyPlanner({
   initialAdjustment = "",
 }: WeeklyPlannerProps) {
   const [showJudge, setShowJudge] = useState(false);
-  const [adjustment, setAdjustment] = useState("");
-
-  useEffect(() => {
-    if (initialAdjustment) setAdjustment(initialAdjustment);
-  }, [initialAdjustment]);
+  // 调整建议只在打开周计划时作为输入预填；后续输入应由用户自己掌控。
+  const [adjustment, setAdjustment] = useState(initialAdjustment);
 
   // Group tasks by day of week。
   // 日列必须用「本地历法日期串」:任务 date 存的是 UTC 午夜(new Date("YYYY-MM-DD")),

@@ -101,14 +101,14 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="p-4 lg:p-6 max-w-3xl mx-auto space-y-6 text-sm text-muted-foreground">
+      <div className="workspace-page max-w-4xl space-y-7 text-sm text-muted-foreground">
         加载中...
       </div>
     )
   }
 
   return (
-    <div className="p-4 lg:p-6 max-w-3xl mx-auto space-y-6">
+    <div className="workspace-page max-w-4xl space-y-7">
       <PageHeader title="个人资料" />
 
       {/* 头像 */}

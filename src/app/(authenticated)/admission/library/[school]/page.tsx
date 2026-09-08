@@ -44,7 +44,7 @@ export default async function SchoolLibraryPage({
   }
 
   return (
-    <div className="p-4 lg:p-6 max-w-4xl mx-auto">
+    <div className="workspace-page max-w-5xl">
       <SchoolDetailView university={uni} majors={majors} />
     </div>
   );

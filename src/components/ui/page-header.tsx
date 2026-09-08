@@ -21,16 +21,16 @@ export function PageHeader({
   if (align === 'center') {
     return (
       <div className={cn('text-center', className)}>
-        <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
-        {subtitle && <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>}
+        <h1 className="text-2xl font-semibold tracking-[-0.035em] sm:text-3xl">{title}</h1>
+        {subtitle && <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{subtitle}</p>}
       </div>
     )
   }
   return (
-    <div className={cn('flex flex-wrap items-center justify-between gap-3', className)}>
+    <div className={cn('flex flex-wrap items-end justify-between gap-4', className)}>
       <div className="min-w-0">
-        <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
-        {subtitle && <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>}
+        <h1 className="text-2xl font-semibold tracking-[-0.035em] sm:text-3xl">{title}</h1>
+        {subtitle && <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{subtitle}</p>}
       </div>
       {action && <div className="shrink-0">{action}</div>}
     </div>

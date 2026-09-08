@@ -94,11 +94,11 @@ export default function GoalPage() {
   const subjectList = subjects
 
   return (
-    <div className="flex flex-1 flex-col p-4 lg:p-6">
-      <div className="max-w-3xl mx-auto w-full space-y-6">
+    <div className="workspace-page flex flex-1 flex-col">
+      <div className="mx-auto w-full max-w-4xl space-y-7">
         <PageHeader title="考研方向" subtitle="不必一次确定院校和日期，先保存方向，后续再逐步完善" />
 
-        <form onSubmit={handleSubmit} className="space-y-4 bg-card p-6 rounded-2xl border border-border/50">
+        <form onSubmit={handleSubmit} className="workspace-surface space-y-4 p-6">
           <div className="rounded-xl bg-brand/5 border border-brand/15 p-4">
             <p className="text-sm font-medium">
               {goalStatus === 'confirmed' ? '目标已确认' : goalStatus === 'tentative' ? '目标暂定中' : goalStatus === 'paused' ? '目标已暂停' : '目标探索中'}

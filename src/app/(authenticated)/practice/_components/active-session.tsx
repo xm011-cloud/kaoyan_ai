@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ChatMarkdown } from "@/components/chat-markdown";
 import { formatTime } from "@/lib/time-utils";
 import type { PracticeQuestion, PracticeSession } from "@/lib/practice-types";
+import { useAiWorkspace } from "@/components/ai-workspace-context";
 
 interface ActiveSessionProps {
   session: PracticeSession;
@@ -34,6 +35,7 @@ export function ActiveSession({
   onSubmit,
   onBack,
 }: ActiveSessionProps) {
+  const aiWorkspace = useAiWorkspace();
   const q = questions[currentIndex];
   const progress = questions.length > 0 ? ((currentIndex + 1) / questions.length) * 100 : 0;
 
@@ -84,12 +86,17 @@ export function ActiveSession({
               </Button>
             </div>
           ) : (
-            <div className="bg-card rounded-2xl border border-border/50 p-5">
+            <div className="bg-card rounded-3xl border border-border/60 p-5 shadow-sm">
               <span className="text-xs font-medium text-blue-500 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded">
                 {q?.type === "choice" ? "选择题" : "简答题"}
               </span>
               <div className="mt-3 text-sm leading-relaxed font-medium">
                 <ChatMarkdown content={q?.question || ""} />
+              </div>
+
+              <div className="mt-5 flex items-center justify-between gap-3 border-t border-border/60 pt-4">
+                <p className="text-xs text-muted-foreground">先自己作答；卡住时让 AI 给思路，不直接公布答案。</p>
+                <Button size="sm" variant="outline" onClick={() => aiWorkspace.requestHelp("我正在做当前这道题。请先给我一个不泄露答案的提示：指出应从哪个知识点或哪一步开始，并等我继续作答。")}>请求提示 →</Button>
               </div>
 
               {q?.type === "choice" && q.options && (

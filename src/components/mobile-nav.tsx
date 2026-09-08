@@ -9,6 +9,7 @@ import { usePomodoroStore } from '@/stores/pomodoro-store'
 import { usePracticeStore } from '@/stores/practice-store'
 import { useKeyboardOpen } from '@/hooks/use-keyboard-open'
 import { formatTime } from '@/lib/time-utils'
+import { NavIcon } from '@/components/ui/nav-icon'
 
 /**
  * 移动端统一底部栏
@@ -123,7 +124,7 @@ export function MobileNav() {
                   'flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors active:scale-[0.97]',
                   isActive ? 'text-brand' : 'text-muted-foreground/60'
                 )}>
-                <span className="text-lg leading-none">{group.icon}</span>
+                <NavIcon href={href} className="h-[19px] w-[19px]" />
                 <span className="text-[10px] font-medium leading-none">{group.label}</span>
               </Link>
             )

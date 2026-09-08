@@ -210,8 +210,8 @@ export default function FeedbackPage() {
   weekEnd.setDate(weekEnd.getDate() + 6)
 
   return (
-    <div className="p-4 lg:p-6">
-      <div className="max-w-3xl mx-auto space-y-6">
+    <div className="workspace-page">
+      <div className="mx-auto max-w-4xl space-y-7">
         <PageHeader
           title="学习周报"
           subtitle="AI 基于你的学习数据生成周报和建议"

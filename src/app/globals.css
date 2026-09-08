@@ -58,31 +58,32 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
+  /* C6 工作台：暖中性画布，让长时间学习不显得像后台管理系统。 */
+  --background: oklch(0.982 0.008 78);
+  --foreground: oklch(0.22 0.018 264);
+  --card: oklch(0.998 0.003 80);
+  --card-foreground: oklch(0.22 0.018 264);
+  --popover: oklch(0.998 0.003 80);
+  --popover-foreground: oklch(0.22 0.018 264);
   --primary: oklch(0.205 0 0);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
+  --secondary: oklch(0.955 0.012 78);
   --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
+  --muted: oklch(0.955 0.012 78);
+  --muted-foreground: oklch(0.52 0.018 264);
+  --accent: oklch(0.955 0.012 78);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
+  --border: oklch(0.9 0.014 80);
+  --input: oklch(0.9 0.014 80);
   --ring: oklch(0.708 0 0);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
+  --radius: 0.75rem;
+  --sidebar: oklch(0.975 0.009 80);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
   --sidebar-primary-foreground: oklch(0.985 0 0);
@@ -92,7 +93,7 @@
   --sidebar-ring: oklch(0.708 0 0);
 
   /* Brand palette — blue primary with warm accents */
-  --brand: oklch(0.55 0.18 255);
+  --brand: oklch(0.57 0.17 250);
   --brand-foreground: oklch(0.98 0 0);
   --brand-muted: oklch(0.93 0.03 255);
   --success: oklch(0.65 0.18 145);
@@ -147,10 +148,37 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
   }
   html {
     @apply font-sans;
+  }
+}
+
+@layer components {
+  .workspace-page {
+    @apply mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-7 lg:px-8 lg:py-8;
+  }
+
+  .workspace-surface {
+    @apply rounded-2xl border border-border/70 bg-card shadow-[0_12px_32px_-26px_rgb(39_49_66_/_0.38)];
+  }
+
+  .workspace-list-row {
+    @apply flex min-h-12 items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-muted/70;
+  }
+
+  .workspace-kicker {
+    @apply text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 

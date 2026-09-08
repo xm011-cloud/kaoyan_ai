@@ -23,6 +23,7 @@ import { derivePrepStage } from "@/lib/prep-stage";
 import { SubjectProbeModal, type ProbeResult } from "./_components/subject-probe";
 import { PlanIntentModal } from "./_components/plan-intent-modal";
 import type { PlanIntent } from "@/app/api/ai/judge-plan-intent/route";
+import { useStudyContext } from "@/components/study-context";
 
 interface Task {
   id: string;
@@ -94,6 +95,7 @@ export default function TasksPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+  const { setContext } = useStudyContext();
 
   // ── State ──
   const { data: goal } = useGoal();
@@ -187,6 +189,18 @@ export default function TasksPage() {
   }, [weekStart, setWeekTasks, setWeeklyPlanDraft, setWeeklyPlanVersions]);
 
   useEffect(() => { loadWeekTasks(); }, [loadWeekTasks]);
+
+  useEffect(() => {
+    const plan = weeklyPlanDraft ?? weeklyPlanVersions.find((item) => item.status === "active");
+    const label = plan?.status === "draft" ? "本周计划草稿" : "本周学习计划";
+    setContext({
+      kind: "weekly_plan",
+      weekStart: toLocalDateString(weekStart),
+      title: label,
+      detail: plan ? `${plan.objective} · ${weekTasks.length} 项任务` : `${weekTasks.length} 项任务，尚未生成正式周计划`,
+    });
+    return () => setContext(null);
+  }, [setContext, weekStart, weekTasks.length, weeklyPlanDraft, weeklyPlanVersions]);
 
   // Load system stats
   useEffect(() => {
@@ -547,8 +561,8 @@ export default function TasksPage() {
 
   // ── Render ──
   return (
-    <div className="p-4 lg:p-6 space-y-6">
-      <div className="max-w-6xl mx-auto space-y-6">
+    <div className="workspace-page">
+      <div className="mx-auto max-w-6xl space-y-7">
         <PageHeader
           title="备考计划"
           subtitle={stage.hint}
@@ -570,7 +584,7 @@ export default function TasksPage() {
         )}
 
         {/* 阶段摘要：这里只展示统一阶段建议；正式阶段目标与退出标准由长期路线维护。 */}
-        <div className="rounded-2xl border-2 border-brand/30 bg-brand/5 p-4">
+        <section className="workspace-surface border-brand/20 bg-brand/5 p-5">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <span className="font-bold text-sm">{stage.label}</span>
               <span className="text-[10px] rounded-full bg-brand/10 px-2 py-0.5 text-brand font-medium">
@@ -590,11 +604,11 @@ export default function TasksPage() {
                 还没设考研目标——可以先生成一份自定义学习计划（点「生成本周计划」），或去「目标」页设置。
               </p>
             )}
-        </div>
+        </section>
 
         {/* Zone 2: Subject progress */}
         {subjects.length > 0 && (
-          <div className="bg-card rounded-2xl border border-border/50 p-5 space-y-3">
+          <section className="workspace-surface space-y-3 p-5">
             <h2 className="font-bold">📝 各科学习进度</h2>
             <p className="text-xs text-gray-500">点选各科学习档位（自评），AI 生成计划时会根据你的实际水平调整。升到「学习中」以上会标 ⚪待确认——系统对你的自评持保守态度，计划生成前可对话确认掌握度</p>
             {subjects.map((subj) => {
@@ -673,7 +687,7 @@ export default function TasksPage() {
             <Button variant="outline" size="sm" onClick={handleSaveProgress} disabled={savingProgress}>
               {savingProgress ? "保存中..." : "💾 保存进度"}
             </Button>
-          </div>
+          </section>
         )}
 
         {/* Zone 3: Weekly planner */}

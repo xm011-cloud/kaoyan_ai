@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
@@ -18,6 +18,7 @@ import { DetailModal } from "./_components/detail-modal";
 import { ExamQuestionsTab } from "./_components/exam-questions-tab";
 import { toast } from "@/stores/toast-store";
 import { confirmDialog } from "@/stores/confirm-store";
+import { useStudyContext } from "@/components/study-context";
 
 interface WrongQuestion {
   id: string;
@@ -45,6 +46,7 @@ export default function WrongQuestionsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+  const { setContext } = useStudyContext();
 
   const [tab, setTab] = useState<"all" | "unreviewed" | "reviewed" | "due" | "exam">(
     () => (searchParams.get("tab") as "all" | "unreviewed" | "reviewed" | "due" | "exam") || "all"
@@ -73,6 +75,21 @@ export default function WrongQuestionsPage() {
   const [showBatch, setShowBatch] = useState(false);
   const [reviewing, setReviewing] = useState<WrongQuestion | null>(null);
   const [detail, setDetail] = useState<WrongQuestion | null>(null);
+
+  useEffect(() => {
+    const current = reviewing ?? detail;
+    if (!current) {
+      setContext(null);
+      return;
+    }
+    setContext({
+      kind: "wrong_question",
+      wrongQuestionId: current.id,
+      title: `正在分析错题：${current.subject}`,
+      detail: `${current.tags.join(" · ") || "未标记"} · 已复习 ${current.reviewCount} 次`,
+    });
+    return () => setContext(null);
+  }, [detail, reviewing, setContext]);
 
   // ── React Query data fetching ──
   const params = useMemo(() => ({
@@ -173,8 +190,8 @@ export default function WrongQuestionsPage() {
 
   // ── Render ──
   return (
-    <div className="p-4 lg:p-6">
-      <div className="max-w-3xl mx-auto space-y-6">
+    <div className="workspace-page">
+      <div className="mx-auto max-w-4xl space-y-7">
         <PageHeader
           title="错题"
           subtitle={
@@ -192,7 +209,7 @@ export default function WrongQuestionsPage() {
         />
 
         {/* Tab 按钮区（始终显示） */}
-        <div className="flex rounded-2xl bg-muted p-1">
+        <div className="flex overflow-x-auto rounded-xl border border-border/50 bg-muted/60 p-1">
           {[
             ["all", "全部"],
             ["due", "今日到期"],
@@ -258,7 +275,7 @@ export default function WrongQuestionsPage() {
             {questions.map((q) => (
               <div
                 key={q.id}
-                className={`p-4 rounded-2xl border border-border/50 bg-card hover:shadow-sm transition-shadow ${
+                className={`workspace-surface p-4 transition-shadow hover:shadow-md ${
                   isDue(q) ? "border-l-4 border-l-orange-400"
                     : !q.reviewed ? "border-l-4 border-l-red-400"
                     : "border-l-4 border-l-green-400"

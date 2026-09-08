@@ -34,6 +34,16 @@ interface ToolEntry {
   executor: (userId: string, args: Record<string, unknown>, ctx?: ToolContext) => Promise<ToolActionResult>;
 }
 
+/** 对话工具只能安排今天及之后的任务，避免模型把历史日期直接落库。 */
+function normalizeFutureTaskDate(value: unknown): { date: Date; dateStr: string } | null {
+  const dateStr = typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? value
+    : toDateString(new Date());
+  const date = new Date(dateStr + "T00:00:00");
+  if (Number.isNaN(date.getTime()) || dateStr < toDateString(new Date())) return null;
+  return { date, dateStr };
+}
+
 const TOOL_ENTRIES: ToolEntry[] = [
   // ═══════════════════════════════════════════
   // 读操作
@@ -299,16 +309,23 @@ const TOOL_ENTRIES: ToolEntry[] = [
       },
     },
     executor: async (userId, args) => {
-      const dateStr = (args.date as string) || toDateString(new Date());
+      const normalizedDate = normalizeFutureTaskDate(args.date);
+      if (!normalizedDate) {
+        return { writes: false, result: JSON.stringify({ success: false, error: "不能创建今天之前的任务；请确认新的开始日期" }) };
+      }
+      const { date, dateStr } = normalizedDate;
       const title = args.title as string;
       const task = await prisma.task.create({
         data: {
           userId,
           title,
           description: (args.description as string) || null,
-          date: new Date(dateStr),
+          date,
           duration: (args.duration as number) || null,
           subject: (args.subject as string) || null,
+          // 周计划页按 weekStartDate 读取。AI 直接创建的单条任务也必须带上
+          // 所属周，不能只在首页按 date 可见、进入计划页便消失。
+          weekStartDate: getWeekStart(date),
           source: "ai",
         },
       });
@@ -364,14 +381,17 @@ const TOOL_ENTRIES: ToolEntry[] = [
       }
       const items = rawItems
         .slice(0, 20)
-        .map((it) => ({
-          title: String(it.title || "").trim(),
-          date: (it.date as string) || toDateString(new Date()),
-          duration: Number(it.duration) || 60,
-          subject: (it.subject as string) || null,
-          description: (it.description as string) || null,
-        }))
-        .filter((it) => it.title.length > 0);
+        .map((it) => {
+          const normalizedDate = normalizeFutureTaskDate(it.date);
+          return normalizedDate ? {
+            title: String(it.title || "").trim(),
+            date: normalizedDate.dateStr,
+            duration: Number(it.duration) || 60,
+            subject: (it.subject as string) || null,
+            description: (it.description as string) || null,
+          } : null;
+        })
+        .filter((it): it is NonNullable<typeof it> => !!it && it.title.length > 0);
 
       if (items.length === 0) {
         return { writes: false, result: JSON.stringify({ success: false, error: "提案没有有效任务" }) };

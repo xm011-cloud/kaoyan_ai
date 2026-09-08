@@ -9,6 +9,7 @@ import { StudyTrendCard } from './study-trend-card'
 import { RecentMaterialsCard } from './recent-materials-card'
 import { WrongOverviewCard } from './wrong-overview-card'
 import { PlanningOverviewCard } from './planning-overview-card'
+import { ContinueLearningCard } from './continue-learning-card'
 
 /**
  * 工作台卡片单一注册表（DIY/插件化的地基）：
@@ -24,6 +25,7 @@ const CARD_REGISTRY: Record<string, { label: string; sizes: WorkbenchCardSize[];
   'planning-overview': { label: '🧭 计划总览', sizes: ['full'], render: (d) => <PlanningOverviewCard {...d.planning} /> },
   stats: { label: '📊 统计', sizes: ['full'], render: (d) => <StatsCards {...d.stats} /> },
   'today-tasks': { label: '📋 任务', sizes: ['half'], render: (d) => <TodayTasksCard tasks={d.todayTasks} dateStr={d.dateStr} /> },
+  'continue-learning': { label: '🎬 继续学习', sizes: ['half'], render: (d) => <ContinueLearningCard lessons={d.continueLearning} /> },
   'quick-practice': { label: '✏️ 练习', sizes: ['full'], render: (d) => <QuickPracticeCard subjects={d.subjects} todaySubjects={d.todaySubjects} dueWrongCount={d.dueWrongCount} /> },
   'study-trend': { label: '📈 趋势', sizes: ['half'], render: (d) => <StudyTrendCard bars={d.weekBars} /> },
   'recent-materials': { label: '📚 资料', sizes: ['half'], render: (d) => <RecentMaterialsCard materials={d.materials} /> },
@@ -63,6 +65,14 @@ export interface WorkbenchData {
     duration?: number | null
     phase?: string | null
   }>
+  continueLearning: Array<{
+    id: string
+    title: string
+    status: string
+    courseTitle: string
+    unitTitle: string
+    noteCount: number
+  }>
   dateStr: string
   subjects: string[]
   todaySubjects: string[]
@@ -89,6 +99,8 @@ export interface WorkbenchData {
 export function WorkbenchGrid({ data, isExploration = false }: { data: WorkbenchData; isExploration?: boolean }) {
   const workspaceCards = useUIStore((s) => s.workspaceCards)
   const ordered = (workspaceCards.length > 0 ? workspaceCards : DEFAULT_WORKSPACE_CARDS)
+    // 目标 / 阶段 / 本周 / 今日已收拢进 TodayCommandCenter，避免首页重复出现两套计划叙事。
+    .filter((id) => id !== 'planning-overview')
     .filter((id) => CARD_REGISTRY[id] && !(isExploration && EXPLORATION_HIDDEN.has(id)))
   // 当前固定布局按卡片默认档位（sizes[0]）分列；网格引擎就绪后改为按 {id,size,pos} 排布
   const sizeOf = (id: string): WorkbenchCardSize => CARD_REGISTRY[id]?.sizes[0] ?? 'full'

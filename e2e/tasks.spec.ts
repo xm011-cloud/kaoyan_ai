@@ -23,6 +23,33 @@ test.describe("Tasks", () => {
     await expect(page.locator("h1").filter({ hasText: /计划|规划|任务/ })).toBeVisible({ timeout: 10000 });
   });
 
+  test("任务即使缺少 weekStartDate 也会在所属周计划中显示", async ({ page }) => {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const localDate = (dt: Date) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+    const target = new Date();
+    target.setDate(target.getDate() + 14);
+    const day = target.getDay();
+    target.setDate(target.getDate() + (day === 0 ? -6 : 1 - day));
+    target.setHours(0, 0, 0, 0);
+
+    const weekStart = localDate(target);
+    const title = `E2E AI 单任务${Date.now()}`;
+    // 模拟修复前 AI 直建任务的落库形态：有 date、无 weekStartDate。
+    const created = await page.request.post("/api/tasks", {
+      data: { title, date: weekStart, source: "ai" },
+    });
+    expect(created.status()).toBe(200);
+    const { task } = await created.json();
+
+    const weeklyTasks = await page.request.get(`/api/tasks?weekStart=${weekStart}`);
+    expect((await weeklyTasks.json()).tasks.some((item: { id: string }) => item.id === task.id)).toBe(true);
+
+    await page.goto(`/tasks?week=${weekStart}`);
+    await expect(page.getByText(title)).toBeVisible({ timeout: 10000 });
+
+    await page.request.delete(`/api/tasks/${task.id}`);
+  });
+
   test("add task modal opens", async ({ page }) => {
     const addBtn = page.locator("button").filter({ hasText: /添加|\+/ }).first();
     if (await addBtn.isVisible({ timeout: 5000 }).catch(() => false)) {

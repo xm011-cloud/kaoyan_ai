@@ -1,6 +1,6 @@
 // Basic Service Worker for offline support + notification click handling
-// v7：同步/日期修复 bundle 变更（勾选回滚+周视图本地日期分组等）→ 强制刷新已安装 PWA
-const CACHE_NAME = 'c6-study-v7';
+// v8：不再由 Service Worker 缓存用户私有 API 响应，避免账号切换或网络波动导致旧数据回流。
+const CACHE_NAME = 'c6-study-v8';
 
 // Assets to cache on install
 const PRECACHE_ASSETS = [
@@ -51,31 +51,14 @@ self.addEventListener('activate', (event) => {
 });
 
 // Network-first strategy for navigation, cache-first for static assets.
-// GET /api/* → network-first with cache fallback（离线读已访问过的数据）。
-// 非 GET 的 /api/* → 网络直连（写入类请求由客户端离线队列接管，见 src/lib/offline-queue.ts）。
+// /api/* → 网络直连。私有学习数据由 API 的 no-store 约束；离线只由明确可重放的写入队列处理。
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
   // Only handle same-origin requests
   if (url.origin !== self.location.origin) return;
 
-  // API GET - network first, cache response for offline reads
-  if (url.pathname.startsWith('/api/') && event.request.method === 'GET') {
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          if (response.ok) {
-            const cloned = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cloned));
-          }
-          return response;
-        })
-        .catch(() => caches.match(event.request))
-    );
-    return;
-  }
-
-  // API non-GET - network only
+  // 用户私有 API（读取和写入）均不落入 Cache Storage。
   if (url.pathname.startsWith('/api/')) return;
 
   // Navigation requests - network first, fallback to cache, then offline.html

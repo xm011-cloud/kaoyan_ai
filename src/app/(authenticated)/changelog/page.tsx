@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function ChangelogPage() {
   return (
-    <div className="p-4 lg:p-6 max-w-3xl mx-auto space-y-6">
+    <div className="workspace-page max-w-4xl space-y-7">
       <PageHeader title="📣 更新日志" subtitle="每次发版都记在这里，欢迎反馈建议" />
 
       {CHANGELOG.map((entry) => (

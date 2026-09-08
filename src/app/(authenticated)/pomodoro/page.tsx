@@ -496,16 +496,16 @@ export default function PomodoroPage() {
   }
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-6 space-y-6">
+    <div className="workspace-page max-w-2xl space-y-7">
       {/* Page title */}
       <PageHeader
         align="center"
-        title="🍅 番茄钟"
+        title="番茄钟"
         subtitle={`专注 ${settings.focusMinutes} 分钟 · 短休 ${settings.shortBreakMinutes} 分钟 · 长休 ${settings.longBreakMinutes} 分钟`}
       />
 
       {/* Timer */}
-      <div className="bg-card rounded-2xl border border-border/50 p-6">
+      <div className="workspace-surface p-6">
         <PomodoroTimer
           timeLeft={timeLeft}
           totalSeconds={totalSecondsRef.current}

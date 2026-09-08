@@ -9,6 +9,8 @@ import { getVisibleGroups } from '@/lib/nav'
 import { useUIStore } from '@/stores/ui-store'
 import { cn } from '@/lib/utils'
 import { clearClientStateOnLogout } from '@/lib/clear-client-state'
+import { useAiWorkspace } from '@/components/ai-workspace-context'
+import { Bot, CalendarDays, Menu, Settings2 } from 'lucide-react'
 
 /**
  * 统一头部 — 合并了旧 TopBar + WorkbenchTabs
@@ -23,6 +25,7 @@ export function Header({ daysLeft, daysLabel }: { daysLeft: number; daysLabel?: 
   const [now, setNow] = useState(new Date())
   const pomodoro = usePomodoroStore()
   const uiGroups = useUIStore((s) => s.navGroups)
+  const aiWorkspace = useAiWorkspace()
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 30000)
@@ -52,15 +55,14 @@ export function Header({ daysLeft, daysLabel }: { daysLeft: number; daysLabel?: 
         {/* Logo + menu */}
         <button
           onClick={() => setMenuOpen(!menuOpen)}
-          className="flex items-center gap-1 shrink-0 px-2 py-1 rounded-md hover:bg-muted transition-colors"
+          className="flex items-center gap-1 shrink-0 px-2 py-1 rounded-md hover:bg-muted transition-colors lg:hidden"
         >
-          <span className="text-lg leading-none">🎓</span>
-          <span className="font-bold text-sm hidden sm:inline">考研助手</span>
-          <span className={cn('text-[9px] text-muted-foreground transition-transform ml-0.5', menuOpen && 'rotate-90')}>▶</span>
+          <Menu className="h-4 w-4" aria-hidden />
+          <span className="text-sm font-semibold sm:inline">C6</span>
         </button>
 
         {/* Desktop tabs */}
-        <nav className="hidden lg:flex items-center h-full ml-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <nav className="hidden items-center h-full ml-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {groups.map((g) => {
             const href = g.firstItem?.href || '/dashboard'
             const isActive = pathname === href || (href !== '/dashboard' && pathname.startsWith(href + '/'))
@@ -87,7 +89,7 @@ export function Header({ daysLeft, daysLabel }: { daysLeft: number; daysLabel?: 
 
         {/* Date (desktop only) */}
         <span className="hidden xl:block text-xs text-muted-foreground mr-2 shrink-0 whitespace-nowrap">
-          📅 {dateStr}{daysLabel || (daysLeft > 0 ? ` · ⏳ ${daysLeft}天` : '')}
+          <CalendarDays className="mr-1 inline h-3.5 w-3.5" />{dateStr}{daysLabel || (daysLeft > 0 ? ` · ${daysLeft}天` : '')}
         </span>
 
         {/* Activity indicators */}
@@ -110,9 +112,23 @@ export function Header({ daysLeft, daysLabel }: { daysLeft: number; daysLabel?: 
 
         </div>
 
+        {/* 桌面端 AI 是右侧工作区，不再以悬浮按钮盖住页面内容。 */}
+        <button
+          onClick={aiWorkspace.toggle}
+          className={cn(
+            'hidden lg:flex items-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium transition-colors shrink-0',
+            aiWorkspace.open ? 'bg-brand-muted text-brand' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+          )}
+          aria-pressed={aiWorkspace.open}
+          title="切换 AI 工作区 (Ctrl+J)"
+        >
+          <Bot className="h-3.5 w-3.5" aria-hidden />
+          <span>AI 工作区</span>
+        </button>
+
         {/* Settings */}
         <Link href="/settings" className={cn('p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0', pathname.startsWith('/settings') && 'text-brand bg-brand-muted')}>
-          <span className="text-base">⚙️</span>
+          <Settings2 className="h-4 w-4" aria-hidden />
         </Link>
       </header>
 

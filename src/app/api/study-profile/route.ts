@@ -2,7 +2,12 @@ import { NextRequest } from "next/server";
 import { getAuthUser } from "@/lib/api-auth";
 import { handleApiError, jsonNoStore } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
-import { analyzePlanningStatement, buildInterviewFacts, type PlanningInterviewAnswers } from "@/lib/study-profile";
+import {
+  analyzePlanningStatement,
+  buildInterviewFacts,
+  getPlanningReadiness,
+  type PlanningInterviewAnswers,
+} from "@/lib/study-profile";
 import type { Prisma } from "@prisma/client";
 
 function getWeeklyHours(studyLoad: unknown): number | null {
@@ -32,7 +37,7 @@ export async function GET(request: NextRequest) {
       where: { userId: user!.id, status: "confirmed" },
       orderBy: [{ observedAt: "desc" }, { createdAt: "desc" }],
     });
-    return jsonNoStore({ facts });
+    return jsonNoStore({ facts, readiness: getPlanningReadiness(await getContext(user!.id), facts) });
   } catch (err) {
     return handleApiError(err, "获取学习档案");
   }
@@ -98,7 +103,11 @@ export async function POST(request: NextRequest) {
       });
     }, { maxWait: 5000, timeout: 15000 });
 
-    return jsonNoStore({ analysis, facts: savedFacts });
+    return jsonNoStore({
+      analysis,
+      facts: savedFacts,
+      readiness: getPlanningReadiness(await getContext(user!.id), savedFacts),
+    });
   } catch (err) {
     return handleApiError(err, "更新学习档案");
   }

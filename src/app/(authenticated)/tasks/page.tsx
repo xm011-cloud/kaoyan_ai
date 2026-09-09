@@ -36,6 +36,9 @@ interface Task {
   completed: boolean;
   weekStartDate?: string | null;
   source?: string | null;
+  milestoneId?: string | null;
+  milestoneTitle?: string | null;
+  courseLessonId?: string | null;
 }
 
 interface WeeklyPlanDraft {
@@ -46,6 +49,7 @@ interface WeeklyPlanDraft {
   rationale: string;
   successCriteria: string[];
   plannedMinutes: number;
+  stage?: { title: string; objective: string; exitCriteria: string[]; status: string } | null;
   items: Array<Omit<Task, "id" | "completed">>;
   adjustmentRequest?: string | null;
   constraints?: {
@@ -73,6 +77,7 @@ interface WeeklyPlanVersion {
   status: string;
   objective: string;
   plannedMinutes: number;
+  stage?: { title: string; objective: string; exitCriteria: string[]; status: string } | null;
   adjustmentRequest?: string | null;
   confirmedAt?: string | null;
   createdAt: string;
@@ -710,6 +715,7 @@ export default function TasksPage() {
             onConfirmDraft={handleConfirmWeeklyPlan} onDiscardDraft={handleDiscardWeeklyPlan}
             onAdjust={handleAdjustWeeklyPlan}
             initialAdjustment={searchParams.get("adjustment") || ""}
+            highlightTaskId={searchParams.get("task")}
           />
         </div>
 

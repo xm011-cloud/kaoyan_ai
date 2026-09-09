@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { AiWaiting } from "@/components/ai-waiting";
 import { toLocalDateString } from "@/lib/date-utils";
@@ -16,6 +16,8 @@ interface WeekTask {
   subject?: string | null;
   completed: boolean;
   source?: string | null;
+  milestoneId?: string | null;
+  milestoneTitle?: string | null;
 }
 
 interface JudgeResult {
@@ -33,6 +35,7 @@ interface WeeklyPlanDraftView {
   rationale: string;
   successCriteria: string[];
   plannedMinutes: number;
+  stage?: { title: string; objective: string; exitCriteria: string[]; status: string } | null;
   items: Array<Omit<WeekTask, "id" | "completed">>;
   adjustmentRequest?: string | null;
   constraints?: {
@@ -60,6 +63,7 @@ interface WeeklyPlanVersionView {
   status: string;
   objective: string;
   plannedMinutes: number;
+  stage?: { title: string; objective: string; exitCriteria: string[]; status: string } | null;
   adjustmentRequest?: string | null;
   confirmedAt?: string | null;
   createdAt: string;
@@ -97,6 +101,7 @@ interface WeeklyPlannerProps {
   onDiscardDraft: () => void;
   onAdjust: (request: string) => Promise<void>;
   initialAdjustment?: string;
+  highlightTaskId?: string | null;
 }
 
 const DAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
@@ -113,11 +118,17 @@ export function WeeklyPlanner({
   generatingPhase, generatingEstimate, onCancelGenerate,
   judgingPhase, judgingEstimate, onCancelJudge,
   onConfirmDraft, onDiscardDraft, onAdjust,
-  initialAdjustment = "",
+  initialAdjustment = "", highlightTaskId = null,
 }: WeeklyPlannerProps) {
   const [showJudge, setShowJudge] = useState(false);
   // 调整建议只在打开周计划时作为输入预填；后续输入应由用户自己掌控。
   const [adjustment, setAdjustment] = useState(initialAdjustment);
+
+  useEffect(() => {
+    if (!highlightTaskId) return;
+    const timer = window.setTimeout(() => document.getElementById(`task-${highlightTaskId}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
+    return () => window.clearTimeout(timer);
+  }, [highlightTaskId]);
 
   // Group tasks by day of week。
   // 日列必须用「本地历法日期串」:任务 date 存的是 UTC 午夜(new Date("YYYY-MM-DD")),
@@ -136,6 +147,7 @@ export function WeeklyPlanner({
 
   const weekEnd = new Date(weekStart.getTime() + 6 * 86400000);
   const hasGenerated = totalTasks > 0;
+  const contextualPlan = draftPlan ?? planVersions.find((plan) => plan.status === "active") ?? null;
 
   return (
     <div className="space-y-4">
@@ -155,6 +167,17 @@ export function WeeklyPlanner({
         </div>
         <Button variant="outline" size="sm" onClick={() => onWeekChange(1)}>下周 ▶</Button>
       </div>
+
+      {contextualPlan?.stage && (
+        <div className="rounded-2xl border border-brand/20 bg-brand/5 p-4">
+          <p className="text-xs font-medium text-brand">当前路线阶段 · {contextualPlan.stage.title}</p>
+          <p className="mt-1 text-sm font-medium">{contextualPlan.stage.objective}</p>
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            {(Array.isArray(contextualPlan.stage.exitCriteria) ? contextualPlan.stage.exitCriteria : []).slice(0, 3).map((criterion) => <span key={criterion}>○ {criterion}</span>)}
+          </div>
+          <p className="mt-3 text-xs text-muted-foreground">本周任务会服务路线里程碑；完成任务只累计证据，里程碑仍需复盘确认。</p>
+        </div>
+      )}
 
       {/* Action buttons */}
       <div className="flex flex-wrap gap-2 items-center">
@@ -264,7 +287,10 @@ export function WeeklyPlanner({
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               {draftPlan.items.map((task, index) => (
                 <div key={`${task.date}-${task.title}-${index}`} className="rounded-lg bg-muted/50 p-2.5 text-sm">
-                  <div className="font-medium">{task.title}</div>
+                  <div className="flex flex-wrap items-center gap-2 font-medium">
+                    <span>{task.title}</span>
+                    {task.milestoneTitle && <span className="rounded-full bg-brand/10 px-2 py-0.5 text-[10px] font-medium text-brand">服务里程碑：{task.milestoneTitle}</span>}
+                  </div>
                   <div className="mt-1 text-xs text-muted-foreground">{task.date.slice(5)} · {task.subject || "未分类"} · {task.duration || 0} 分钟</div>
                 </div>
               ))}
@@ -384,7 +410,7 @@ export function WeeklyPlanner({
                 </div>
                 <div className="p-2 space-y-2 min-h-[60px]">
                   {dayTasks.map((task) => (
-                    <div key={task.id} className={`text-xs p-2 rounded border group cursor-pointer hover:shadow-sm transition-shadow ${task.completed ? "opacity-50 bg-muted/50" : "bg-card"}`}
+                    <div id={`task-${task.id}`} key={task.id} className={`text-xs p-2 rounded border group cursor-pointer hover:shadow-sm transition-shadow ${task.id === highlightTaskId ? "border-brand bg-brand/5 ring-2 ring-brand/15" : task.completed ? "opacity-50 bg-muted/50" : "bg-card"}`}
                       onClick={() => onEditTask(task)}>
                       <div className="flex items-start gap-1">
                         <input type="checkbox" checked={task.completed}
@@ -396,6 +422,7 @@ export function WeeklyPlanner({
                           <div className="flex flex-wrap gap-1 mt-1">
                             {task.subject && <span className="text-[10px] bg-blue-100 text-blue-600 px-1 rounded truncate max-w-full">{task.subject}</span>}
                             {task.duration && <span className="text-[10px] text-muted-foreground">{task.duration}min</span>}
+                            {task.milestoneTitle && <span className="text-[10px] bg-brand/10 text-brand px-1 rounded truncate max-w-full">{task.milestoneTitle}</span>}
                             {task.source === "manual" && <span className="text-[10px] text-muted-foreground">✍️</span>}
                           </div>
                         </div>

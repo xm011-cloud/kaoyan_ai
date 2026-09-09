@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { PageHeader } from "@/components/ui/page-header";
@@ -36,6 +37,8 @@ function sourceLabel(lesson: Lesson) {
 }
 
 export default function CoursesPage() {
+  const searchParams = useSearchParams();
+  const requestedLessonId = searchParams.get("lesson");
   const [courses, setCourses] = useState<Course[]>([]);
   const [selected, setSelected] = useState<Course | null>(null);
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -59,15 +62,15 @@ export default function CoursesPage() {
   }, []);
 
   const loadCourses = useCallback(async (selectId?: string) => {
-    const res = await fetch("/api/courses", { cache: "no-store" });
+    const res = await fetch(`/api/courses${requestedLessonId ? `?lesson=${encodeURIComponent(requestedLessonId)}` : ""}`, { cache: "no-store" });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "加载课程失败");
     const list = data.courses || [];
     setCourses(list);
-    const id = selectId || selected?.id || list[0]?.id;
+    const id = selectId || data.selectedCourseId || selected?.id || list[0]?.id;
     if (id) await loadCourse(id);
     else setSelected(null);
-  }, [loadCourse, selected?.id]);
+  }, [loadCourse, requestedLessonId, selected?.id]);
 
   useEffect(() => {
     // 初次加载只同步远端课程数据；后续选择课程由显式交互触发。
@@ -99,6 +102,11 @@ export default function CoursesPage() {
     });
     return () => setContext(null);
   }, [activeSession, allLessons, selected, setContext]);
+
+  useEffect(() => {
+    if (!requestedLessonId || !allLessons.some((lesson) => lesson.id === requestedLessonId)) return;
+    document.getElementById(`lesson-${requestedLessonId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [allLessons, requestedLessonId]);
 
   const createCourse = async (form: HTMLFormElement) => {
     const fd = new FormData(form);
@@ -226,7 +234,7 @@ export default function CoursesPage() {
                 <div className="space-y-5 p-5">
                   {selected.units?.map((unit) => <div key={unit.id} className="space-y-2">
                     <div className="flex items-center gap-2"><span className="text-xs font-medium text-muted-foreground">第 {unit.order} 章</span><h3 className="font-medium">{unit.title}</h3></div>
-                    {unit.lessons.map((lesson) => <div key={lesson.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-border/50 p-3">
+                    {unit.lessons.map((lesson) => <div id={`lesson-${lesson.id}`} key={lesson.id} className={`flex flex-wrap items-center gap-3 rounded-xl border p-3 ${lesson.id === requestedLessonId ? "border-brand bg-brand/5 ring-2 ring-brand/15" : "border-border/50"}`}>
                       <span className={`h-2 w-2 rounded-full ${lesson.status === "completed" ? "bg-success" : lesson.status === "in_progress" ? "bg-warning" : "bg-muted-foreground/30"}`} />
                       <div className="min-w-0 flex-1"><p className="text-sm font-medium">{lesson.title}</p><p className="mt-0.5 truncate text-xs text-muted-foreground">{sourceLabel(lesson)}{lesson.plannedMinutes ? ` · ${lesson.plannedMinutes} 分钟` : ""} · {lesson._count.notes} 条学习记录</p></div>
                       <Button size="sm" variant={lesson.status === "completed" ? "outline" : "default"} onClick={() => startLesson(lesson)} disabled={saving}>{lesson.status === "completed" ? "回顾" : lesson.status === "in_progress" ? "继续" : "开始"}</Button>

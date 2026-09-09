@@ -129,11 +129,13 @@ model Task {
   proposalId    String? // 关联的提案 ID（对话→任务落地：确认采纳后落库的批次标记）
   chatId        String? // 来源对话 ID
   weeklyPlanId  String? // 所属周计划版本；手动任务可为空
+  milestoneId   String? // 服务的长期路线里程碑；手动任务可为空
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   weeklyPlan    WeeklyPlan?    @relation(fields: [weeklyPlanId], references: [id], onDelete: SetNull)
+  milestone     StudyPathMilestone? @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
   courseLesson  CourseLesson?  @relation(fields: [courseLessonId], references: [id], onDelete: SetNull)
   studySessions StudySession[]
   studyNotes    StudyNote[]
@@ -144,6 +146,7 @@ model Task {
   @@index([userId, weekStartDate])
   @@index([userId, proposalId])
   @@index([weeklyPlanId])
+  @@index([milestoneId])
   @@index([courseLessonId])
 }
 
@@ -655,12 +658,16 @@ model StudyPathMilestone {
   targetDate  DateTime? // 目标完成日期
   completedAt DateTime? // 实际完成日期
   progress    Float     @default(0.0) // 进度 0-1
+  reviewedAt  DateTime? // 最近一次用户复盘；复盘而非任务勾选决定是否完成
+  reviewOutcome String? // achieved | continue | relearn
+  reviewNote  String?   // 用户复盘备注，供 AI 在后续对话中参考
   tips        String? // AI 学习建议
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   studyPath StudyPath       @relation(fields: [studyPathId], references: [id], onDelete: Cascade)
   stage     StudyPathStage? @relation(fields: [stageId], references: [id], onDelete: SetNull)
+  tasks     Task[]
 
   @@index([studyPathId, order])
   @@index([stageId])

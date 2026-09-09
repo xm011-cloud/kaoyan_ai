@@ -16,9 +16,10 @@ import { useGoal } from '@/hooks/use-goal'
 import { useStudyContext } from '@/components/study-context'
 
 interface ActionCard {
-  type: "task_created" | "task_completed" | "checkin_created" | "reminder_updated"
+  type: "task_created" | "task_completed" | "checkin_created" | "reminder_updated" | "planning_intake" | "milestone_review"
   title: string
   detail: string
+  href?: string
 }
 
 interface Message {
@@ -520,6 +521,7 @@ export function AiWorkspace() {
               <p className="mt-1 text-xs">试试这些：</p>
               <div className="grid grid-cols-1 gap-1.5 mt-3 w-full max-w-[280px]">
                 {[
+                  '帮我先梳理考研目标与当前基础，不要直接排任务',
                   '我今天有什么任务？',
                   '帮我创建一个复习任务',
                   '本周学了多久？',
@@ -534,6 +536,7 @@ export function AiWorkspace() {
                   </button>
                 ))}
               </div>
+              <a href="/goal#planning-intake" className="mt-4 text-xs font-medium text-brand hover:underline">先确认长期目标与基础 →</a>
             </div>
           )}
 

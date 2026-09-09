@@ -36,6 +36,19 @@ export interface PlanningInterviewQuestion {
 
 export type PlanningInterviewAnswers = Record<string, string>;
 
+export interface PlanningReadiness {
+  /** 是否已有足够的、已确认的输入来起草长期路线。 */
+  readyForPathDraft: boolean;
+  /** 仍值得在生成前讨论的字段；明确标记“不确定”不等同于遗漏。 */
+  unresolvedFields: string[];
+  nextStep: string;
+}
+
+type ProfileFactLike = {
+  key: string;
+  value: unknown;
+};
+
 const INTERVIEW_FACT_META: Record<string, { label: string; key: string }> = {
   exam_time: { label: "预计考试时间", key: "planning.exam_time" },
   weekly_capacity: { label: "每周稳定学习容量", key: "planning.weekly_capacity" },
@@ -210,6 +223,43 @@ export function buildInterviewFacts(answers: PlanningInterviewAnswers): StudyPro
     });
   }
   return facts;
+}
+
+function factHasAnswer(fact: ProfileFactLike | undefined) {
+  if (!fact || !fact.value || typeof fact.value !== "object" || Array.isArray(fact.value)) return false;
+  const value = fact.value as { state?: unknown; answer?: unknown; text?: unknown };
+  // 用户明确选择“暂不确定”也是一个有效决定：路线应保留分支，而非反复追问。
+  return typeof value.state === "string" || typeof value.answer === "string" || typeof value.text === "string";
+}
+
+/**
+ * 长期路线的最小输入门槛。
+ * 不把院校和准确考试日期设为硬门槛：探索期本来就应允许不确定性；
+ * 但必须知道用户想解决什么、当前基础大致如何，以及第一阶段何时算完成。
+ */
+export function getPlanningReadiness(
+  goal: StudyProfileGoalContext,
+  facts: ProfileFactLike[],
+): PlanningReadiness {
+  const byKey = new Map(facts.map((fact) => [fact.key, fact]));
+  const unresolvedFields: string[] = [];
+  if (!factHasAnswer(byKey.get("planning.statement"))) unresolvedFields.push("目标与当前情况");
+  if (!factHasAnswer(byKey.get("planning.subject_baseline"))
+    && !facts.some((fact) => fact.key.startsWith("subject.") && factHasAnswer(fact))) {
+    unresolvedFields.push("各科基础");
+  }
+  if (!factHasAnswer(byKey.get("planning.foundation_exit"))) unresolvedFields.push("基础阶段退出标准");
+  if (!goal.weeklyHours && !factHasAnswer(byKey.get("planning.weekly_capacity"))) {
+    unresolvedFields.push("每周稳定学习容量");
+  }
+
+  return {
+    readyForPathDraft: unresolvedFields.length === 0,
+    unresolvedFields,
+    nextStep: unresolvedFields.length === 0
+      ? "可以先生成一份分阶段路线草稿；确认前不会改变当前计划。"
+      : `先确认${unresolvedFields.slice(0, 2).join("、")}${unresolvedFields.length > 2 ? "等信息" : ""}，再生成长期路线。`,
+  };
 }
 
 export function formatStudyProfileFactsForPrompt(

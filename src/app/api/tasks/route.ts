@@ -42,9 +42,10 @@ export async function GET(request: NextRequest) {
     const tasks = await prisma.task.findMany({
       where,
       orderBy: { date: "asc" },
+      include: { milestone: { select: { title: true } } },
     });
 
-    return jsonNoStore({ tasks });
+    return jsonNoStore({ tasks: tasks.map(({ milestone, ...task }) => ({ ...task, milestoneTitle: milestone?.title ?? null })) });
   } catch (err) {
     return handleApiError(err, "获取任务列表");
   }

@@ -9,6 +9,7 @@ import { getEffectiveStage, STAGE_LABELS, needsConfirmation, type SubjectProgres
 import { addLocalDays, toLocalDateString } from "@/lib/date-utils";
 import type { Prisma } from "@prisma/client";
 import { applyWeeklyAdjustment, parseWeeklyAdjustment } from "@/lib/weekly-plan-adjustment";
+import { formatStudyProfileFactsForPrompt, getPlanningReadiness } from "@/lib/study-profile";
 
 interface PlanTask {
   title: string;
@@ -17,6 +18,8 @@ interface PlanTask {
   duration: number;  // 分钟
   phase: string;
   subject: string;
+  milestoneId?: string;
+  milestoneTitle?: string;
 }
 
 /** 探索期计划上下文（judge-plan-intent 确认后传入，无需落库 Goal） */
@@ -137,7 +140,14 @@ export async function POST(request: NextRequest) {
       prisma.goal.findUnique({ where: { userId: user!.id } }),
       prisma.studyPathStage.findFirst({
         where: { studyPath: { userId: user!.id, status: "active" }, status: "active" },
-        include: { studyPath: { select: { id: true, title: true, subjects: true } } },
+        include: {
+          studyPath: { select: { id: true, title: true, subjects: true } },
+          milestones: {
+            where: { completedAt: null },
+            orderBy: { order: "asc" },
+            select: { id: true, title: true, subject: true },
+          },
+        },
         orderBy: { order: "asc" },
       }),
       prisma.studyProfileFact.findMany({
@@ -188,6 +198,14 @@ export async function POST(request: NextRequest) {
       ? Math.max(1, Math.ceil((ctxExamDate.getTime() - today.getTime()) / 86400000))
       : null;
     const weeklyHours = adjustmentConstraints.weeklyHours ?? studyLoad?.weeklyHours ?? null;
+    const planningReadiness = getPlanningReadiness({
+      examDate: ctxExamDate,
+      examYear: goal?.examYear,
+      university: goal?.university,
+      major: goal?.major,
+      subjects,
+      weeklyHours,
+    }, profileFacts);
 
     // ── 阶段推导（0.3）──
     const stage = derivePrepStage({
@@ -263,20 +281,21 @@ export async function POST(request: NextRequest) {
       const goalBlock = ctxExamDate
         ? `- 目标：${ctxLabel}\n- 考试日期：${ctxExamDate.toISOString().split("T")[0]}\n- 距考试还有：${daysRemaining} 天\n- 科目：${subjects.join("、")}${scoreContext}`
         : `- 目标：${ctxLabel}（未设定考试日期，按宽松节奏安排）\n- 科目：${subjects.join("、")}${scoreContext}`;
+      const profileContext = `\n## 已确认长期学习档案\n${formatStudyProfileFactsForPrompt(profileFacts)}\n路线草稿准备度：${planningReadiness.readyForPathDraft ? "已满足" : `尚缺：${planningReadiness.unresolvedFields.join("、")}`}\n`;
 
       const durationGuidance = weeklyHours
         ? `每天任务总时长控制在 ${Math.round(weeklyHours / 7)} 小时左右（不超 ${Math.round(weeklyHours / 7) + 1} 小时）`
         : "每天任务总时长控制在 3-6 小时";
 
       const stageFocusContext = activeStage
-        ? `\n## 当前正式阶段\n${activeStage.title}。阶段目标：${activeStage.objective}。本周任务必须服务于这个阶段目标，任务 phase 统一用「${phase}」。\n`
+        ? `\n## 当前正式阶段\n${activeStage.title}。阶段目标：${activeStage.objective}。本周任务必须服务于这个阶段目标，任务 phase 统一用「${phase}」。\n本阶段尚未完成的里程碑：${activeStage.milestones.map((item) => `${item.subject}·${item.title}`).join("；") || "暂无，先围绕阶段退出标准安排"}。\n`
         : `\n## 当前备考阶段\n${stage.label}（${stage.hint}）。本阶段焦点：${stage.focus}。本周计划跨度提示：${stage.planSpanHint}。任务 phase 统一用「${phase}」。\n`;
 
       const prompt = `你是一名资深的考研/学习辅导专家。请为用户的接下来一周（${weekStartStr} 至 ${weekEnd.toISOString().split("T")[0]}）生成详细的学习计划。
 
 ## 用户目标
 ${goalBlock}
-${progressContext}${feedbackContext}${capacityContext}${stageFocusContext}${adjustmentContext}
+${progressContext}${feedbackContext}${capacityContext}${stageFocusContext}${profileContext}${adjustmentContext}
 ## 要求
 1. 当前阶段判定：${stage.label}，任务 phase 统一用「${phase}」
 2. 每天安排 **3-5 个**具体可执行的学习任务，${durationGuidance}
@@ -370,6 +389,21 @@ ${sprintContext}${regenerateContext}${pastSkipContext}
       planTasks = applyWeeklyAdjustment(planTasks, adjustmentConstraints, weekStartStr);
     }
 
+    // AI 只负责生成可执行任务；里程碑关联由服务端按当前活动阶段和科目确定，
+    // 避免模型伪造 ID，也让本地兜底计划拥有同样的可追溯性。
+    if (activeStage?.milestones.length) {
+      const nextIndexBySubject = new Map<string, number>();
+      planTasks = planTasks.map((task) => {
+        if (task.milestoneId) return task;
+        const candidates = activeStage.milestones.filter((item) => item.subject === task.subject);
+        const pool = candidates.length > 0 ? candidates : activeStage.milestones;
+        const index = nextIndexBySubject.get(task.subject) ?? 0;
+        const milestone = pool[index % pool.length];
+        nextIndexBySubject.set(task.subject, index + 1);
+        return { ...task, milestoneId: milestone.id, milestoneTitle: milestone.title };
+      });
+    }
+
     const plannedMinutes = planTasks.reduce(
       (total, task) => total + Math.min(Math.max(task.duration || 60, 15), 480),
       0,
@@ -388,6 +422,10 @@ ${sprintContext}${regenerateContext}${pastSkipContext}
       "至少完成一次本周复盘，记录未完成原因与下周调整项",
       activeStage ? `能够说明本周任务如何支持阶段目标：${activeStage.objective}` : `明确下一周在${phase}中的具体推进重点`,
     ];
+    const linkedMilestones = Array.from(new Set(planTasks.map((task) => task.milestoneTitle).filter(Boolean)));
+    if (linkedMilestones.length > 0) {
+      successCriteria.push(`推进本阶段里程碑：${linkedMilestones.slice(0, 3).join("、")}${linkedMilestones.length > 3 ? "等" : ""}`);
+    }
 
     // 生成只落草稿；用户确认后，/api/weekly-plans 才会创建正式 Task。
     const draft = await prisma.$transaction(async (tx) => {
@@ -440,6 +478,7 @@ ${sprintContext}${regenerateContext}${pastSkipContext}
       generatedBy: aiConfig && generationMode !== "local" ? "ai" : "local",
       reasoning: truncateReasoning(planReasoning),
       stage: { id: stage.id, label: stage.label, hint: stage.hint, planSpanHint: stage.planSpanHint },
+      planningReadiness,
     });
   } catch (err) {
     console.error("Generate plan error:", err);

@@ -11,6 +11,8 @@ interface WeeklyPlanItem {
   duration?: number | null;
   phase?: string | null;
   subject?: string | null;
+  milestoneId?: string | null;
+  milestoneTitle?: string | null;
 }
 
 export async function GET(request: NextRequest) {
@@ -24,6 +26,7 @@ export async function GET(request: NextRequest) {
     const plans = await prisma.weeklyPlan.findMany({
       where: { userId: user!.id, weekStart: new Date(weekStart) },
       orderBy: { version: "desc" },
+      include: { stage: { select: { title: true, objective: true, exitCriteria: true, status: true } } },
     });
     const draft = plans.find((plan) => plan.status === "draft") ?? null;
     const active = plans.find((plan) => plan.status === "active") ?? null;
@@ -123,6 +126,13 @@ export async function PATCH(request: NextRequest) {
       const pendingItems = items.filter(
         (item) => !completedKeys.has(`${item.title}|${String(item.date).slice(0, 10)}`),
       );
+      const milestoneIds = Array.from(new Set(
+        pendingItems.map((item) => item.milestoneId).filter((id): id is string => typeof id === "string" && id.length > 0),
+      ));
+      const validMilestoneIds = new Set((await tx.studyPathMilestone.findMany({
+        where: { id: { in: milestoneIds }, studyPath: { userId: user!.id } },
+        select: { id: true },
+      })).map((item) => item.id));
       if (pendingItems.length > 0) {
         await tx.task.createMany({
           data: pendingItems.map((item) => ({
@@ -136,6 +146,7 @@ export async function PATCH(request: NextRequest) {
             subject: item.subject ?? null,
             weekStartDate: plan.weekStart,
             source: "ai_confirmed",
+            milestoneId: item.milestoneId && validMilestoneIds.has(item.milestoneId) ? item.milestoneId : null,
           })),
         });
       }

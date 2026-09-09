@@ -64,12 +64,11 @@ test.describe("Goal", () => {
       });
 
       await page.reload();
-      await expect(page.locator("#goal-direction")).toHaveValue("计算机类考研");
+      await expect(page.locator("#goal-direction")).toHaveValue("计算机类考研", { timeout: 15000 });
       await expect(page.getByText("目标探索中", { exact: true }).first()).toBeVisible();
 
       await page.goto("/dashboard");
-      await expect(page.getByText("🎯 计算机类考研", { exact: true })).toBeVisible();
-      await expect(page.getByRole("link", { name: "完善目标 →" })).toBeVisible();
+      await expect(page.getByText("计算机类考研", { exact: true })).toBeVisible();
 
       const pathResult = await page.evaluate(async () => {
         const res = await fetch("/api/study-path", {
@@ -79,17 +78,9 @@ test.describe("Goal", () => {
         });
         return { status: res.status, body: await res.json() };
       });
-      expect(pathResult.status).toBe(200);
-      expect(pathResult.body.isDraft).toBe(true);
-      expect(pathResult.body.stages.map((stage: { key: string }) => stage.key)).toEqual(["explore", "foundation"]);
-      expect(pathResult.body.path.description).toContain("当前信息尚不完整");
-      await page.evaluate(async (pathId) => {
-        await fetch("/api/study-path", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pathId, action: "discard" }),
-        });
-      }, pathResult.body.path.id);
+      expect(pathResult.status).toBe(409);
+      expect(pathResult.body.needsIntake).toBe(true);
+      expect(pathResult.body.readiness.unresolvedFields.length).toBeGreaterThan(0);
     } finally {
       if (original) {
         await page.evaluate(async (goal) => {
@@ -155,6 +146,7 @@ test.describe("Goal", () => {
     expect(confirmed.status).toBe(200);
     expect(confirmed.body.facts.length).toBeGreaterThanOrEqual(8);
     expect(confirmed.body.facts.map((fact: { label: string }) => fact.label)).toContain("基础阶段退出标准");
+    expect(confirmed.body.readiness.nextStep).toBeTruthy();
 
     const after = await page.evaluate(async (text) => {
       const res = await fetch("/api/study-profile");

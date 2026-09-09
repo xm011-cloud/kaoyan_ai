@@ -11,6 +11,7 @@ import { getDueCount } from "@/lib/sm2"
 import { derivePrepStage } from "@/lib/prep-stage"
 import type { SubjectProgress } from "@/lib/completion"
 import { getDaysToGoal, getGoalLabel } from "@/lib/goal-model"
+import { getMilestoneEvidence } from "@/lib/milestone-evidence"
 
 // 每次请求服务端渲染，避免客户端软导航时命中 RSC 缓存显示旧任务状态（勾选后 dashboard 需实时同步）
 export const dynamic = "force-dynamic"
@@ -49,6 +50,7 @@ export default async function DashboardPage({
     taskStats,
     goal,
     formalStage,
+    currentMilestone,
     weeklyPlans,
     recentChecks,
     allCheckIns,
@@ -73,6 +75,10 @@ export default async function DashboardPage({
     // 正式长期路线的当前阶段（存在时优先于算法建议）
     prisma.studyPathStage.findFirst({
       where: { studyPath: { userId, status: "active" }, status: "active" },
+      orderBy: { order: "asc" },
+    }),
+    prisma.studyPathMilestone.findFirst({
+      where: { studyPath: { userId, status: "active" }, completedAt: null },
       orderBy: { order: "asc" },
     }),
     // 当前自然周的周计划版本：草稿优先展示，提醒用户确认；否则展示活动版本。
@@ -235,6 +241,8 @@ export default async function DashboardPage({
   const projectedWeeklyPlan = weeklyPlans.find((plan) => plan.status === "draft")
     ?? weeklyPlans.find((plan) => plan.status === "active")
     ?? null
+  const nextTodayTask = todayTasks.find((task) => !task.completed) ?? null
+  const currentMilestoneEvidence = currentMilestone ? await getMilestoneEvidence(userId, currentMilestone) : null
 
   // ── 重入判断：今日未打卡 + 距上次打卡 > 3 天 → 显示温柔重入卡 ──
   const checkedInToday = Boolean(todayCheckin)
@@ -258,16 +266,20 @@ export default async function DashboardPage({
         objective: projectedWeeklyPlan.objective,
         plannedMinutes: projectedWeeklyPlan.plannedMinutes,
         weekStart: planningWeekStartStr,
+        milestoneTitle: currentMilestone?.title ?? null,
+        milestoneReviewReady: currentMilestoneEvidence?.reviewReady ?? false,
       } : {
         status: "none" as const,
         objective: null,
         plannedMinutes: 0,
         weekStart: planningWeekStartStr,
+        milestoneTitle: currentMilestone?.title ?? null,
+        milestoneReviewReady: currentMilestoneEvidence?.reviewReady ?? false,
       },
       today: {
         completed: todayCompleted,
         total: todayTotal,
-        nextTask: todayTasks.find((task) => !task.completed)?.title ?? null,
+        nextTask: nextTodayTask?.title ?? null,
       },
     },
     stats: {
@@ -335,7 +347,7 @@ export default async function DashboardPage({
         stageHint={goal ? stageHint : '先确定一个方向，AI 再帮你把它切成阶段和行动。'}
         daysLeft={goalDaysLeft}
         weeklyPlan={workbenchData.planning.weeklyPlan}
-        today={{ completed: todayCompleted, total: todayTotal, nextTask: workbenchData.planning.today.nextTask, minutes: todayMinutes }}
+        today={{ completed: todayCompleted, total: todayTotal, nextTask: nextTodayTask ? { id: nextTodayTask.id, title: nextTodayTask.title, courseLessonId: nextTodayTask.courseLessonId } : null, minutes: todayMinutes }}
         dueWrongCount={dueWrongCount}
       />
 

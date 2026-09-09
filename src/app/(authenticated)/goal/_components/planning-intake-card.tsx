@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import type { PlanningIntakeAnalysis, PlanningInterviewAnswers } from "@/lib/study-profile";
+import type { PlanningIntakeAnalysis, PlanningInterviewAnswers, PlanningReadiness } from "@/lib/study-profile";
 
 interface SavedFact {
   id: string;
@@ -32,6 +32,7 @@ export function PlanningIntakeCard() {
   const [statement, setStatement] = useState("");
   const [savedFacts, setSavedFacts] = useState<SavedFact[]>([]);
   const [analysis, setAnalysis] = useState<PlanningIntakeAnalysis | null>(null);
+  const [readiness, setReadiness] = useState<PlanningReadiness | null>(null);
   const [answers, setAnswers] = useState<PlanningInterviewAnswers>({});
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -42,6 +43,7 @@ export function PlanningIntakeCard() {
     if (!res.ok) return;
     const facts = Array.isArray(data.facts) ? data.facts : [];
     setSavedFacts(facts);
+    setReadiness(data.readiness ?? null);
     setStatement((current) => current || statementFromFacts(facts));
   }, []);
 
@@ -53,6 +55,7 @@ export function PlanningIntakeCard() {
         if (!active || !ok) return;
         const facts = Array.isArray(data.facts) ? data.facts : [];
         setSavedFacts(facts);
+        setReadiness(data.readiness ?? null);
         setStatement(statementFromFacts(facts));
       })
       .catch(() => undefined);
@@ -75,6 +78,7 @@ export function PlanningIntakeCard() {
       setAnalysis(data.analysis);
       if (action === "confirm") {
         await loadFacts();
+        setReadiness(data.readiness ?? null);
         setMessage("✅ 已写入长期学习档案。以后生成路线和调整计划都会参考这些已确认事实。");
       }
     } catch (error) {
@@ -100,7 +104,7 @@ export function PlanningIntakeCard() {
   const visibleSavedFacts = savedFacts.filter((fact) => fact.key !== "planning.statement");
 
   return (
-    <section className="space-y-4 rounded-2xl border border-border/50 bg-card p-6" aria-labelledby="planning-intake-title">
+    <section id="planning-intake" className="scroll-mt-24 space-y-4 rounded-2xl border border-border/50 bg-card p-6" aria-labelledby="planning-intake-title">
       <div>
         <h2 id="planning-intake-title" className="text-lg font-bold">先说说你的目标和当前情况</h2>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -205,6 +209,16 @@ export function PlanningIntakeCard() {
       )}
 
       {message && <p className="text-sm" role="status">{message}</p>}
+
+      {readiness && !analysis && (
+        <div className="rounded-xl border border-border/50 bg-muted/30 p-3 text-sm">
+          <p className="font-medium">{readiness.readyForPathDraft ? "已具备路线草稿条件" : "路线草稿还差一点信息"}</p>
+          <p className="mt-1 text-muted-foreground">{readiness.nextStep}</p>
+          {readiness.readyForPathDraft && (
+            <a href="/study-path" className="mt-2 inline-flex text-sm font-medium text-brand hover:underline">去生成分阶段路线 →</a>
+          )}
+        </div>
+      )}
 
       {visibleSavedFacts.length > 0 && !analysis && (
         <details className="rounded-xl border border-border/50 px-4 py-3">

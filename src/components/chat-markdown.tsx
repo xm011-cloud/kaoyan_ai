@@ -4,6 +4,7 @@ import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { MermaidRenderer } from "@/components/mermaid-renderer";
 import { AiThinking } from "@/components/ai-thinking";
+import Link from "next/link";
 
 function MarkdownImage({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) {
   const [broken, setBroken] = useState(false);
@@ -113,9 +114,10 @@ interface Source {
 }
 
 interface ActionCard {
-  type: "task_created" | "task_completed" | "checkin_created" | "reminder_updated";
+  type: "task_created" | "task_completed" | "checkin_created" | "reminder_updated" | "planning_intake" | "milestone_review";
   title: string;
   detail: string;
+  href?: string;
 }
 
 function ActionCardView({ action }: { action: ActionCard }) {
@@ -124,9 +126,11 @@ function ActionCardView({ action }: { action: ActionCard }) {
     task_completed: "☑️",
     checkin_created: "📝",
     reminder_updated: "🔔",
+    planning_intake: "🧭",
+    milestone_review: "✓",
   };
 
-  return (
+  const content = (
     <div className="flex items-start gap-2.5 px-3 py-2 rounded-lg border border-emerald-200 dark:border-emerald-800/50 bg-emerald-50 dark:bg-emerald-900/20 text-sm">
       <span className="shrink-0 text-base">{iconMap[action.type] || "⚡"}</span>
       <div className="min-w-0">
@@ -144,6 +148,12 @@ function ActionCardView({ action }: { action: ActionCard }) {
       </div>
     </div>
   );
+
+  return action.href ? (
+    <Link href={action.href} className="block rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/30">
+      {content}
+    </Link>
+  ) : content;
 }
 
 function SourceCard({ source, index }: { source: Source; index: number }) {

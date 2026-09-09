@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getGoalLabel, hasConfirmedGoalShape } from "@/lib/goal-model";
 import type { Prisma } from "@prisma/client";
 import { buildStageDefinitions } from "@/lib/study-path-stage";
+import { getPlanningReadiness } from "@/lib/study-profile";
 
 type PathWithMilestones = Prisma.StudyPathGetPayload<{
   include: { milestones: true; stages: true };
@@ -98,6 +99,26 @@ export async function POST(request: NextRequest) {
     ]);
     if (!goal) {
       return jsonNoStore({ error: "请先保存一个学习方向，再设计长期路线" }, { status: 400 });
+    }
+
+    const studyLoad = goal.studyLoad && typeof goal.studyLoad === "object" && !Array.isArray(goal.studyLoad)
+      ? goal.studyLoad as { weeklyHours?: unknown }
+      : null;
+    const weeklyHours = typeof studyLoad?.weeklyHours === "number" ? studyLoad.weeklyHours : null;
+    const planningReadiness = getPlanningReadiness({
+      examDate: goal.examDate,
+      examYear: goal.examYear,
+      university: goal.university,
+      major: goal.major,
+      subjects: goal.subjects,
+      weeklyHours,
+    }, profileFacts);
+    if (!planningReadiness.readyForPathDraft) {
+      return jsonNoStore({
+        error: `生成长期路线前，请先确认：${planningReadiness.unresolvedFields.join("、")}`,
+        needsIntake: true,
+        readiness: planningReadiness,
+      }, { status: 409 });
     }
 
     const confirmedGoal = hasConfirmedGoalShape(goal) && Boolean(goal.examDate);

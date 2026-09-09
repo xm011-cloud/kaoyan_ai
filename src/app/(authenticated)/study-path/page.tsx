@@ -21,7 +21,19 @@ interface Milestone {
   targetDate: string | null;
   completedAt: string | null;
   progress: number;
+  reviewedAt?: string | null;
+  reviewOutcome?: "achieved" | "continue" | "relearn" | null;
+  reviewNote?: string | null;
   tips: string | null;
+}
+
+interface MilestoneEvidence {
+  tasks: { total: number; completed: number; plannedMinutes: number; completedMinutes: number };
+  learning: { sessions: number; minutes: number; clear: number; needsPractice: number; blocked: number };
+  practice: { completed: number; scored: number; averageRate: number | null };
+  wrongQuestions: { reviewed: number };
+  reviewReady: boolean;
+  prompt: string;
 }
 
 interface StudyPath {
@@ -105,11 +117,16 @@ export default function StudyPathPage() {
   const [adjustment, setAdjustment] = useState("");
   const [adjusting, setAdjusting] = useState(false);
   const [weeklyRedirect, setWeeklyRedirect] = useState(false);
+  const [needsIntake, setNeedsIntake] = useState(false);
   const [editingStageId, setEditingStageId] = useState<string | null>(null);
   const [draftObjective, setDraftObjective] = useState("");
   const [draftExitCriteria, setDraftExitCriteria] = useState("");
   const [savingStageDraft, setSavingStageDraft] = useState(false);
+  const [evidenceByMilestone, setEvidenceByMilestone] = useState<Record<string, MilestoneEvidence>>({});
+  const [reviewingMilestone, setReviewingMilestone] = useState<Milestone | null>(null);
+  const [reviewNote, setReviewNote] = useState("");
   const autoAdjustmentRef = useRef(false);
+  const autoReviewRef = useRef<string | null>(null);
   const { phase: waitPhase, estimate: waitEstimate, start: waitStart, stop: waitStop, cancel: waitCancel } = useAiTask();
 
   const loadPath = useCallback(async () => {
@@ -135,6 +152,7 @@ export default function StudyPathPage() {
   const handleGenerate = async () => {
     setGenerating(true);
     setMessage("");
+    setNeedsIntake(false);
     const controller = waitStart();
     try {
       const res = await fetch("/api/study-path", { method: "POST", signal: controller.signal });
@@ -144,6 +162,7 @@ export default function StudyPathPage() {
         setMessage(`已生成路线草稿（${d.stats.totalMilestones} 个里程碑），确认前不会替换当前路线`);
         if (d.milestones.length > 0) setExpandedPhase(d.milestones[0].phase);
       } else {
+        setNeedsIntake(d.needsIntake === true);
         setMessage(`❌ ${d.error || "生成失败"}`);
       }
     } catch (err: unknown) {
@@ -302,6 +321,50 @@ export default function StudyPathPage() {
     }
   };
 
+  const loadEvidence = async (milestoneId: string) => {
+    const res = await fetch(`/api/study-path/milestones/${milestoneId}/evidence`, { cache: "no-store" });
+    const result = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(result.error || "获取学习证据失败");
+    setEvidenceByMilestone((current) => ({ ...current, [milestoneId]: result.evidence }));
+    return result.evidence as MilestoneEvidence;
+  };
+
+  const openReview = async (milestone: Milestone) => {
+    setReviewingMilestone(milestone);
+    setReviewNote(milestone.reviewNote || "");
+    try { await loadEvidence(milestone.id); } catch (err) { setMessage(`❌ ${err instanceof Error ? err.message : "获取学习证据失败"}`); }
+  };
+
+  const submitReview = async (outcome: "achieved" | "continue" | "relearn") => {
+    if (!reviewingMilestone) return;
+    setUpdatingId(reviewingMilestone.id);
+    try {
+      const res = await fetch(`/api/study-path/milestones/${reviewingMilestone.id}/review`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ outcome, note: reviewNote }),
+      });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(result.error || "保存复盘失败");
+      setReviewingMilestone(null);
+      setMessage(outcome === "achieved" ? "✅ 已确认里程碑达成；下一步会继续服务当前阶段目标。" : outcome === "relearn" ? "↺ 已标记为需要重学，后续计划不会丢弃这项基础。" : "✓ 已保留继续巩固的复盘结论。");
+      await loadPath();
+    } catch (err) {
+      setMessage(`❌ ${err instanceof Error ? err.message : "保存复盘失败"}`);
+    } finally { setUpdatingId(null); }
+  };
+
+  // AI 工作区的“去复盘”操作卡带上里程碑 ID；进入路线页后直接打开对应复盘，
+  // 仍由用户选择结论，不会因为跳转自动改动数据。
+  useEffect(() => {
+    const milestoneId = searchParams.get("review");
+    const milestone = milestoneId ? data?.milestones.find((item) => item.id === milestoneId) : null;
+    if (!milestone || autoReviewRef.current === milestoneId) return;
+    autoReviewRef.current = milestoneId;
+    void openReview(milestone);
+  // openReview 每次渲染重建，但 ref 保证同一 URL 只触发一次。
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, searchParams]);
+
   const startStageEdit = (stage: PathStage) => {
     setEditingStageId(stage.id);
     setDraftObjective(stage.objective);
@@ -377,6 +440,11 @@ export default function StudyPathPage() {
             {generating && <AiWaiting variant="inline" phase={waitPhase} estimate={waitEstimate} onCancel={waitCancel} />}
           </div>
           {message && <p className="text-sm">{message}</p>}
+          {needsIntake && (
+            <Link href="/goal#planning-intake" className="text-sm font-medium text-brand hover:underline">
+              先和 AI 确认目标、基础与容量 →
+            </Link>
+          )}
         </div>
       </div>
     );
@@ -621,20 +689,12 @@ export default function StudyPathPage() {
                       const subColor = SUBJECT_COLORS[m.subject] || "#6B7280";
                       return (
                         <div key={m.id} className={cn("px-5 py-3 flex items-start gap-3", isComplete && "opacity-60")}>
-                          {/* Checkbox */}
-                          <button
-                            onClick={() => handleToggleComplete(m)}
-                            disabled={!!updatingId || data.isDraft}
-                            className={cn(
-                              "w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors",
-                              isComplete
-                                ? "bg-green-500 border-green-500 text-white"
-                                : "border-border/50 hover:border-success"
-                            )}
-                            style={{ borderColor: !isComplete ? subColor + "60" : undefined }}
-                          >
+                          <div className={cn(
+                            "w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5",
+                            isComplete ? "bg-green-500 border-green-500 text-white" : "border-border/50"
+                          )} style={{ borderColor: !isComplete ? subColor + "60" : undefined }}>
                             {isComplete && <span className="text-xs">✓</span>}
-                          </button>
+                          </div>
 
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
@@ -668,6 +728,7 @@ export default function StudyPathPage() {
                               >
                                 📕 {m.subject}错题
                               </Link>
+                              {m.reviewOutcome && <span className="text-xs text-muted-foreground">复盘：{m.reviewOutcome === "achieved" ? "已达成" : m.reviewOutcome === "relearn" ? "需要重学" : "继续巩固"}</span>}
                             </div>
                             {/* Progress slider */}
                             {!isComplete && (
@@ -687,6 +748,20 @@ export default function StudyPathPage() {
                                 </span>
                               </div>
                             )}
+                            {!data.isDraft && (
+                              <div className="mt-3 flex flex-wrap items-center gap-2">
+                                <Button size="sm" variant={isComplete ? "outline" : "secondary"} onClick={() => openReview(m)} disabled={!!updatingId}>
+                                  {isComplete ? "查看复盘" : "复盘并确认"}
+                                </Button>
+                                {!isComplete && evidenceByMilestone[m.id]?.reviewReady && <span className="text-xs font-medium text-success">已积累足够证据，可以复盘</span>}
+                                {!isComplete && <Button size="sm" variant="ghost" onClick={() => loadEvidence(m.id).catch(() => undefined)}>查看学习证据</Button>}
+                              </div>
+                            )}
+                            {evidenceByMilestone[m.id] && (
+                              <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                                证据：关联任务 {evidenceByMilestone[m.id].tasks.completed}/{evidenceByMilestone[m.id].tasks.total} · 学习 {evidenceByMilestone[m.id].learning.minutes} 分钟 · 练习 {evidenceByMilestone[m.id].practice.completed} 次 · 错题复习 {evidenceByMilestone[m.id].wrongQuestions.reviewed} 道
+                              </p>
+                            )}
                           </div>
                         </div>
                       );
@@ -698,6 +773,26 @@ export default function StudyPathPage() {
             );
           })}
         </div>
+
+        {reviewingMilestone && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/35 p-4 sm:items-center" role="dialog" aria-modal="true" aria-label="里程碑复盘">
+            <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-5 shadow-xl">
+              <p className="text-xs font-medium text-brand">里程碑复盘</p>
+              <h2 className="mt-1 text-lg font-semibold">{reviewingMilestone.title}</h2>
+              {evidenceByMilestone[reviewingMilestone.id] ? (
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{evidenceByMilestone[reviewingMilestone.id].prompt} 已完成关联任务 {evidenceByMilestone[reviewingMilestone.id].tasks.completed}/{evidenceByMilestone[reviewingMilestone.id].tasks.total}，练习 {evidenceByMilestone[reviewingMilestone.id].practice.completed} 次。</p>
+              ) : <p className="mt-2 text-sm text-muted-foreground">正在汇总任务、学习、练习和错题证据…</p>}
+              <textarea value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} rows={3} placeholder="写下确认依据、薄弱点或下一步（可选）" className="mt-4 w-full rounded-xl border border-border/60 bg-muted/30 px-3 py-2 text-sm" />
+              <p className="mt-2 text-xs text-muted-foreground">选择结论才会更新里程碑；任务完成不会自动代表掌握。</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button onClick={() => submitReview("achieved")} disabled={!!updatingId}>确认达成</Button>
+                <Button variant="outline" onClick={() => submitReview("continue")} disabled={!!updatingId}>继续巩固</Button>
+                <Button variant="outline" onClick={() => submitReview("relearn")} disabled={!!updatingId}>需要重学</Button>
+                <Button variant="ghost" onClick={() => setReviewingMilestone(null)} disabled={!!updatingId}>取消</Button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 模块联动 */}
         <ModuleLinks

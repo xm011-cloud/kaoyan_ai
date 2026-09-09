@@ -6,10 +6,9 @@ test.describe("Dashboard", () => {
   });
 
   test("stats cards are visible", async ({ page }) => {
-    // 欢迎语随是否有目标而变化（欢迎回来 ✨ / 欢迎来到考研助手 🎓），用稳定 h1 断言页面已加载
-    await expect(page.locator("h1").filter({ hasText: /学习概览/ })).toBeVisible({ timeout: 10000 });
-    // At least one stat card should be visible
-    await expect(page.locator("text=今日任务").first()).toBeVisible();
+    // 首页主叙事已改为“现在，只做下一步”，不再依赖已废弃的“学习概览”标题。
+    await expect(page.getByText("现在，只做下一步")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole("link", { name: /开始这一项|安排今天|查看本周计划|查看完成情况/ })).toBeVisible();
   });
 
   test("quick-entry grid has module links", async ({ page }) => {
@@ -21,20 +20,14 @@ test.describe("Dashboard", () => {
   });
 
   test("today tasks section is visible", async ({ page }) => {
-    // The section title
-    const section = page.getByRole("link", { name: "📋 今日任务" });
-    await expect(section).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("现在，只做下一步")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole("link", { name: /查看周计划/ })).toBeVisible();
   });
 
   test("planning overview links goal, stage, week and today to actionable pages", async ({ page }) => {
-    const overview = page.locator("section").filter({ hasText: "你的学习计划" }).first();
-    await expect(overview).toBeVisible({ timeout: 10000 });
-    await expect(overview.locator('a[href="/goal"]')).toBeVisible();
-    await expect(overview.locator('a[href^="/study-path"]').first()).toBeVisible();
-    const taskLinks = overview.locator('a[href^="/tasks?week="]');
-    await expect(taskLinks.first()).toBeVisible();
-    expect(await taskLinks.count()).toBeGreaterThanOrEqual(2);
-    await expect(overview.getByText(/查看或调整阶段|建立路线/)).toBeVisible();
-    await expect(overview.getByText(/查看今日任务|安排今天/)).toBeVisible();
+    const commandCenter = page.locator("section").filter({ hasText: "现在，只做下一步" }).first();
+    await expect(commandCenter).toBeVisible({ timeout: 10000 });
+    await expect(commandCenter.locator('a[href^="/tasks"], a[href^="/courses"]').first()).toBeVisible();
+    await expect(commandCenter.locator('a[href^="/tasks?week="]').first()).toBeVisible();
   });
 });

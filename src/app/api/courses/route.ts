@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
   if (error) return error;
 
   try {
+    const lessonId = new URL(request.url).searchParams.get("lesson");
     const courses = await prisma.course.findMany({
       where: { userId: user!.id, status: { not: "archived" } },
       orderBy: { updatedAt: "desc" },
@@ -33,11 +34,18 @@ export async function GET(request: NextRequest) {
         units: { select: { _count: { select: { lessons: true } } } },
       },
     });
+    const selectedCourseId = lessonId
+      ? (await prisma.courseLesson.findFirst({
+          where: { id: lessonId, unit: { course: { userId: user!.id } } },
+          select: { unit: { select: { courseId: true } } },
+        }))?.unit.courseId ?? null
+      : null;
     return jsonNoStore({
       courses: courses.map(({ units, ...course }) => ({
         ...course,
         lessonCount: units.reduce((total, unit) => total + unit._count.lessons, 0),
       })),
+      selectedCourseId,
     });
   } catch (err) {
     return handleApiError(err, "获取课程列表");

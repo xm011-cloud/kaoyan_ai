@@ -14,8 +14,10 @@ interface TodayCommandCenterProps {
     objective: string | null
     plannedMinutes: number
     weekStart: string
+    milestoneTitle?: string | null
+    milestoneReviewReady?: boolean
   }
-  today: { completed: number; total: number; nextTask: string | null; minutes: number }
+  today: { completed: number; total: number; nextTask: { id: string; title: string; courseLessonId?: string | null } | null; minutes: number }
   dueWrongCount: number
 }
 
@@ -44,8 +46,10 @@ export function TodayCommandCenter({
   const isFinished = hasTasks && today.completed === today.total
   const nextAction = isFinished
     ? '今天的计划已经完成'
-    : today.nextTask || (hasTasks ? '打开今天的任务，选择下一项开始' : '先为今天安排一个可完成的学习动作')
-  const primaryHref = hasTasks ? '/tasks' : weeklyPlan.status === 'none' ? '/tasks' : `/tasks?week=${weeklyPlan.weekStart}`
+    : today.nextTask?.title || (hasTasks ? '打开今天的任务，选择下一项开始' : '先为今天安排一个可完成的学习动作')
+  const primaryHref = today.nextTask?.courseLessonId
+    ? `/courses?lesson=${today.nextTask.courseLessonId}`
+    : today.nextTask ? `/tasks?week=${weeklyPlan.weekStart}&task=${today.nextTask.id}` : weeklyPlan.status === 'none' ? '/tasks' : `/tasks?week=${weeklyPlan.weekStart}`
   const primaryLabel = isFinished ? '查看完成情况' : hasTasks ? '开始这一项' : weeklyPlan.status === 'none' ? '安排今天' : '查看本周计划'
   const weeklyHours = weeklyPlan.plannedMinutes > 0 ? `${Math.round(weeklyPlan.plannedMinutes / 60)} 小时` : '待安排'
 
@@ -105,6 +109,8 @@ export function TodayCommandCenter({
           <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">这周的方向</p>
           <p className="mt-3 text-base font-medium leading-6">{weeklyPlan.objective || '把学习节奏先稳定下来'}</p>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">{planStatusCopy[weeklyPlan.status]} · {weeklyHours}</p>
+          {weeklyPlan.milestoneTitle && <p className="mt-3 text-xs font-medium text-brand">正在推进：{weeklyPlan.milestoneTitle}</p>}
+          {weeklyPlan.milestoneReviewReady && <Link href="/study-path" className="mt-2 inline-flex text-xs font-medium text-success hover:underline">已积累足够证据，可以复盘确认 →</Link>}
           <Link href={`/tasks?week=${weeklyPlan.weekStart}`} className="mt-5 inline-flex text-sm font-medium text-brand hover:underline">查看周计划 →</Link>
 
           <div className="mt-8 space-y-3 border-t border-border/60 pt-5">

@@ -144,6 +144,19 @@ test.describe("Study Path", () => {
       return res.status;
     });
     expect(goalStatus).toBe(200);
+    const profileStatus = await page.evaluate(async () => {
+      const response = await fetch("/api/study-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "confirm",
+          statement: "我准备计算机考研，目前数据结构还没开始，数学基础较弱，需要先完成全科基础。",
+          answers: { foundation_exit: "能独立完成典型题", weekly_capacity: "12" },
+        }),
+      });
+      return response.status;
+    });
+    expect(profileStatus).toBe(200);
 
     const draft = await page.evaluate(async () => {
       const res = await fetch("/api/study-path", {
@@ -203,6 +216,52 @@ test.describe("Study Path", () => {
 
   test("stage adjustment creates an impact proposal and preserves the current stage", async ({ page }) => {
     test.setTimeout(60000);
+    const goalStatus = await page.evaluate(async () => {
+      const response = await fetch("/api/goal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          direction: "计算机类考研",
+          university: "测试大学",
+          major: "计算机科学与技术",
+          examDate: "2027-12-25",
+          subjects: ["数学一", "英语一", "408计算机"],
+          studyLoad: { weeklyHours: 12 },
+        }),
+      });
+      return response.status;
+    });
+    expect(goalStatus).toBe(200);
+    const profileStatus = await page.evaluate(async () => {
+      const response = await fetch("/api/study-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "confirm",
+          statement: "我准备计算机考研，目前数据结构还没开始，数学基础较弱，需要先完成全科基础。",
+          answers: { foundation_exit: "能独立完成典型题", weekly_capacity: "12" },
+        }),
+      });
+      return response.status;
+    });
+    expect(profileStatus).toBe(200);
+    // 每次先启用一条干净的本地路线，避免共享测试账号残留的“已补计算机网络”状态让提案正确地返回 no_change。
+    const freshPath = await page.evaluate(async () => {
+      const generated = await fetch("/api/study-path", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ generationMode: "local" }),
+      });
+      const body = await generated.json();
+      if (!generated.ok) return { status: generated.status, body };
+      const activated = await fetch("/api/study-path", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pathId: body.path.id, action: "activate" }),
+      });
+      return { status: activated.status, body: await activated.json() };
+    });
+    expect(freshPath.status, JSON.stringify(freshPath.body)).toBe(200);
     const before = await page.evaluate(async () => {
       const res = await fetch("/api/study-path");
       return res.json();
@@ -221,6 +280,16 @@ test.describe("Study Path", () => {
       return res.status;
     }, milestoneToPreserve.id);
     expect(completed).toBe(200);
+
+    const reviewed = await page.evaluate(async (milestoneId) => {
+      const res = await fetch(`/api/study-path/milestones/${milestoneId}/review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ outcome: "achieved", note: "E2E 复盘结论应在路线调整后保留" }),
+      });
+      return { status: res.status, body: await res.json() };
+    }, milestoneToPreserve.id);
+    expect(reviewed.status).toBe(200);
 
     const weeklyScoped = await page.evaluate(async () => {
       const res = await fetch("/api/study-path/adjust", {
@@ -253,6 +322,7 @@ test.describe("Study Path", () => {
     expect(proposedCurrentStage.key).toBe(currentStage.key);
     expect(proposal.body.milestones.some((milestone: { title: string }) => milestone.title.includes("计算机网络"))).toBe(true);
     expect(proposal.body.milestones.find((milestone: { title: string }) => milestone.title === milestoneToPreserve.title).completedAt).toBeTruthy();
+    expect(proposal.body.milestones.find((milestone: { title: string }) => milestone.title === milestoneToPreserve.title).reviewOutcome).toBe("achieved");
 
     const blocked = await page.evaluate(async (pathId) => {
       const res = await fetch("/api/study-path", {

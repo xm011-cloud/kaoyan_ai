@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { AiWaiting } from "@/components/ai-waiting";
 import { toLocalDateString } from "@/lib/date-utils";
@@ -69,6 +70,14 @@ interface WeeklyPlanVersionView {
   createdAt: string;
 }
 
+interface MilestoneEvidenceSummary {
+  tasks: { total: number; completed: number };
+  learning: { sessions: number };
+  practice: { completed: number };
+  reviewReady: boolean;
+  prompt: string;
+}
+
 interface WeeklyPlannerProps {
   weekStart: Date;
   weekTasks: WeekTask[];
@@ -85,6 +94,7 @@ interface WeeklyPlannerProps {
   onRegenerateDay: (dateStr: string) => void;
   onToggleComplete: (task: WeekTask) => void;
   onEditTask: (task: WeekTask) => void;
+  onQuickAdjustTask: (task: WeekTask, adjustment: { date?: string; duration?: number }) => void;
   onDeleteTask: (id: string) => void;
   onAddTask: (dateStr: string) => void;
   onJudge: () => void;
@@ -99,9 +109,11 @@ interface WeeklyPlannerProps {
   onCancelJudge: () => void;
   onConfirmDraft: () => void;
   onDiscardDraft: () => void;
+  onRestoreVersion: (id: string) => void;
   onAdjust: (request: string) => Promise<void>;
   initialAdjustment?: string;
   highlightTaskId?: string | null;
+  milestoneEvidence: Record<string, MilestoneEvidenceSummary>;
 }
 
 const DAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
@@ -113,12 +125,12 @@ function formatDate(d: Date): string {
 export function WeeklyPlanner({
   weekStart, weekTasks, draftPlan, planVersions, loading, generating, subjects, examDate, daysRemaining, sprintMode,
   onWeekChange, onGenerate, onRegenerateDay, onToggleComplete,
-  onEditTask, onDeleteTask, onAddTask, onJudge, onRegenerateWithFeedback,
+  onEditTask, onQuickAdjustTask, onDeleteTask, onAddTask, onJudge, onRegenerateWithFeedback,
   judgeResult, judging,
   generatingPhase, generatingEstimate, onCancelGenerate,
   judgingPhase, judgingEstimate, onCancelJudge,
-  onConfirmDraft, onDiscardDraft, onAdjust,
-  initialAdjustment = "", highlightTaskId = null,
+  onConfirmDraft, onDiscardDraft, onRestoreVersion, onAdjust,
+  initialAdjustment = "", highlightTaskId = null, milestoneEvidence,
 }: WeeklyPlannerProps) {
   const [showJudge, setShowJudge] = useState(false);
   // 调整建议只在打开周计划时作为输入预填；后续输入应由用户自己掌控。
@@ -316,6 +328,7 @@ export function WeeklyPlanner({
                   {version.adjustmentRequest && <p className="mt-1 text-xs">调整来源：{version.adjustmentRequest}</p>}
                 </div>
                 <time className="text-xs text-muted-foreground">{new Date(version.createdAt).toLocaleDateString("zh-CN")}</time>
+                {version.status === "archived" && <Button size="sm" variant="outline" onClick={() => onRestoreVersion(version.id)}>恢复为草稿</Button>}
               </div>
             ))}
           </div>
@@ -425,10 +438,23 @@ export function WeeklyPlanner({
                             {task.milestoneTitle && <span className="text-[10px] bg-brand/10 text-brand px-1 rounded truncate max-w-full">{task.milestoneTitle}</span>}
                             {task.source === "manual" && <span className="text-[10px] text-muted-foreground">✍️</span>}
                           </div>
+                          {task.milestoneId && milestoneEvidence[task.milestoneId] && (
+                            <div className={`mt-2 rounded-md px-1.5 py-1 text-[10px] ${milestoneEvidence[task.milestoneId].reviewReady ? "bg-success/10 text-success" : "bg-brand/5 text-muted-foreground"}`}>
+                              <p className="sm:hidden">{milestoneEvidence[task.milestoneId].reviewReady ? "证据充分，可以复盘" : `路线证据：${milestoneEvidence[task.milestoneId].tasks.completed}/${milestoneEvidence[task.milestoneId].tasks.total} 任务已完成`}</p>
+                              <p className="hidden sm:block">{milestoneEvidence[task.milestoneId].reviewReady ? "证据充分，可以复盘此里程碑" : `路线证据：任务 ${milestoneEvidence[task.milestoneId].tasks.completed}/${milestoneEvidence[task.milestoneId].tasks.total} · 学习 ${milestoneEvidence[task.milestoneId].learning.sessions} 次 · 练习 ${milestoneEvidence[task.milestoneId].practice.completed} 次`}</p>
+                              <Link href={`/study-path?review=${task.milestoneId}`} onClick={(event) => event.stopPropagation()} className="mt-1 inline-block font-medium text-brand hover:underline">查看证据与复盘 →</Link>
+                            </div>
+                          )}
                         </div>
                         <button onClick={(e) => { e.stopPropagation(); onDeleteTask(task.id); }}
                           className="text-muted-foreground hover:text-destructive shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" aria-label="删除任务">✕</button>
                       </div>
+                      {isToday && !task.completed && (
+                        <div className="mt-2 flex flex-wrap gap-1 border-t border-border/40 pt-2">
+                          <button type="button" onClick={(e) => { e.stopPropagation(); onQuickAdjustTask(task, { duration: 25 }); }} className="rounded-md bg-muted px-1.5 py-1 text-[10px] text-muted-foreground hover:bg-brand/10 hover:text-brand">缩短至 25 分钟</button>
+                          <button type="button" onClick={(e) => { e.stopPropagation(); const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); onQuickAdjustTask(task, { date: toLocalDateString(tomorrow) }); }} className="rounded-md bg-muted px-1.5 py-1 text-[10px] text-muted-foreground hover:bg-brand/10 hover:text-brand">移至明天</button>
+                        </div>
+                      )}
                     </div>
                   ))}
                   {dayTasks.length === 0 && (

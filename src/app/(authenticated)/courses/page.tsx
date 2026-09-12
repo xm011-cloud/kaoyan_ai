@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
@@ -10,7 +11,7 @@ import { useAiWorkspace } from "@/components/ai-workspace-context";
 
 type Material = { id: string; name: string; type: string; url: string };
 type Note = { id: string; content: string; kind: string; createdAt: string };
-type Session = { id: string; status: string; startedAt: string; endedAt?: string | null; selfAssessment?: string | null };
+type Session = { id: string; status: string; startedAt: string; endedAt?: string | null; selfAssessment?: string | null; taskId?: string | null };
 type Lesson = {
   id: string; title: string; order: number; sourceType: string; sourceUrl?: string | null;
   plannedMinutes?: number | null; status: string; material?: Material | null;
@@ -39,6 +40,8 @@ function sourceLabel(lesson: Lesson) {
 export default function CoursesPage() {
   const searchParams = useSearchParams();
   const requestedLessonId = searchParams.get("lesson");
+  const requestedTaskId = searchParams.get("task");
+  const requestedWeek = searchParams.get("week");
   const [courses, setCourses] = useState<Course[]>([]);
   const [selected, setSelected] = useState<Course | null>(null);
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -47,6 +50,7 @@ export default function CoursesPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [addLessonOpen, setAddLessonOpen] = useState(false);
   const [activeSession, setActiveSession] = useState<{ session: Session; lesson: Lesson } | null>(null);
+  const [completedTaskId, setCompletedTaskId] = useState<string | null>(null);
   const [notes, setNotes] = useState<Note[]>([]);
   const [noteContent, setNoteContent] = useState("");
   const [noteKind, setNoteKind] = useState("note");
@@ -152,9 +156,14 @@ export default function CoursesPage() {
   const startLesson = async (lesson: Lesson) => {
     setSaving(true); setError("");
     try {
-      const res = await fetch(`/api/lessons/${lesson.id}/sessions`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const res = await fetch(`/api/lessons/${lesson.id}/sessions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestedTaskId ? { taskId: requestedTaskId } : {}),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "无法开始学习");
+      setCompletedTaskId(null);
       setActiveSession({ session: data.session, lesson });
       const noteRes = await fetch(`/api/study-notes?lessonId=${lesson.id}`);
       const noteData = await noteRes.json();
@@ -192,7 +201,9 @@ export default function CoursesPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "结束学习失败");
+      const taskId = data.session?.taskId ?? activeSession.session.taskId ?? null;
       setActiveSession(null);
+      setCompletedTaskId(taskId);
       if (selected) { await loadCourse(selected.id); await loadCourses(selected.id); }
     } catch (err) { setError(err instanceof Error ? err.message : "结束学习失败"); }
     finally { setSaving(false); }
@@ -208,6 +219,12 @@ export default function CoursesPage() {
           action={<Button onClick={() => setCreateOpen(true)}>添加课程</Button>}
         />
         {error && <p className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</p>}
+        {completedTaskId && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-success/25 bg-success/5 px-4 py-3 text-sm">
+            <div><p className="font-medium text-success">学习记录已保存为计划证据</p><p className="mt-0.5 text-xs text-muted-foreground">课程完成不等于任务自动完成；确认任务状态后，路线才会得到准确反馈。</p></div>
+            <Link href={`/tasks?${requestedWeek ? `week=${encodeURIComponent(requestedWeek)}&` : ""}task=${completedTaskId}`} className="text-sm font-medium text-brand hover:underline">确认任务状态 →</Link>
+          </div>
+        )}
 
         <div className="grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
           <aside className="space-y-2 lg:sticky lg:top-3 lg:self-start">
@@ -277,7 +294,7 @@ export default function CoursesPage() {
           <section className="workspace-surface min-w-0 p-5 lg:p-7">
             <div className="mb-6 flex items-start justify-between gap-4 border-b border-border/60 pb-5"><div><p className="text-xs font-medium text-brand">正在学习</p><h1 className="mt-1 text-2xl font-semibold tracking-tight">{activeSession.lesson.title}</h1><p className="mt-1 text-sm text-muted-foreground">学习、记录和复盘都留在这个现场。</p></div><Button variant="outline" size="sm" onClick={() => setActiveSession(null)}>返回课程</Button></div>
         <div className="space-y-5">
-          <div className="rounded-xl border border-brand/20 bg-brand/5 p-3 text-sm"><p className="font-medium">本次学习会话已开始</p><p className="mt-1 text-muted-foreground">先学习，再留下重点、疑问或易错点；结束时再判断这节课是否需要练习。</p>{activeSession.lesson.sourceUrl && <a href={activeSession.lesson.sourceUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex text-sm font-medium text-brand hover:underline">打开课程来源 ↗</a>}</div>
+          <div className="rounded-xl border border-brand/20 bg-brand/5 p-3 text-sm"><p className="font-medium">本次学习会话已开始</p><p className="mt-1 text-muted-foreground">先学习，再留下重点、疑问或易错点；结束时再判断这节课是否需要练习。</p>{activeSession.session.taskId && <p className="mt-2 text-xs font-medium text-brand">已关联本周计划任务，结束后会沉淀为路线证据。</p>}{activeSession.lesson.sourceUrl && <a href={activeSession.lesson.sourceUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex text-sm font-medium text-brand hover:underline">打开课程来源 ↗</a>}</div>
           <div><div className="mb-2 flex items-center justify-between"><h3 className="text-sm font-medium">学习记录</h3><select value={noteKind} onChange={(e) => setNoteKind(e.target.value)} className="rounded-lg border bg-background px-2 py-1 text-xs">{NOTE_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></div><textarea value={noteContent} onChange={(e) => setNoteContent(e.target.value)} rows={4} placeholder="写下自己的理解、疑问或易错点…" className="w-full rounded-xl border bg-muted/40 p-3 text-sm" /><div className="mt-2 text-right"><Button size="sm" onClick={saveNote} disabled={saving || !noteContent.trim()}>保存记录</Button></div><div className="mt-3 space-y-2">{notes.map((note) => <div key={note.id} className="rounded-lg bg-muted/50 px-3 py-2 text-sm"><span className="mr-2 text-xs text-brand">{NOTE_TYPES.find((type) => type.value === note.kind)?.label || "笔记"}</span>{note.content}</div>)}</div></div>
           <form className="border-t pt-4" onSubmit={(e) => { e.preventDefault(); finishSession(e.currentTarget); }}><h3 className="text-sm font-medium">结束这次学习</h3><p className="mt-1 text-xs text-muted-foreground">“完成”只记录本节学完，不会自动认定为已经掌握。</p><select required name="assessment" defaultValue="" className="mt-3 w-full rounded-xl border bg-muted/40 px-3 py-2 text-sm"><option value="" disabled>这节课现在的状态是？</option><option value="clear">能复述核心内容</option><option value="needs_practice">大致听懂，需要练习</option><option value="blocked">有明显卡点</option></select><textarea name="blocker" rows={2} placeholder="卡在哪里？（可选）" className="mt-2 w-full rounded-xl border bg-muted/40 p-3 text-sm" /><input name="nextStep" placeholder="下次从哪里继续？（可选）" className="mt-2 w-full rounded-xl border bg-muted/40 px-3 py-2 text-sm" /><div className="mt-3 text-right"><Button type="submit" disabled={saving}>{saving ? "保存中..." : "完成并保存学习证据"}</Button></div></form>
         </div></section>

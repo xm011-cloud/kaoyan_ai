@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
     }
     const downstreamStageCount = active.stages.filter((stage) => stage.order > activeStage.order).length;
     const preservedCompletedMilestones = active.milestones.filter((milestone) => milestone.completedAt).length;
+    const preservedReviewedMilestones = active.milestones.filter((milestone) => milestone.reviewedAt).length;
     const weeklyPlanNeedsReview = await prisma.weeklyPlan.count({
       where: { userId: user!.id, status: "active", stageId: activeStage.id },
     });
@@ -63,6 +64,7 @@ export async function POST(request: NextRequest) {
       changedStage: { key: activeStage.key, title: activeStage.title },
       addedMilestones: additions.map((addition) => ({ title: addition.title, subject: addition.subject })),
       preservedCompletedMilestones,
+      preservedReviewedMilestones,
       downstreamStageCount,
       weeklyPlanNeedsReview: weeklyPlanNeedsReview > 0,
       datesChanged: false,
@@ -136,6 +138,9 @@ export async function POST(request: NextRequest) {
           targetDate: milestone.targetDate,
           completedAt: milestone.completedAt,
           progress: milestone.progress,
+          reviewedAt: milestone.reviewedAt,
+          reviewOutcome: milestone.reviewOutcome,
+          reviewNote: milestone.reviewNote,
           tips: milestone.tips,
         })),
       });

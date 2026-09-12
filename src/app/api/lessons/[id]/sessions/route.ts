@@ -21,8 +21,15 @@ export async function POST(
 
     const taskId = typeof body.taskId === "string" ? body.taskId : null;
     if (taskId) {
-      const task = await prisma.task.findFirst({ where: { id: taskId, userId: user!.id }, select: { id: true } });
+      const task = await prisma.task.findFirst({
+        where: { id: taskId, userId: user!.id },
+        select: { id: true, courseLessonId: true },
+      });
       if (!task) return jsonNoStore({ error: "关联任务不存在" }, { status: 400 });
+      // 允许通用任务主动记录到某个课时，但不能把已绑定其他课时的任务挪作当前学习证据。
+      if (task.courseLessonId && task.courseLessonId !== lessonId) {
+        return jsonNoStore({ error: "关联任务不属于当前课时" }, { status: 400 });
+      }
     }
 
     const existing = await prisma.studySession.findFirst({

@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { getAuthUser } from "@/lib/api-auth";
 import { handleApiError, jsonNoStore } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
@@ -58,7 +59,7 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const id = typeof body.id === "string" ? body.id : "";
     const action = body.action;
-    if (!id || !["activate", "archive"].includes(action)) {
+    if (!id || !["activate", "archive", "restore"].includes(action)) {
       return jsonNoStore({ error: "无效的周计划操作" }, { status: 400 });
     }
 
@@ -75,6 +76,73 @@ export async function PATCH(request: NextRequest) {
         data: { status: "archived" },
       });
       return jsonNoStore({ plan: archived });
+    }
+
+    // 历史版本不能直接覆盖当前任务：恢复只复制为一份新草稿，仍复用后续的影响比对与确认流程。
+    if (action === "restore") {
+      if (plan.status !== "archived") {
+        return jsonNoStore({ error: "只有历史版本可以恢复为草稿" }, { status: 409 });
+      }
+      const latest = await prisma.weeklyPlan.findFirst({
+        where: { userId: user!.id, weekStart: plan.weekStart },
+        orderBy: { version: "desc" },
+        select: { version: true },
+      });
+      const active = await prisma.weeklyPlan.findFirst({
+        where: { userId: user!.id, weekStart: plan.weekStart, status: "active" },
+        select: { id: true },
+      });
+      const currentPath = await prisma.studyPath.findFirst({
+        where: { userId: user!.id, status: "active" },
+        orderBy: { version: "desc" },
+        include: { milestones: { select: { id: true, title: true, subject: true } } },
+      });
+      const currentMilestoneIds = new Set(currentPath?.milestones.map((milestone) => milestone.id) ?? []);
+      const currentByTitle = new Map(
+        (currentPath?.milestones ?? []).map((milestone) => [`${milestone.subject}|${milestone.title}`, milestone]),
+      );
+      const sourceItems = Array.isArray(plan.items) ? (plan.items as unknown as WeeklyPlanItem[]) : [];
+      let remappedMilestones = 0;
+      let unlinkedMilestones = 0;
+      const items = sourceItems.map((item) => {
+        if (!item.milestoneId || currentMilestoneIds.has(item.milestoneId)) return item;
+        const replacement = currentByTitle.get(`${item.subject ?? ""}|${item.milestoneTitle ?? ""}`);
+        if (replacement) {
+          remappedMilestones++;
+          return { ...item, milestoneId: replacement.id, milestoneTitle: replacement.title };
+        }
+        unlinkedMilestones++;
+        return {
+          ...item,
+          milestoneId: null,
+          milestoneTitle: item.milestoneTitle ? `原路线：${item.milestoneTitle}（需重新归属）` : "需重新归属路线",
+        };
+      });
+      const draft = await prisma.weeklyPlan.create({
+        data: {
+          userId: user!.id,
+          studyPathId: currentPath?.id ?? null,
+          stageId: null,
+          weekStart: plan.weekStart,
+          weekEnd: plan.weekEnd,
+          version: (latest?.version ?? 0) + 1,
+          status: "draft",
+          objective: plan.objective,
+          rationale: plan.rationale,
+          successCriteria: plan.successCriteria as Prisma.InputJsonValue,
+          plannedMinutes: plan.plannedMinutes,
+          items: items as unknown as Prisma.InputJsonValue,
+          constraints: plan.constraints === null ? undefined : plan.constraints as Prisma.InputJsonValue,
+          generatedBy: "manual",
+          adjustmentRequest: `恢复自历史周计划 V${plan.version}${unlinkedMilestones ? `；${unlinkedMilestones} 项需重新归属当前路线` : ""}`,
+          supersedesId: active?.id ?? plan.id,
+        },
+      });
+      return jsonNoStore({
+        plan: draft,
+        restoredFromVersion: plan.version,
+        restoreImpact: { remappedMilestones, unlinkedMilestones },
+      });
     }
 
     if (plan.status === "active") return jsonNoStore({ plan, alreadyActive: true });

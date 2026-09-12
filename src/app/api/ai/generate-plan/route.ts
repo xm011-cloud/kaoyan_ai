@@ -34,6 +34,33 @@ interface StudyLoad {
   busyWeeks?: string[];
 }
 
+/** AI 输出只是一份候选草稿。先在服务端收紧其字段、日期和容量，再允许用户看见并确认。 */
+function sanitizePlanTasks(
+  tasks: PlanTask[],
+  options: { subjects: string[]; phase: string; earliestDate: string; latestDate: string },
+): PlanTask[] {
+  return tasks.flatMap((task) => {
+    if (!task || typeof task.title !== "string") return [];
+    const date = String(task.date || "").slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < options.earliestDate || date > options.latestDate) return [];
+    const title = task.title.trim().slice(0, 160);
+    if (!title) return [];
+    const normalizedSubject = normalizeSubject(String(task.subject || ""));
+    const subject = options.subjects.includes(normalizedSubject) ? normalizedSubject : options.subjects[0];
+    const rawDuration = Number(task.duration);
+    return [{
+      title,
+      description: typeof task.description === "string" && task.description.trim()
+        ? task.description.trim().slice(0, 800)
+        : `完成「${title}」并记录理解、疑问或下一步。`,
+      date,
+      duration: Math.min(Math.max(Number.isFinite(rawDuration) ? Math.round(rawDuration) : 60, 30), 180),
+      phase: options.phase,
+      subject,
+    }];
+  });
+}
+
 // ── 本地生成周计划（无需 AI Key）──
 // weekStartStr 是本地历法周一日期串（"2026-08-24"），任务日期按本地日历日推进；
 // 不能用 UTC 串（toISOString），否则 UTC+8 用户整体错位一天。
@@ -346,14 +373,19 @@ ${sprintContext}${regenerateContext}${pastSkipContext}
 
     // 规范化 + 添加周标识；并对 AI 返回的任务做日期清洗：
     // 只保留本周可见范围 [今天, 周日] —— 剔除 AI 生成的过去日期与越界到下周的任务
-    planTasks = planTasks
-      .map((t) => ({
-        ...t,
-        subject: normalizeSubject(t.subject),
-        phase: t.phase || phase,
-        date: String(t.date).split("T")[0],
-      }))
-      .filter((t) => t.date >= todayLocalStr && t.date <= weekLastStr);
+    planTasks = sanitizePlanTasks(planTasks, {
+      subjects,
+      phase,
+      earliestDate: todayLocalStr,
+      latestDate: weekLastStr,
+    });
+    // 模型返回全是过期/非法日期时，不能悄悄生成空计划；回退到同一套本地安全模板。
+    if (planTasks.length === 0 && !regenerateDay) {
+      planTasks = sanitizePlanTasks(
+        generateLocalWeeklyPlan(subjects, weekStartStr, { phase, capacity: weeklyHours, foundationMode, minDateStr: todayLocalStr }),
+        { subjects, phase, earliestDate: todayLocalStr, latestDate: weekLastStr },
+      );
+    }
 
     // 单日重排仍然产生“完整周草稿”：保留当前生效计划中其他日期的未完成任务，
     // 只替换用户指定日期，避免确认后整周只剩一天。
@@ -385,8 +417,9 @@ ${sprintContext}${regenerateContext}${pastSkipContext}
       ].sort((a, b) => a.date.localeCompare(b.date));
     }
 
-    if (adjustmentRequest) {
-      planTasks = applyWeeklyAdjustment(planTasks, adjustmentConstraints, weekStartStr);
+    if (adjustmentRequest || weeklyHours) {
+      // 无论计划来自 AI 还是本地模板，每周容量都由服务端强制执行；模型不能用“看起来合理”的任务绕过容量约束。
+      planTasks = applyWeeklyAdjustment(planTasks, { ...adjustmentConstraints, weeklyHours }, weekStartStr);
     }
 
     // AI 只负责生成可执行任务；里程碑关联由服务端按当前活动阶段和科目确定，

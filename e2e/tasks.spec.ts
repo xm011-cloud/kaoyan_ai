@@ -23,6 +23,19 @@ test.describe("Tasks", () => {
     await expect(page.locator("h1").filter({ hasText: /计划|规划|任务/ })).toBeVisible({ timeout: 10000 });
   });
 
+  test("计划工作台在桌面、平板和手机宽度下不产生横向溢出", async ({ page }) => {
+    for (const viewport of [
+      { width: 1440, height: 900 },
+      { width: 768, height: 1024 },
+      { width: 390, height: 844 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto("/tasks");
+      await expect(page.locator("h1").filter({ hasText: /计划|规划|任务/ })).toBeVisible({ timeout: 10000 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+    }
+  });
+
   test("任务即使缺少 weekStartDate 也会在所属周计划中显示", async ({ page }) => {
     const pad = (n: number) => String(n).padStart(2, "0");
     const localDate = (dt: Date) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
@@ -66,7 +79,8 @@ test.describe("Tasks", () => {
   });
 
   test("weekly plan stays draft until confirmed and activation is idempotent", async ({ page }) => {
-    test.setTimeout(60000);
+    // 该用例会连续生成、激活、调整并恢复多个版本；冷启动时 API 首次编译可能超过 60 秒。
+    test.setTimeout(120000);
     const pad = (n: number) => String(n).padStart(2, "0");
     const localDate = (dt: Date) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
     const future = new Date();
@@ -159,10 +173,22 @@ test.describe("Tasks", () => {
     });
     expect(confirmed.status()).toBe(200);
 
+    // 历史版本只能恢复为草稿：不得直接覆盖当前任务或已完成记录。
+    const restored = await page.request.patch("/api/weekly-plans", {
+      data: { id: generatedBody.draft.id, action: "restore" },
+    });
+    expect(restored.status()).toBe(200);
+    const restoredBody = await restored.json();
+    expect(restoredBody.plan.status).toBe("draft");
+    expect(restoredBody.restoredFromVersion).toBe(generatedBody.draft.version);
+    const afterRestore = await (await page.request.get(`/api/weekly-plans?weekStart=${weekStart}`)).json();
+    expect(afterRestore.draft.id).toBe(restoredBody.plan.id);
+
     await page.request.delete(`/api/tasks/${manualTask.id}`);
   });
 
   test("completing a task toggles checkbox without opening edit modal", async ({ page }) => {
+    test.setTimeout(60000);
     // 造一个本周任务（用本地日期串：app 现在按本地历法分组/过滤，UTC 串会错位一天）
     const pad = (n: number) => String(n).padStart(2, "0");
     const localDate = (dt: Date) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
@@ -180,15 +206,12 @@ test.describe("Tasks", () => {
     expect(create.status()).toBe(200);
     const { task } = await create.json();
 
-    await page.goto("/tasks");
-    await page.waitForTimeout(1500);
+    // 明确打开任务所属周，避免其他用例留下的历史周计划影响当前任务定位。
+    await page.goto(`/tasks?week=${wsStr}`);
 
-    // 定位该任务行内的 checkbox
-    const row = page
-      .locator("div")
-      .filter({ hasText: title })
-      .filter({ has: page.locator('input[type="checkbox"]') })
-      .last();
+    // 任务 ID 是稳定且唯一的定位依据，避免嵌套 div 与响应式文案变化造成误定位。
+    const row = page.locator(`#task-${task.id}`);
+    await expect(row).toBeVisible({ timeout: 10000 });
     const checkbox = row.locator('input[type="checkbox"]');
     await checkbox.click();
     await page.waitForTimeout(800);
@@ -201,11 +224,7 @@ test.describe("Tasks", () => {
     // 持久化：刷新后仍勾选（服务器已更新）
     await page.reload();
     await page.waitForTimeout(1500);
-    const rowAfter = page
-      .locator("div")
-      .filter({ hasText: title })
-      .filter({ has: page.locator('input[type="checkbox"]') })
-      .last();
+    const rowAfter = page.locator(`#task-${task.id}`);
     await expect(rowAfter.locator('input[type="checkbox"]')).toBeChecked();
 
     // 学习概览（dashboard）也应显示已完成 —— 两端同读 DB，状态一致
@@ -215,23 +234,15 @@ test.describe("Tasks", () => {
     await expect(dashRow.locator("span.line-through").first()).toBeVisible({ timeout: 3000 });
 
     // 回计划页取消勾选也应持久化
-    await page.goto("/tasks");
-    await page.waitForTimeout(1500);
-    const rowBefore = page
-      .locator("div")
-      .filter({ hasText: title })
-      .filter({ has: page.locator('input[type="checkbox"]') })
-      .last();
+    await page.goto(`/tasks?week=${wsStr}`);
+    const rowBefore = page.locator(`#task-${task.id}`);
+    await expect(rowBefore).toBeVisible({ timeout: 10000 });
     await rowBefore.locator('input[type="checkbox"]').click();
     await page.waitForTimeout(800);
     await expect(rowBefore.locator('input[type="checkbox"]')).not.toBeChecked();
     await page.reload();
     await page.waitForTimeout(1500);
-    const rowAfter2 = page
-      .locator("div")
-      .filter({ hasText: title })
-      .filter({ has: page.locator('input[type="checkbox"]') })
-      .last();
+    const rowAfter2 = page.locator(`#task-${task.id}`);
     await expect(rowAfter2.locator('input[type="checkbox"]')).not.toBeChecked();
 
     // 清理

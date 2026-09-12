@@ -62,4 +62,39 @@ test.describe("Courses", () => {
     const workspace = page.getByRole("complementary", { name: "AI 工作区" });
     await expect(workspace.getByText(`正在协助：${courseTitle} · 传输层：可靠传输`)).toBeVisible();
   });
+
+  test("从计划任务开始课程时，学习会话保留任务关联但不自动完成任务", async ({ page }) => {
+    const suffix = Date.now();
+    const course = await page.request.post("/api/courses", {
+      data: { title: `E2E任务课程${suffix}`, subject: "408", firstLessonTitle: "网络层基础" },
+    });
+    expect(course.status()).toBe(201);
+    const createdCourse = (await course.json()).course;
+    const lesson = createdCourse.units[0].lessons[0];
+    const pad = (value: number) => String(value).padStart(2, "0");
+    const localDate = (value: Date) => `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
+    const now = new Date();
+    const weekStartDate = new Date(now);
+    weekStartDate.setDate(now.getDate() + (now.getDay() === 0 ? -6 : 1 - now.getDay()));
+    const today = localDate(now);
+    const weekStart = localDate(weekStartDate);
+    const task = await page.request.post("/api/tasks", {
+      data: { title: `E2E关联任务${suffix}`, date: today, courseLessonId: lesson.id, duration: 30 },
+    });
+    expect(task.status()).toBe(200);
+    const taskBody = await task.json();
+
+    const started = await page.request.post(`/api/lessons/${lesson.id}/sessions`, { data: { taskId: taskBody.task.id } });
+    expect(started.status()).toBe(201);
+    const session = (await started.json()).session;
+    expect(session.taskId).toBe(taskBody.task.id);
+    const finished = await page.request.patch(`/api/study-sessions/${session.id}`, {
+      data: { status: "completed", selfAssessment: "clear", actualMinutes: 30 },
+    });
+    expect(finished.status()).toBe(200);
+
+    const storedTask = await page.request.get(`/api/tasks?weekStart=${weekStart}`);
+    const storedTasks = (await storedTask.json()).tasks;
+    expect(storedTasks.find((item: { id: string }) => item.id === taskBody.task.id).completed).toBe(false);
+  });
 });

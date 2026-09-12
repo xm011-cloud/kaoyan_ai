@@ -96,6 +96,14 @@ interface JudgeResult {
   verdict: string; summary: string;
 }
 
+interface MilestoneEvidenceSummary {
+  tasks: { total: number; completed: number };
+  learning: { sessions: number };
+  practice: { completed: number };
+  reviewReady: boolean;
+  prompt: string;
+}
+
 export default function TasksPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -137,6 +145,7 @@ export default function TasksPage() {
   const [weekTasks, setWeekTasks] = useState<Task[]>([]);
   const [weeklyPlanDraft, setWeeklyPlanDraft] = useState<WeeklyPlanDraft | null>(null);
   const [weeklyPlanVersions, setWeeklyPlanVersions] = useState<WeeklyPlanVersion[]>([]);
+  const [milestoneEvidence, setMilestoneEvidence] = useState<Record<string, MilestoneEvidenceSummary>>({});
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const autoAdjustmentRef = useRef(false);
@@ -179,6 +188,18 @@ export default function TasksPage() {
   const sprintMode = daysRemaining < 30;
 
   // ── Data loading ──
+  const loadMilestoneEvidence = useCallback(async (milestoneIds: string[]) => {
+    const uniqueIds = [...new Set(milestoneIds.filter(Boolean))];
+    if (uniqueIds.length === 0) {
+      setMilestoneEvidence({});
+      return;
+    }
+    const response = await fetch(`/api/study-path/evidence?ids=${encodeURIComponent(uniqueIds.join(","))}`, { cache: "no-store" });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "获取路线证据失败");
+    setMilestoneEvidence((data.evidence || {}) as Record<string, MilestoneEvidenceSummary>);
+  }, [setMilestoneEvidence]);
+
   const loadWeekTasks = useCallback(async () => {
     const ws = toLocalDateString(weekStart); // 本地周一日期串（与 generate-plan 存 weekStartDate 口径一致）
     try {
@@ -187,11 +208,13 @@ export default function TasksPage() {
         fetch(`/api/weekly-plans?weekStart=${ws}`),
       ]);
       const [taskData, planData] = await Promise.all([taskRes.json(), planRes.json()]);
-      setWeekTasks(taskData.tasks || []);
+      const tasks = taskData.tasks || [];
+      setWeekTasks(tasks);
       setWeeklyPlanDraft(planData.draft || null);
       setWeeklyPlanVersions(planData.versions || []);
+      await loadMilestoneEvidence(tasks.map((task: Task) => task.milestoneId || ""));
     } catch { /* ignore */ } finally { setLoading(false); }
-  }, [weekStart, setWeekTasks, setWeeklyPlanDraft, setWeeklyPlanVersions]);
+  }, [weekStart, loadMilestoneEvidence, setWeekTasks, setWeeklyPlanDraft, setWeeklyPlanVersions]);
 
   useEffect(() => { loadWeekTasks(); }, [loadWeekTasks]);
 
@@ -320,6 +343,33 @@ export default function TasksPage() {
     setWeeklyPlanDraft(null);
   };
 
+  const handleRestoreWeeklyPlan = async (id: string) => {
+    const ok = await confirmDialog({
+      title: "恢复这个历史版本？",
+      message: "会复制为新的周计划草稿；当前任务和已完成记录不会改变。你仍可先查看影响，再决定是否应用。",
+      confirmLabel: "恢复为草稿",
+    });
+    if (!ok) return;
+    try {
+      const res = await fetch("/api/weekly-plans", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, action: "restore" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "恢复历史版本失败");
+      await loadWeekTasks();
+      const routeNotice = data.restoreImpact?.unlinkedMilestones
+        ? `；${data.restoreImpact.unlinkedMilestones} 项需要重新归属当前路线`
+        : data.restoreImpact?.remappedMilestones
+          ? `；已重新关联 ${data.restoreImpact.remappedMilestones} 项到当前路线`
+          : "";
+      toast.success(`已从 V${data.restoredFromVersion} 创建草稿，请确认影响后再应用${routeNotice}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "恢复历史版本失败");
+    }
+  };
+
   const handleGenerate = () => {
     // 探索期（无目标）→ 先描述需求、判断计划类型（0.4b）
     if (!goal) {
@@ -439,10 +489,34 @@ export default function TasksPage() {
         rollback();
         const data = await res.json().catch(() => null);
         toast.error(data?.error || "任务状态更新失败，请重试");
+      } else if (next && task.milestoneId) {
+        await loadMilestoneEvidence([task.milestoneId]);
+        toast.success("任务已完成；路线证据已更新");
       }
     } catch {
       // 网络错误 → 入队，联网补传（保留乐观状态，队列补传成功后两端一致）
       await enqueueWrite(`/api/tasks/${task.id}`, init(), { dedupeKey: `task:${task.id}` });
+    }
+  };
+
+  // 今日微调只改这一项的日期或时长，不生成新周计划，也不改写路线或历史完成记录。
+  const handleQuickAdjustTask = async (task: Task, adjustment: { date?: string; duration?: number }) => {
+    const previous = task;
+    setWeekTasks((tasks) => tasks.map((item) => item.id === task.id ? { ...item, ...adjustment } : item));
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(adjustment),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "调整任务失败");
+      }
+      toast.success(adjustment.date ? "已移至明天；本周目标和长期路线不变" : "已缩短本次任务；可随时在编辑中恢复");
+    } catch (err) {
+      setWeekTasks((tasks) => tasks.map((item) => item.id === task.id ? previous : item));
+      toast.error(err instanceof Error ? err.message : "调整任务失败，请重试");
     }
   };
 
@@ -611,6 +685,12 @@ export default function TasksPage() {
             )}
         </section>
 
+        <section className="grid gap-3 sm:grid-cols-3" aria-label="调整学习安排">
+          <div className="rounded-xl border border-border/60 bg-card p-4"><p className="text-sm font-medium">今天临时有变化</p><p className="mt-1 text-xs leading-5 text-muted-foreground">在今天的任务上直接缩短时长或移到明天，只影响这一项。</p></div>
+          <a href="#weekly-plan-adjustment" className="rounded-xl border border-border/60 bg-card p-4 transition-colors hover:border-brand/35 hover:bg-brand/5"><p className="text-sm font-medium">这周容量变了</p><p className="mt-1 text-xs leading-5 text-muted-foreground">说明可用时间、空闲日或科目侧重，先看草稿和影响再确认。</p></a>
+          <button type="button" onClick={() => router.push("/study-path#stage-adjustment")} className="rounded-xl border border-border/60 bg-card p-4 text-left transition-colors hover:border-brand/35 hover:bg-brand/5"><p className="text-sm font-medium">长期目标需要调整</p><p className="mt-1 text-xs leading-5 text-muted-foreground">保留已完成证据，只重新计算后续阶段与未完成任务。</p></button>
+        </section>
+
         {/* Zone 2: Subject progress */}
         {subjects.length > 0 && (
           <section className="workspace-surface space-y-3 p-5">
@@ -705,7 +785,8 @@ export default function TasksPage() {
             generating={generating} subjects={subjects} examDate={examDate}
             daysRemaining={daysRemaining} sprintMode={sprintMode} onWeekChange={handleWeekChange}
             onGenerate={handleGenerate} onRegenerateDay={handleRegenerateDay}
-            onToggleComplete={handleToggleComplete} onEditTask={openEdit}
+            onToggleComplete={handleToggleComplete} onEditTask={openEdit} onQuickAdjustTask={handleQuickAdjustTask}
+            milestoneEvidence={milestoneEvidence}
             onDeleteTask={handleDeleteTask} onAddTask={handleAddTask}
             onJudge={handleJudge}
             onRegenerateWithFeedback={handleRegenerateWithFeedback}
@@ -713,6 +794,7 @@ export default function TasksPage() {
             generatingPhase={genPhase} generatingEstimate={genEstimate} onCancelGenerate={genCancel}
             judgingPhase={judgePhase} judgingEstimate={judgeEstimate} onCancelJudge={judgeCancel}
             onConfirmDraft={handleConfirmWeeklyPlan} onDiscardDraft={handleDiscardWeeklyPlan}
+            onRestoreVersion={handleRestoreWeeklyPlan}
             onAdjust={handleAdjustWeeklyPlan}
             initialAdjustment={searchParams.get("adjustment") || ""}
             highlightTaskId={searchParams.get("task")}

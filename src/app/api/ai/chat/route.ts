@@ -217,7 +217,7 @@ async function buildRouteContext(userId: string) {
   const criteria = Array.isArray(stage.exitCriteria) ? stage.exitCriteria.slice(0, 5).map(String).join("；") : "暂无";
   return {
     review: evidence.reviewReady ? { id: milestone.id, title: milestone.title } : null,
-    prompt: `## 当前路线现场（已由服务端校验）\n当前阶段：${stage.title}\n阶段目标：${stage.objective}\n退出标准：${criteria}\n当前里程碑：${milestone.title}（${milestone.subject}，手动进度 ${Math.round(milestone.progress * 100)}%）\n学习证据：关联任务 ${evidence.tasks.completed}/${evidence.tasks.total}；学习会话 ${evidence.learning.sessions} 次/${evidence.learning.minutes} 分钟；练习 ${evidence.practice.completed} 次；错题复习 ${evidence.wrongQuestions.reviewed} 道。\n${evidence.prompt}\n回答中必须区分“执行任务”“积累证据”“复盘确认掌握”；不要把任务完成或 AI 判断直接写成里程碑已完成。`,
+    prompt: `## 当前路线现场（已由服务端校验）\n当前阶段：${stage.title}\n阶段目标：${stage.objective}\n退出标准：${criteria}\n当前里程碑：${milestone.title}（${milestone.subject}，手动进度 ${Math.round(milestone.progress * 100)}%）${milestone.reviewOutcome ? `\n最近复盘结论：${milestone.reviewOutcome === "relearn" ? "需要重学" : milestone.reviewOutcome === "continue" ? "继续巩固" : "已达成"}${milestone.reviewNote ? `；用户备注：${milestone.reviewNote.slice(0, 500)}` : ""}` : ""}\n学习证据：关联任务 ${evidence.tasks.completed}/${evidence.tasks.total}；学习会话 ${evidence.learning.sessions} 次/${evidence.learning.minutes} 分钟；练习 ${evidence.practice.completed} 次；错题复习 ${evidence.wrongQuestions.reviewed} 道。\n${evidence.prompt}\n回答中必须区分“执行任务”“积累证据”“复盘确认掌握”；出现“继续巩固”或“需要重学”时，优先围绕同一里程碑提出可确认的周计划调整，不要静默改写长期路线。`,
   };
 }
 

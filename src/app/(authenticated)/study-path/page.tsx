@@ -36,6 +36,11 @@ interface MilestoneEvidence {
   prompt: string;
 }
 
+interface ReviewFollowUp {
+  label: string;
+  href: string;
+}
+
 interface StudyPath {
   id: string;
   title: string;
@@ -49,6 +54,7 @@ interface StudyPath {
     changedStage: { key: string; title: string };
     addedMilestones: Array<{ title: string; subject: string }>;
     preservedCompletedMilestones: number;
+    preservedReviewedMilestones?: number;
     downstreamStageCount: number;
     weeklyPlanNeedsReview: boolean;
     datesChanged: boolean;
@@ -125,6 +131,7 @@ export default function StudyPathPage() {
   const [evidenceByMilestone, setEvidenceByMilestone] = useState<Record<string, MilestoneEvidence>>({});
   const [reviewingMilestone, setReviewingMilestone] = useState<Milestone | null>(null);
   const [reviewNote, setReviewNote] = useState("");
+  const [reviewFollowUp, setReviewFollowUp] = useState<ReviewFollowUp | null>(null);
   const autoAdjustmentRef = useRef(false);
   const autoReviewRef = useRef<string | null>(null);
   const { phase: waitPhase, estimate: waitEstimate, start: waitStart, stop: waitStop, cancel: waitCancel } = useAiTask();
@@ -193,7 +200,7 @@ export default function StudyPathPage() {
         const impact = result.next.impact as StudyPath["changeImpact"];
         const confirmed = await confirmDialog({
           title: "确认阶段调整？",
-          message: `将为“${impact?.changedStage.title}”新增 ${impact?.addedMilestones.length ?? 0} 个里程碑，保留 ${impact?.preservedCompletedMilestones ?? 0} 个已完成里程碑。后续 ${impact?.downstreamStageCount ?? 0} 个阶段需要重新检查时间安排。`,
+          message: `将为“${impact?.changedStage.title}”新增 ${impact?.addedMilestones.length ?? 0} 个里程碑，保留 ${impact?.preservedCompletedMilestones ?? 0} 个已完成成果和 ${impact?.preservedReviewedMilestones ?? 0} 条复盘结论。后续 ${impact?.downstreamStageCount ?? 0} 个阶段需要重新检查时间安排。`,
           confirmLabel: "确认启用新路线",
         });
         if (!confirmed) return;
@@ -251,7 +258,6 @@ export default function StudyPathPage() {
     void handleAdjustStageWithRequest(request);
     router.replace(pathname, { scroll: false });
   // 此 effect 只处理一次 URL 明确触发的用户操作。
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, router, pathname]);
 
   const handleCompleteStage = async (stage: PathStage, confirmIncomplete = false) => {
@@ -330,6 +336,7 @@ export default function StudyPathPage() {
   };
 
   const openReview = async (milestone: Milestone) => {
+    setReviewFollowUp(null);
     setReviewingMilestone(milestone);
     setReviewNote(milestone.reviewNote || "");
     try { await loadEvidence(milestone.id); } catch (err) { setMessage(`❌ ${err instanceof Error ? err.message : "获取学习证据失败"}`); }
@@ -346,7 +353,16 @@ export default function StudyPathPage() {
       const result = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(result.error || "保存复盘失败");
       setReviewingMilestone(null);
-      setMessage(outcome === "achieved" ? "✅ 已确认里程碑达成；下一步会继续服务当前阶段目标。" : outcome === "relearn" ? "↺ 已标记为需要重学，后续计划不会丢弃这项基础。" : "✓ 已保留继续巩固的复盘结论。");
+      if (outcome === "achieved") {
+        setMessage("✅ 已确认里程碑达成。后续生成计划会自动转向当前阶段的下一个未完成里程碑。");
+        setReviewFollowUp({ label: "查看下一步计划", href: "/tasks" });
+      } else {
+        const adjustment = outcome === "relearn"
+          ? `我复盘后发现「${reviewingMilestone.title}」需要重学。请保留当前路线，优先安排基础补学、一次针对性练习和复盘，不增加其他科目负担。`
+          : `我复盘后决定继续巩固「${reviewingMilestone.title}」。请保留当前路线，安排一次针对性练习和复盘，不增加其他科目负担。`;
+        setMessage(outcome === "relearn" ? "↺ 已标记为需要重学。可以把这条结论带到周计划中生成可确认的调整草稿。" : "✓ 已保留继续巩固的复盘结论。可以把它带到周计划中生成可确认的调整草稿。");
+        setReviewFollowUp({ label: "带着复盘结论调整本周计划", href: `/tasks?adjustment=${encodeURIComponent(adjustment)}` });
+      }
       await loadPath();
     } catch (err) {
       setMessage(`❌ ${err instanceof Error ? err.message : "保存复盘失败"}`);
@@ -472,6 +488,9 @@ export default function StudyPathPage() {
             {weeklyRedirect && (
               <Link href="/tasks" className="ml-2 underline font-medium">去调整本周计划</Link>
             )}
+            {reviewFollowUp && (
+              <Link href={reviewFollowUp.href} className="ml-2 underline font-medium">{reviewFollowUp.label}</Link>
+            )}
           </div>
         )}
 
@@ -519,6 +538,7 @@ export default function StudyPathPage() {
                   <span>调整阶段：{data.path.changeImpact.changedStage.title}</span>
                   <span>新增里程碑：{data.path.changeImpact.addedMilestones.length}</span>
                   <span>保留已完成成果：{data.path.changeImpact.preservedCompletedMilestones}</span>
+                  <span>保留复盘结论：{data.path.changeImpact.preservedReviewedMilestones ?? 0}</span>
                   <span>需复核后续阶段：{data.path.changeImpact.downstreamStageCount}</span>
                 </div>
                 <ul className="space-y-1 text-muted-foreground">
@@ -776,11 +796,20 @@ export default function StudyPathPage() {
 
         {reviewingMilestone && (
           <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/35 p-4 sm:items-center" role="dialog" aria-modal="true" aria-label="里程碑复盘">
-            <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-5 shadow-xl">
+            <div className="max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-xl">
               <p className="text-xs font-medium text-brand">里程碑复盘</p>
               <h2 className="mt-1 text-lg font-semibold">{reviewingMilestone.title}</h2>
               {evidenceByMilestone[reviewingMilestone.id] ? (
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">{evidenceByMilestone[reviewingMilestone.id].prompt} 已完成关联任务 {evidenceByMilestone[reviewingMilestone.id].tasks.completed}/{evidenceByMilestone[reviewingMilestone.id].tasks.total}，练习 {evidenceByMilestone[reviewingMilestone.id].practice.completed} 次。</p>
+                <>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{evidenceByMilestone[reviewingMilestone.id].prompt}</p>
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    <div className="rounded-xl border border-border/60 bg-muted/30 p-3"><p className="text-xs text-muted-foreground">关联任务</p><p className="mt-1 text-sm font-semibold">{evidenceByMilestone[reviewingMilestone.id].tasks.completed}/{evidenceByMilestone[reviewingMilestone.id].tasks.total} 已完成</p><p className="mt-1 text-xs text-muted-foreground">已沉淀 {evidenceByMilestone[reviewingMilestone.id].tasks.completedMinutes}/{evidenceByMilestone[reviewingMilestone.id].tasks.plannedMinutes} 分钟计划量</p></div>
+                    <div className="rounded-xl border border-border/60 bg-muted/30 p-3"><p className="text-xs text-muted-foreground">学习会话</p><p className="mt-1 text-sm font-semibold">{evidenceByMilestone[reviewingMilestone.id].learning.sessions} 次 · {evidenceByMilestone[reviewingMilestone.id].learning.minutes} 分钟</p><p className="mt-1 text-xs text-muted-foreground">清晰 {evidenceByMilestone[reviewingMilestone.id].learning.clear} · 需练习 {evidenceByMilestone[reviewingMilestone.id].learning.needsPractice} · 卡点 {evidenceByMilestone[reviewingMilestone.id].learning.blocked}</p></div>
+                    <div className="rounded-xl border border-border/60 bg-muted/30 p-3"><p className="text-xs text-muted-foreground">对应练习</p><p className="mt-1 text-sm font-semibold">{evidenceByMilestone[reviewingMilestone.id].practice.completed} 次完成</p><p className="mt-1 text-xs text-muted-foreground">{evidenceByMilestone[reviewingMilestone.id].practice.averageRate === null ? "尚无可用得分" : `有分练习平均正确率 ${evidenceByMilestone[reviewingMilestone.id].practice.averageRate}%`}</p></div>
+                    <div className="rounded-xl border border-border/60 bg-muted/30 p-3"><p className="text-xs text-muted-foreground">错题复习</p><p className="mt-1 text-sm font-semibold">{evidenceByMilestone[reviewingMilestone.id].wrongQuestions.reviewed} 道已复习</p><p className="mt-1 text-xs text-muted-foreground">按同科目与本里程碑开始时间汇总，仅作辅助证据。</p></div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-3 text-xs"><Link href="/tasks" className="font-medium text-brand hover:underline">查看关联任务 →</Link><Link href={`/wrong-questions?subject=${encodeURIComponent(reviewingMilestone.subject)}`} className="font-medium text-brand hover:underline">查看本科学错题 →</Link></div>
+                </>
               ) : <p className="mt-2 text-sm text-muted-foreground">正在汇总任务、学习、练习和错题证据…</p>}
               <textarea value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} rows={3} placeholder="写下确认依据、薄弱点或下一步（可选）" className="mt-4 w-full rounded-xl border border-border/60 bg-muted/30 px-3 py-2 text-sm" />
               <p className="mt-2 text-xs text-muted-foreground">选择结论才会更新里程碑；任务完成不会自动代表掌握。</p>

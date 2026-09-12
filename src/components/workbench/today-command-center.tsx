@@ -48,7 +48,7 @@ export function TodayCommandCenter({
     ? '今天的计划已经完成'
     : today.nextTask?.title || (hasTasks ? '打开今天的任务，选择下一项开始' : '先为今天安排一个可完成的学习动作')
   const primaryHref = today.nextTask?.courseLessonId
-    ? `/courses?lesson=${today.nextTask.courseLessonId}`
+    ? `/courses?lesson=${today.nextTask.courseLessonId}&task=${today.nextTask.id}&week=${weeklyPlan.weekStart}`
     : today.nextTask ? `/tasks?week=${weeklyPlan.weekStart}&task=${today.nextTask.id}` : weeklyPlan.status === 'none' ? '/tasks' : `/tasks?week=${weeklyPlan.weekStart}`
   const primaryLabel = isFinished ? '查看完成情况' : hasTasks ? '开始这一项' : weeklyPlan.status === 'none' ? '安排今天' : '查看本周计划'
   const weeklyHours = weeklyPlan.plannedMinutes > 0 ? `${Math.round(weeklyPlan.plannedMinutes / 60)} 小时` : '待安排'

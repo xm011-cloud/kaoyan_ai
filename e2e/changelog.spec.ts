@@ -14,9 +14,7 @@ test.describe("更新日志与告示", () => {
 
   test("nav settings group includes 更新日志 entry", async ({ page }) => {
     await page.goto("/dashboard");
-    await page.getByRole("button", { name: /考研助手/ }).first().click();
-    // 用文本过滤：避免匹配 banner 的「查看更新」链接（同 href /changelog）
-    await expect(page.locator('a[href="/changelog"]').filter({ hasText: "更新日志" })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole("link", { name: "更新日志", exact: true })).toBeVisible({ timeout: 10000 });
   });
 
   test("dashboard shows changelog banner when unread, dismiss hides it", async ({ page }) => {

@@ -58,9 +58,10 @@ test.describe("AI 配置引导", () => {
   test("chat 未配置：引导条可见 + 输入禁用", async ({ page }) => {
     await mockSettings(page, NOT_CONFIGURED);
     await page.goto("/chat");
-    await expect(page.getByText("AI 未启用").first()).toBeVisible({ timeout: 10000 });
-    await expect(page.getByRole("link", { name: /去配置/ })).toBeVisible();
-    await expect(page.locator('input[placeholder*="输入"]')).toBeDisabled();
+    const workspace = page.getByLabel("AI 工作区");
+    await expect(workspace.getByText("AI 未启用").first()).toBeVisible({ timeout: 10000 });
+    await expect(workspace.getByRole("link", { name: /去配置/ })).toBeVisible();
+    await expect(workspace.getByPlaceholder(/配置 AI 后开启对话/)).toBeDisabled();
   });
 
   test("chat 收到 needConfig 响应后显示引导条", async ({ page }) => {
@@ -74,14 +75,12 @@ test.describe("AI 配置引导", () => {
       });
     });
     await page.goto("/chat");
-    // 聊天页输入框（浮窗输入框 placeholder 为"输入指令"，不匹配"问题"）
-    const input = page
-      .locator('input[placeholder*="你的问题"]')
-      .or(page.locator('input[placeholder*="输入问题"]'));
+    const workspace = page.getByLabel("AI 工作区");
+    const input = workspace.getByPlaceholder(/输入指令/);
     await expect(input).toBeEnabled({ timeout: 10000 });
     await input.fill("你好");
-    await page.getByRole("button", { name: "发送" }).click();
-    await expect(page.getByText("AI 未启用").first()).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText(/请先在设置页面配置/)).toBeVisible();
+    await workspace.getByRole("button", { name: "发送" }).click();
+    await expect(workspace.getByText("AI 未启用").first()).toBeVisible({ timeout: 10000 });
+    await expect(workspace.getByText(/请先在设置页面配置/)).toBeVisible();
   });
 });

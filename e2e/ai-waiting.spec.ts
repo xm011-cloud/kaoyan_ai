@@ -20,30 +20,31 @@ test("chat shows wait-soothing bubble with phases, estimate and cancel", async (
   });
 
   await page.goto("/chat");
-  await expect(page.locator("h1").filter({ hasText: "AI 对话" })).toBeVisible({ timeout: 20000 });
+  const workspace = page.getByLabel("AI 工作区");
+  await expect(workspace.getByRole("heading", { name: "AI 学习伙伴" })).toBeVisible({ timeout: 20000 });
 
   // 注意：页面右下角有浮动 AI 组件（自带输入框/发送按钮），用占位符精确锁定主对话输入框。
   // 主输入框占位符随「是否有资料」变化（输入你的问题 / 输入问题，AI 自动检索 / 针对选中资料提问），
   // 全部匹配；浮动组件是「输入指令/配置 AI」——不复用，排除掉。
-  const chatInput = page.getByPlaceholder(/输入你的问题|输入问题，AI 自动检索|针对选中资料提问/);
+  const chatInput = workspace.getByPlaceholder(/输入指令/);
   await expect(chatInput).toBeVisible({ timeout: 20000 });
-  const sendBtn = page.locator("form").filter({ has: chatInput }).getByRole("button", { name: "发送" });
+  const sendBtn = workspace.getByRole("button", { name: "发送" });
 
   await chatInput.fill("你好");
   await sendBtn.click();
 
   // 阶段 1（0~2.5s）：正在连接 AI
-  await expect(page.getByText("正在连接 AI")).toBeVisible({ timeout: 5000 });
+  await expect(workspace.getByText("正在连接 AI")).toBeVisible({ timeout: 5000 });
 
   // 阶段 2（2.5s+）：正在理解你的情况（阶段轮播生效）
-  await expect(page.getByText("正在理解你的情况")).toBeVisible({ timeout: 8000 });
+  await expect(workspace.getByText("正在理解你的情况")).toBeVisible({ timeout: 8000 });
 
   // 已等待时长/预估出现（≥4s 后显示「已等待 N 秒，预计…」）
-  await expect(page.getByText(/已等待 \d+ 秒/)).toBeVisible({ timeout: 8000 });
+  await expect(workspace.getByText(/已等待 \d+ 秒/)).toBeVisible({ timeout: 8000 });
 
   // 取消：气泡消失，输入框恢复可用（不追加错误消息）
-  await page.getByRole("button", { name: "取消本次生成" }).click();
-  await expect(page.getByText(/正在理解你的情况|正在连接 AI/)).toHaveCount(0, { timeout: 10000 });
+  await workspace.getByRole("button", { name: "取消本次生成" }).click();
+  await expect(workspace.getByText(/正在理解你的情况|正在连接 AI/)).toHaveCount(0, { timeout: 10000 });
   await expect(chatInput).toBeEnabled({ timeout: 10000 });
   // 安静收场：没有追加「AI 服务暂时不可用」错误气泡
   await expect(page.getByText("AI 服务暂时不可用，请稍后再试。")).toHaveCount(0);

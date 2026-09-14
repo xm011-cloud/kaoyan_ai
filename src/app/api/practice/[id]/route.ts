@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 
 import { handleApiError, jsonNoStore } from "@/lib/api-utils";
+import { retractStudyEvidence, upsertStudyEvidence } from "@/lib/study-evidence";
 
 export async function GET(
   request: NextRequest,
@@ -50,18 +51,33 @@ export async function PATCH(
 
     // Status change (abandon / start)
     if (body.status && !body.answers) {
-      const updated = await prisma.practiceSession.update({
-        where: { id },
-        data: {
-          status: body.status,
-          ...(body.startedAt ? { startedAt: new Date(body.startedAt) } : {}),
-        },
+      if (!["in_progress", "abandoned"].includes(body.status)) {
+        return jsonNoStore({ error: "练习状态无效" }, { status: 400 });
+      }
+      const updated = await prisma.$transaction(async (tx) => {
+        const next = await tx.practiceSession.update({
+          where: { id },
+          data: {
+            status: body.status,
+            ...(body.startedAt ? { startedAt: new Date(body.startedAt) } : {}),
+          },
+        });
+        if (body.status === "abandoned") {
+          await retractStudyEvidence(tx, user!.id, "practice_session", id);
+        }
+        return next;
       });
       return jsonNoStore({ session: updated });
     }
 
     // Answer submission — grade and score
     if (body.answers) {
+      if (session.status === "completed") {
+        return jsonNoStore({ session, deduplicated: true });
+      }
+      if (session.status !== "in_progress") {
+        return jsonNoStore({ error: "这次练习已经结束，不能重复提交" }, { status: 409 });
+      }
       const questions = session.questions as Array<{
         id: string;
         type: string;
@@ -188,15 +204,32 @@ export async function PATCH(
         }
       }
 
-      const updated = await prisma.practiceSession.update({
-        where: { id },
-        data: {
-          answers: answers as Prisma.InputJsonValue,
-          scores: scores as Prisma.InputJsonValue,
-          totalScore,
-          status: "completed",
-          completedAt: new Date(),
-        },
+      const updated = await prisma.$transaction(async (tx) => {
+        const next = await tx.practiceSession.update({
+          where: { id },
+          data: {
+            answers: answers as Prisma.InputJsonValue,
+            scores: scores as Prisma.InputJsonValue,
+            totalScore,
+            status: "completed",
+            completedAt: new Date(),
+          },
+        });
+        await upsertStudyEvidence(tx, {
+          userId: user!.id,
+          taskId: next.taskId,
+          milestoneId: next.milestoneId,
+          kind: "practice_session",
+          sourceId: next.id,
+          title: `${next.type === "mock" ? "模拟考试" : "练习"}：${next.subject}`,
+          subject: next.subject,
+          occurredAt: next.completedAt ?? new Date(),
+          durationMinutes: next.duration,
+          score: next.totalScore,
+          maxScore: next.maxScore,
+          metadata: { type: next.type, questionCount: questions.length },
+        });
+        return next;
       });
 
       return jsonNoStore({ session: updated });
@@ -225,7 +258,10 @@ export async function DELETE(
       return jsonNoStore({ error: "练习不存在" }, { status: 404 });
     }
 
-    await prisma.practiceSession.delete({ where: { id } });
+    await prisma.$transaction(async (tx) => {
+      await retractStudyEvidence(tx, user!.id, "practice_session", id);
+      await tx.practiceSession.delete({ where: { id } });
+    });
     return jsonNoStore({ success: true });
   } catch (err) {
     return handleApiError(err, "删除练习");

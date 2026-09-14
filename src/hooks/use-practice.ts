@@ -27,6 +27,8 @@ async function createSession(body: {
   generationMode?: string;
   difficulty?: number;
   includeMermaid?: boolean;
+  taskId?: string;
+  milestoneId?: string;
 }): Promise<PracticeSession> {
   const res = await fetch("/api/practice", {
     method: "POST",

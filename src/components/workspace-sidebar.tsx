@@ -11,6 +11,7 @@ import { NavIcon } from '@/components/ui/nav-icon'
 export function WorkspaceSidebar() {
   const pathname = usePathname()
   const groups = getVisibleGroups(useUIStore((state) => state.navGroups))
+  const settingsItems = groups.find((group) => group.id === 'settings')?.items ?? []
   const collapsed = useUIStore((state) => state.workspaceSidebarCollapsed)
   const setCollapsed = useUIStore((state) => state.setWorkspaceSidebarCollapsed)
 
@@ -53,9 +54,16 @@ export function WorkspaceSidebar() {
         ))}
       </nav>
 
-      <Link href="/settings" title={collapsed ? '设置' : undefined} className={cn('mt-3 flex rounded-lg py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground', collapsed ? 'justify-center px-2' : 'gap-2.5 px-2.5')}>
-        <NavIcon href="/settings" className="h-[18px] w-[18px] shrink-0" />{!collapsed && '设置'}
-      </Link>
+      <div className="mt-3 space-y-0.5 border-t border-border/50 pt-3">
+        {settingsItems.map((item) => {
+          const active = pathname === item.href || pathname.startsWith(`${item.href}/`)
+          return (
+            <Link key={item.href} href={item.href} title={collapsed ? item.label : undefined} className={cn('flex rounded-lg py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground', collapsed ? 'justify-center px-2' : 'gap-2.5 px-2.5', active && 'bg-brand-muted font-medium text-brand')}>
+              <NavIcon href={item.href} className="h-[18px] w-[18px] shrink-0" />{!collapsed && item.label}
+            </Link>
+          )
+        })}
+      </div>
     </aside>
   )
 }

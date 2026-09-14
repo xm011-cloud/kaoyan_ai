@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, jsonNoStore } from "@/lib/api-utils";
+import { resolveEvidenceLink } from "@/lib/study-evidence";
 
 // GET: 获取任务列表（支持 ?date= / ?subject= / ?weekStart= 筛选）
 export async function GET(request: NextRequest) {
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { title, description, date, duration, phase, subject, weekStartDate, source, courseLessonId } = body;
+    const { title, description, date, duration, phase, subject, weekStartDate, source, courseLessonId, milestoneId } = body;
 
     if (!title || !date) {
       return jsonNoStore({ error: "标题和日期为必填项" }, { status: 400 });
@@ -71,6 +72,8 @@ export async function POST(request: NextRequest) {
       });
       if (!lesson) return jsonNoStore({ error: "关联课时不存在" }, { status: 400 });
     }
+    const resolved = await resolveEvidenceLink(prisma, user!.id, { milestoneId, subject });
+    if (resolved.error) return jsonNoStore({ error: resolved.error }, { status: 400 });
 
     const task = await prisma.task.create({
       data: {
@@ -84,6 +87,7 @@ export async function POST(request: NextRequest) {
         weekStartDate: weekStartDate ? new Date(weekStartDate) : null,
         source: source || null,
         courseLessonId: courseLessonId || null,
+        milestoneId: resolved.link?.milestoneId ?? null,
       },
     });
 

@@ -345,9 +345,9 @@ export default function TasksPage() {
 
   const handleRestoreWeeklyPlan = async (id: string) => {
     const ok = await confirmDialog({
-      title: "恢复这个历史版本？",
-      message: "会复制为新的周计划草稿；当前任务和已完成记录不会改变。你仍可先查看影响，再决定是否应用。",
-      confirmLabel: "恢复为草稿",
+      title: "对比并撤销到这个版本？",
+      message: "系统只会复制一份对比草稿，列出新增、移除、改期和容量变化；当前任务、已完成记录与历史版本都不会立即改变。",
+      confirmLabel: "创建对比草稿",
     });
     if (!ok) return;
     try {
@@ -364,7 +364,7 @@ export default function TasksPage() {
         : data.restoreImpact?.remappedMilestones
           ? `；已重新关联 ${data.restoreImpact.remappedMilestones} 项到当前路线`
           : "";
-      toast.success(`已从 V${data.restoredFromVersion} 创建草稿，请确认影响后再应用${routeNotice}`);
+      toast.success(`已从 V${data.restoredFromVersion} 创建对比草稿；检查变化并确认后才会撤销${routeNotice}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "恢复历史版本失败");
     }
@@ -476,6 +476,8 @@ export default function TasksPage() {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ completed: next }),
+      // 勾选后用户可能立刻切换页面；这是小型、幂等的状态写入，允许浏览器在卸载页面后继续发送。
+      keepalive: true,
     });
     // 离线 → 入队（联网后补传），保留乐观状态
     if (typeof navigator !== "undefined" && !navigator.onLine) {

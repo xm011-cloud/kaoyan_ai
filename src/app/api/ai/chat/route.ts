@@ -201,23 +201,59 @@ ${formatStudyProfileFactsForPrompt(facts)}
   };
 }
 
-/** 所有 AI 场景都带上经过服务端校验的当前路线，避免把会话变成脱离计划的聊天。 */
-async function buildRouteContext(userId: string) {
-  const stage = await prisma.studyPathStage.findFirst({
+/** 从当前页面对象反查真实归属；不接受客户端直接声明 taskId / milestoneId。 */
+async function resolvePageMilestoneId(userId: string, pageContext: unknown): Promise<string | null> {
+  if (!pageContext || typeof pageContext !== "object" || Array.isArray(pageContext)) return null;
+  const context = pageContext as Record<string, unknown>;
+  if (context.kind === "course_lesson" && typeof context.lessonId === "string") {
+    const session = await prisma.studySession.findFirst({
+      where: { userId, courseLessonId: context.lessonId },
+      orderBy: { startedAt: "desc" },
+      select: { milestoneId: true, task: { select: { milestoneId: true } } },
+    });
+    return session?.milestoneId ?? session?.task?.milestoneId ?? null;
+  }
+  if (context.kind === "practice_question" && typeof context.sessionId === "string") {
+    const session = await prisma.practiceSession.findFirst({
+      where: { id: context.sessionId, userId },
+      select: { milestoneId: true, task: { select: { milestoneId: true } } },
+    });
+    return session?.milestoneId ?? session?.task?.milestoneId ?? null;
+  }
+  if (context.kind === "wrong_question" && typeof context.wrongQuestionId === "string") {
+    const question = await prisma.wrongQuestion.findFirst({
+      where: { id: context.wrongQuestionId, userId },
+      select: { milestoneId: true, task: { select: { milestoneId: true } } },
+    });
+    return question?.milestoneId ?? question?.task?.milestoneId ?? null;
+  }
+  return null;
+}
+
+/** 所有 AI 场景都带上经过服务端校验的当前路线；有学习对象时优先解释它的真实归属。 */
+async function buildRouteContext(userId: string, preferredMilestoneId: string | null = null) {
+  const preferredMilestone = preferredMilestoneId
+    ? await prisma.studyPathMilestone.findFirst({
+        where: { id: preferredMilestoneId, studyPath: { userId, status: "active" } },
+        include: { stage: { select: { id: true, title: true, objective: true, exitCriteria: true } } },
+      })
+    : null;
+  const stage = preferredMilestone?.stage ?? await prisma.studyPathStage.findFirst({
     where: { studyPath: { userId, status: "active" }, status: "active" },
     orderBy: { order: "asc" },
     select: { id: true, title: true, objective: true, exitCriteria: true },
   });
   if (!stage) return { prompt: "", review: null as null | { id: string; title: string } };
-  const milestone = await prisma.studyPathMilestone.findFirst({
+  const milestone = preferredMilestone ?? await prisma.studyPathMilestone.findFirst({
     where: { stageId: stage.id, completedAt: null }, orderBy: { order: "asc" },
   });
   if (!milestone) return { prompt: `## 当前路线\n阶段：${stage.title}；目标：${stage.objective}\n当前阶段的里程碑均已复盘确认。不要自行推进阶段，应提示用户复核退出标准后确认。`, review: null as null | { id: string; title: string } };
   const evidence = await getMilestoneEvidence(userId, milestone);
   const criteria = Array.isArray(stage.exitCriteria) ? stage.exitCriteria.slice(0, 5).map(String).join("；") : "暂无";
+  const milestoneLabel = preferredMilestone ? "当前学习行为明确归属的里程碑" : "当前里程碑";
   return {
     review: evidence.reviewReady ? { id: milestone.id, title: milestone.title } : null,
-    prompt: `## 当前路线现场（已由服务端校验）\n当前阶段：${stage.title}\n阶段目标：${stage.objective}\n退出标准：${criteria}\n当前里程碑：${milestone.title}（${milestone.subject}，手动进度 ${Math.round(milestone.progress * 100)}%）${milestone.reviewOutcome ? `\n最近复盘结论：${milestone.reviewOutcome === "relearn" ? "需要重学" : milestone.reviewOutcome === "continue" ? "继续巩固" : "已达成"}${milestone.reviewNote ? `；用户备注：${milestone.reviewNote.slice(0, 500)}` : ""}` : ""}\n学习证据：关联任务 ${evidence.tasks.completed}/${evidence.tasks.total}；学习会话 ${evidence.learning.sessions} 次/${evidence.learning.minutes} 分钟；练习 ${evidence.practice.completed} 次；错题复习 ${evidence.wrongQuestions.reviewed} 道。\n${evidence.prompt}\n回答中必须区分“执行任务”“积累证据”“复盘确认掌握”；出现“继续巩固”或“需要重学”时，优先围绕同一里程碑提出可确认的周计划调整，不要静默改写长期路线。`,
+    prompt: `## 当前路线现场（已由服务端校验）\n当前阶段：${stage.title}\n阶段目标：${stage.objective}\n退出标准：${criteria}\n${milestoneLabel}：${milestone.title}（${milestone.subject}，手动进度 ${Math.round(milestone.progress * 100)}%）${milestone.reviewOutcome ? `\n最近复盘结论：${milestone.reviewOutcome === "relearn" ? "需要重学" : milestone.reviewOutcome === "continue" ? "继续巩固" : "已达成"}${milestone.reviewNote ? `；用户备注：${milestone.reviewNote.slice(0, 500)}` : ""}` : ""}\n学习证据：关联任务 ${evidence.tasks.completed}/${evidence.tasks.total}；学习会话 ${evidence.learning.sessions} 次/${evidence.learning.minutes} 分钟；练习 ${evidence.practice.completed} 次；错题复习 ${evidence.wrongQuestions.reviewed} 道。\n${evidence.prompt}\n回答中必须区分“执行任务”“积累证据”“复盘确认掌握”；出现“继续巩固”或“需要重学”时，优先围绕同一里程碑提出可确认的周计划调整，不要静默改写长期路线。`,
   };
 }
 
@@ -363,7 +399,8 @@ export async function POST(request: NextRequest) {
     if (pageContextPrompt) systemContent += "\n\n" + pageContextPrompt;
     const planningProfile = await buildPlanningProfileContext(user!.id);
     systemContent += "\n\n" + planningProfile.prompt;
-    const routeContext = await buildRouteContext(user!.id);
+    const pageMilestoneId = await resolvePageMilestoneId(user!.id, pageContext);
+    const routeContext = await buildRouteContext(user!.id, pageMilestoneId);
     if (routeContext.prompt) systemContent += "\n\n" + routeContext.prompt;
 
     // 技能模式：注入技能流程 prompt + 数据快照 + 档案

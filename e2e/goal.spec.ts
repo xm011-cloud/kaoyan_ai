@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { createTestDbPool } from "./test-db";
 
 test.describe("Goal", () => {
   test.beforeEach(async ({ page }) => {
@@ -33,6 +34,17 @@ test.describe("Goal", () => {
 
   test("can save an exploring direction without inventing a school or date", async ({ page }) => {
     test.setTimeout(120000);
+    const pool = createTestDbPool();
+    const userResult = await pool.query('SELECT id FROM "User" WHERE email = $1', [process.env.E2E_TEST_USER || ""]);
+    const userId = userResult.rows[0]?.id as string;
+    const confirmedFacts = await pool.query(
+      'SELECT id, status FROM "StudyProfileFact" WHERE "userId" = $1 AND status = \'confirmed\'',
+      [userId],
+    );
+    await pool.query(
+      'UPDATE "StudyProfileFact" SET status = \'superseded\', "updatedAt" = now() WHERE "userId" = $1 AND status = \'confirmed\'',
+      [userId],
+    );
     const original = await page.evaluate(async () => {
       const res = await fetch("/api/goal");
       return (await res.json()).goal;
@@ -90,7 +102,13 @@ test.describe("Goal", () => {
             body: JSON.stringify(goal),
           });
         }, original);
+      } else {
+        await pool.query('DELETE FROM "Goal" WHERE "userId" = $1', [userId]);
       }
+      for (const fact of confirmedFacts.rows) {
+        await pool.query('UPDATE "StudyProfileFact" SET status = $1, "updatedAt" = now() WHERE id = $2', [fact.status, fact.id]);
+      }
+      await pool.end();
     }
   });
 

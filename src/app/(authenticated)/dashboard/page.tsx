@@ -6,7 +6,7 @@ import { TodayCommandCenter } from "@/components/workbench/today-command-center"
 import { ChangelogBanner } from "@/components/changelog-banner"
 import { OnboardingModal } from "@/components/onboarding-modal"
 import { OnboardingCard } from "@/components/onboarding-card"
-import { startOfDay, endOfDay, toDateString, toLocalDateString, getWeekStart, getWeekEnd, daysAgo } from "@/lib/date-utils"
+import { addStudyDays, daysAgo, getStudyWeekRange, studyDateToUtc, toDateString, toStudyDateString } from "@/lib/date-utils"
 import { getDueCount } from "@/lib/sm2"
 import { derivePrepStage } from "@/lib/prep-stage"
 import type { SubjectProgress } from "@/lib/completion"
@@ -30,16 +30,15 @@ export default async function DashboardPage({
   if (!user) redirect("/login")
 
   const userId = user.id
-  const today = startOfDay(new Date())
-  const todayEnd = endOfDay(today)
-  const todayStr = toDateString(today)
+  // “今天”按用户的学习日历（当前为北京时间）而非 Vercel 的 UTC 进程时区计算。
+  const todayStr = toStudyDateString(new Date())
+  const today = studyDateToUtc(todayStr)
+  const todayEnd = new Date(studyDateToUtc(addStudyDays(todayStr, 1)).getTime() - 1)
 
   // 本周
-  const weekStart = getWeekStart()
-  const weekEnd = getWeekEnd()
-  const weekStartStr = toDateString(weekStart)
-  const weekEndStr = toDateString(weekEnd)
-  const planningWeekStartStr = toLocalDateString(weekStart)
+  const { start: weekStartStr, end: weekEndStr } = getStudyWeekRange()
+  const weekStart = studyDateToUtc(weekStartStr)
+  const planningWeekStartStr = weekStartStr
 
   // 90 天数据范围
   const chartStart = daysAgo(90)
@@ -64,6 +63,11 @@ export default async function DashboardPage({
     prisma.task.findMany({
       where: { userId, date: { gte: today, lte: todayEnd } },
       orderBy: { createdAt: "asc" },
+      include: {
+        milestone: {
+          select: { id: true, title: true, subject: true, createdAt: true, progress: true, completedAt: true },
+        },
+      },
     }),
     // 全部任务计数
     prisma.task.aggregate({
@@ -78,7 +82,7 @@ export default async function DashboardPage({
       orderBy: { order: "asc" },
     }),
     prisma.studyPathMilestone.findFirst({
-      where: { studyPath: { userId, status: "active" }, completedAt: null },
+      where: { studyPath: { userId, status: "active" }, stage: { status: "active" }, completedAt: null },
       orderBy: { order: "asc" },
     }),
     // 当前自然周的周计划版本：草稿优先展示，提醒用户确认；否则展示活动版本。
@@ -120,7 +124,7 @@ export default async function DashboardPage({
       where: {
         userId,
         reviewed: false,
-        nextReviewDate: { lte: endOfDay(new Date()) },
+        nextReviewDate: { lte: todayEnd },
       },
       orderBy: { nextReviewDate: "asc" },
       take: 10,
@@ -238,17 +242,22 @@ export default async function DashboardPage({
 
   // 所有可用科目
   const subjects = goal?.subjects || []
-  const projectedWeeklyPlan = weeklyPlans.find((plan) => plan.status === "draft")
-    ?? weeklyPlans.find((plan) => plan.status === "active")
+  const activeWeeklyPlan = weeklyPlans.find((plan) => plan.status === "active") ?? null
+  const draftWeeklyPlan = weeklyPlans.find((plan) => plan.status === "draft") ?? null
+  // 今日任务来自已生效版本，因此主叙事也必须优先使用已生效周目标；草稿只作为待确认提醒。
+  const projectedWeeklyPlan = activeWeeklyPlan
+    ?? draftWeeklyPlan
     ?? null
   const nextTodayTask = todayTasks.find((task) => !task.completed) ?? null
-  const currentMilestoneEvidence = currentMilestone ? await getMilestoneEvidence(userId, currentMilestone) : null
+  // 有今日任务时只展示它的真实归属；未归属任务不能用路线默认里程碑冒充。
+  const focusMilestone = nextTodayTask ? nextTodayTask.milestone : currentMilestone
+  const currentMilestoneEvidence = focusMilestone ? await getMilestoneEvidence(userId, focusMilestone) : null
 
   // ── 重入判断：今日未打卡 + 距上次打卡 > 3 天 → 显示温柔重入卡 ──
   const checkedInToday = Boolean(todayCheckin)
   const lastCheckinDate = recentChecks.find((c) => toDateString(c.date) !== todayStr)?.date ?? null
   const daysSinceLastCheckin = lastCheckinDate
-    ? Math.round((today.getTime() - startOfDay(lastCheckinDate).getTime()) / 86400000)
+    ? Math.round((today.getTime() - studyDateToUtc(toDateString(lastCheckinDate)).getTime()) / 86400000)
     : null
   const showReentry = !checkedInToday && daysSinceLastCheckin !== null && daysSinceLastCheckin > 3
 
@@ -266,14 +275,18 @@ export default async function DashboardPage({
         objective: projectedWeeklyPlan.objective,
         plannedMinutes: projectedWeeklyPlan.plannedMinutes,
         weekStart: planningWeekStartStr,
-        milestoneTitle: currentMilestone?.title ?? null,
+        hasDraft: Boolean(draftWeeklyPlan),
+        milestoneId: focusMilestone?.id ?? null,
+        milestoneTitle: focusMilestone?.title ?? null,
         milestoneReviewReady: currentMilestoneEvidence?.reviewReady ?? false,
       } : {
         status: "none" as const,
         objective: null,
         plannedMinutes: 0,
         weekStart: planningWeekStartStr,
-        milestoneTitle: currentMilestone?.title ?? null,
+        hasDraft: false,
+        milestoneId: focusMilestone?.id ?? null,
+        milestoneTitle: focusMilestone?.title ?? null,
         milestoneReviewReady: currentMilestoneEvidence?.reviewReady ?? false,
       },
       today: {
@@ -343,7 +356,7 @@ export default async function DashboardPage({
       <TodayCommandCenter
         dateLabel={`今天 · ${todayStr} 星期${weekDayNames[today.getDay()]}`}
         goalLabel={goal ? getGoalLabel(goal) : null}
-        stageLabel={goal ? stage.label : '从今天开始建立学习节奏'}
+        stageLabel={goal ? formalStage?.title ?? stage.label : '从今天开始建立学习节奏'}
         stageHint={goal ? stageHint : '先确定一个方向，AI 再帮你把它切成阶段和行动。'}
         daysLeft={goalDaysLeft}
         weeklyPlan={workbenchData.planning.weeklyPlan}

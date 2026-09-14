@@ -1,6 +1,6 @@
 # AI 考研助手 — 项目状态
 
-> 最后更新: 2026-08-16 | 分支: `dev` | 维护者: Xm
+> 最后更新: 2026-09-12 | 分支: `dev` | 维护者: Xm
 
 ## 项目概述
 
@@ -383,6 +383,15 @@ src/
 - **搜索路由**：三处 return 加 `aggregated`（entries 结构不变，零破坏）；`toEntryViews` 迁移到 `admission-server.ts` 复用
 - **顺带修**：`handleSave` 的 `searchResult.sources[0]` 潜在崩溃（路由从未返回 sources）
 - **测试**：admission.spec 7/7（新增聚合多来源/知识库API/详情页用例）；tsc/build 全绿；零 schema 变更
+
+### 第 31 轮 — 学习行为驱动长期路线（2026-09-12，待部署）
+- **统一证据账本**：新增 `StudyEvidence`，任务完成、课程会话、练习提交与错题复习按来源幂等记录；撤销完成保留 retracted 历史
+- **显式归属链路**：Task/StudySession/PracticeSession/WrongQuestion 贯通 taskId + milestoneId；不按科目或日期猜测，未归属记录由用户在路线页确认
+- **路线可解释**：首页展示“长期目标 → 当前阶段 → 当前里程碑 → 本周方向 → 今日下一步”，任务直达实际学习对象；里程碑可查看四类具体证据
+- **安全复盘调整**：证据只触发复盘建议，用户选择已达成/继续巩固/需要重学后生成下一周草稿；正式计划确认前不变
+- **版本安全**：历史周计划恢复先创建新草稿并展示影响，旧计划与已完成任务不被原地改写
+- **AI 上下文**：课程、练习和错题页面从服务端对象反查真实里程碑，计划生成不再把无同科目里程碑的任务跨科误归属
+- **文档与测试**：新增 `docs/study-evidence.md` 与跨任务/课程/练习/错题/路线/首页的端到端用例；最终发布门禁完成后更新状态
 
 ### 第 10 轮 — 对话→任务落地（事务边界）（2026-08-13）
 - **schema**：Task `proposalId/chatId` + `@@index([userId, proposalId])`；Chat `pendingProposal Json?`

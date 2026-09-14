@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, jsonNoStore } from "@/lib/api-utils";
+import { resolveEvidenceLink } from "@/lib/study-evidence";
 
 export async function GET(request: NextRequest) {
   const { user, error } = await getAuthUser(request);
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { subject, question, answer, source, sourceChatId, tags } = body;
+    const { subject, question, answer, source, sourceChatId, tags, taskId, milestoneId, practiceSessionId } = body;
 
     if (!subject || !question || !answer) {
       return jsonNoStore(
@@ -78,6 +79,30 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    const practice = practiceSessionId
+      ? await prisma.practiceSession.findFirst({
+          where: { id: practiceSessionId, userId: user!.id },
+          select: { id: true, subject: true, taskId: true, milestoneId: true },
+        })
+      : null;
+    if (practiceSessionId && !practice) {
+      return jsonNoStore({ error: "来源练习不存在" }, { status: 400 });
+    }
+    if (practice && practice.subject !== subject) {
+      return jsonNoStore({ error: "错题科目与来源练习不一致" }, { status: 400 });
+    }
+    if (practice?.taskId && taskId && practice.taskId !== taskId) {
+      return jsonNoStore({ error: "错题任务与来源练习不一致" }, { status: 400 });
+    }
+    if (practice?.milestoneId && milestoneId && practice.milestoneId !== milestoneId) {
+      return jsonNoStore({ error: "错题里程碑与来源练习不一致" }, { status: 400 });
+    }
+    const resolved = await resolveEvidenceLink(prisma, user!.id, {
+      taskId: practice?.taskId ?? taskId,
+      milestoneId: practice?.milestoneId ?? milestoneId,
+      subject,
+    });
+    if (resolved.error) return jsonNoStore({ error: resolved.error }, { status: 400 });
 
     const wq = await prisma.wrongQuestion.create({
       data: {
@@ -87,6 +112,9 @@ export async function POST(request: NextRequest) {
         answer: answer.slice(0, 5000),
         source: source || "manual",
         sourceChatId: sourceChatId || null,
+        taskId: resolved.link?.taskId ?? null,
+        milestoneId: resolved.link?.milestoneId ?? null,
+        practiceSessionId: practice?.id ?? null,
         tags: tags || [],
       },
     });

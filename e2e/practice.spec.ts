@@ -1,18 +1,10 @@
 import { test, expect } from "@playwright/test";
-import pg from "pg";
-
-function testDbUrl(): string {
-  const url = process.env.DATABASE_URL || process.env.MEMFIRE_DATABASE_URL;
-  const qIdx = url!.indexOf("?");
-  const base = qIdx === -1 ? url! : url!.slice(0, qIdx);
-  const slash = base.lastIndexOf("/");
-  return `${base.slice(0, slash + 1)}${base.slice(slash + 1)}_test${qIdx === -1 ? "" : url!.slice(qIdx)}`;
-}
+import { createTestDbPool } from "./test-db";
 
 // 确保 E2E 用户有目标科目（练习出题的科目下拉依赖 goal.subjects）
 async function ensureGoalSubjects(subjects: string[]) {
   const email = process.env.E2E_TEST_USER || "";
-  const pool = new pg.Pool({ connectionString: testDbUrl() });
+  const pool = createTestDbPool();
   try {
     const u = await pool.query('SELECT id FROM "User" WHERE email = $1', [email]);
     const userId = u.rows[0]?.id || "";

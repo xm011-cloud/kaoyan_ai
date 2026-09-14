@@ -49,6 +49,10 @@ export interface WorkbenchData {
       objective: string | null
       plannedMinutes: number
       weekStart: string
+      hasDraft?: boolean
+      milestoneId?: string | null
+      milestoneTitle?: string | null
+      milestoneReviewReady?: boolean
     }
     today: { completed: number; total: number; nextTask: string | null }
   }

@@ -13,6 +13,7 @@ import { confirmDialog } from "@/stores/confirm-store";
 
 interface Milestone {
   id: string;
+  stageId: string | null;
   title: string;
   description: string | null;
   phase: string;
@@ -32,6 +33,17 @@ interface MilestoneEvidence {
   learning: { sessions: number; minutes: number; clear: number; needsPractice: number; blocked: number };
   practice: { completed: number; scored: number; averageRate: number | null };
   wrongQuestions: { reviewed: number };
+  items: Array<{
+    id: string;
+    kind: string;
+    kindLabel: string;
+    title: string;
+    occurredAt: string;
+    durationMinutes: number | null;
+    score: number | null;
+    maxScore: number | null;
+    href: string | null;
+  }>;
   reviewReady: boolean;
   prompt: string;
 }
@@ -39,6 +51,33 @@ interface MilestoneEvidence {
 interface ReviewFollowUp {
   label: string;
   href: string;
+}
+
+interface UnlinkedEvidence {
+  id: string;
+  taskId: string | null;
+  kind: "task_completion" | "course_session" | "practice_session" | "wrong_review";
+  title: string;
+  subject: string | null;
+  occurredAt: string;
+  durationMinutes: number | null;
+  score: number | null;
+  maxScore: number | null;
+}
+
+const EVIDENCE_KIND_LABELS: Record<UnlinkedEvidence["kind"], string> = {
+  task_completion: "任务完成",
+  course_session: "课程学习",
+  practice_session: "练习",
+  wrong_review: "错题复习",
+};
+
+function nextMondayLocal(): string {
+  const next = new Date();
+  const days = next.getDay() === 0 ? 1 : 8 - next.getDay();
+  next.setDate(next.getDate() + days);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${next.getFullYear()}-${pad(next.getMonth() + 1)}-${pad(next.getDate())}`;
 }
 
 interface StudyPath {
@@ -129,6 +168,11 @@ export default function StudyPathPage() {
   const [draftExitCriteria, setDraftExitCriteria] = useState("");
   const [savingStageDraft, setSavingStageDraft] = useState(false);
   const [evidenceByMilestone, setEvidenceByMilestone] = useState<Record<string, MilestoneEvidence>>({});
+  const [unlinkedEvidence, setUnlinkedEvidence] = useState<UnlinkedEvidence[]>([]);
+  const [evidenceAssignments, setEvidenceAssignments] = useState<Record<string, string>>({});
+  const [unlinkedEvidenceLoading, setUnlinkedEvidenceLoading] = useState(false);
+  const [unlinkedEvidenceError, setUnlinkedEvidenceError] = useState("");
+  const [assigningEvidenceId, setAssigningEvidenceId] = useState<string | null>(null);
   const [reviewingMilestone, setReviewingMilestone] = useState<Milestone | null>(null);
   const [reviewNote, setReviewNote] = useState("");
   const [reviewFollowUp, setReviewFollowUp] = useState<ReviewFollowUp | null>(null);
@@ -136,12 +180,28 @@ export default function StudyPathPage() {
   const autoReviewRef = useRef<string | null>(null);
   const { phase: waitPhase, estimate: waitEstimate, start: waitStart, stop: waitStop, cancel: waitCancel } = useAiTask();
 
+  const loadUnlinkedEvidence = useCallback(async () => {
+    setUnlinkedEvidenceLoading(true);
+    setUnlinkedEvidenceError("");
+    try {
+      const res = await fetch("/api/study-evidence?limit=20", { cache: "no-store" });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(result.error || "获取待归属学习记录失败");
+      setUnlinkedEvidence(Array.isArray(result.evidence) ? result.evidence : []);
+    } catch (err) {
+      setUnlinkedEvidenceError(err instanceof Error ? err.message : "获取待归属学习记录失败");
+    } finally {
+      setUnlinkedEvidenceLoading(false);
+    }
+  }, []);
+
   const loadPath = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch("/api/study-path");
       const d: PathData = await res.json();
       setData(d);
+      if (d.path?.status === "active") void loadUnlinkedEvidence();
       // Auto-expand first active phase
       if (d.milestones.length > 0) {
         const firstActive = d.milestones.find((m) => !m.completedAt);
@@ -152,9 +212,38 @@ export default function StudyPathPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loadUnlinkedEvidence]);
 
   useEffect(() => { loadPath(); }, [loadPath]);
+
+  const assignEvidence = async (evidence: UnlinkedEvidence) => {
+    const milestoneId = evidenceAssignments[evidence.id];
+    if (!milestoneId) return;
+    setAssigningEvidenceId(evidence.id);
+    setMessage("");
+    try {
+      const res = await fetch("/api/study-evidence", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ evidenceId: evidence.id, milestoneId, taskId: evidence.taskId }),
+      });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(result.error || "归属学习记录失败");
+      const milestone = data?.milestones.find((item) => item.id === milestoneId);
+      setUnlinkedEvidence((current) => current.filter((item) => item.id !== evidence.id));
+      setEvidenceAssignments((current) => {
+        const next = { ...current };
+        delete next[evidence.id];
+        return next;
+      });
+      setMessage(`✅ 已将“${evidence.title}”归属到“${milestone?.title || "所选里程碑"}”，路线证据已更新。`);
+      if (evidenceByMilestone[milestoneId]) await loadEvidence(milestoneId);
+    } catch (err) {
+      setMessage(`❌ ${err instanceof Error ? err.message : "归属学习记录失败"}`);
+    } finally {
+      setAssigningEvidenceId(null);
+    }
+  };
 
   const handleGenerate = async () => {
     setGenerating(true);
@@ -344,26 +433,54 @@ export default function StudyPathPage() {
 
   const submitReview = async (outcome: "achieved" | "continue" | "relearn") => {
     if (!reviewingMilestone) return;
-    setUpdatingId(reviewingMilestone.id);
+    const milestone = reviewingMilestone;
+    setUpdatingId(milestone.id);
     try {
-      const res = await fetch(`/api/study-path/milestones/${reviewingMilestone.id}/review`, {
+      const res = await fetch(`/api/study-path/milestones/${milestone.id}/review`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ outcome, note: reviewNote }),
       });
       const result = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(result.error || "保存复盘失败");
       setReviewingMilestone(null);
-      if (outcome === "achieved") {
-        setMessage("✅ 已确认里程碑达成。后续生成计划会自动转向当前阶段的下一个未完成里程碑。");
-        setReviewFollowUp({ label: "查看下一步计划", href: "/tasks" });
-      } else {
-        const adjustment = outcome === "relearn"
-          ? `我复盘后发现「${reviewingMilestone.title}」需要重学。请保留当前路线，优先安排基础补学、一次针对性练习和复盘，不增加其他科目负担。`
-          : `我复盘后决定继续巩固「${reviewingMilestone.title}」。请保留当前路线，安排一次针对性练习和复盘，不增加其他科目负担。`;
-        setMessage(outcome === "relearn" ? "↺ 已标记为需要重学。可以把这条结论带到周计划中生成可确认的调整草稿。" : "✓ 已保留继续巩固的复盘结论。可以把它带到周计划中生成可确认的调整草稿。");
-        setReviewFollowUp({ label: "带着复盘结论调整本周计划", href: `/tasks?adjustment=${encodeURIComponent(adjustment)}` });
-      }
       await loadPath();
+
+      const weekStart = nextMondayLocal();
+      const adjustment = outcome === "achieved"
+        ? `里程碑「${milestone.title}」已经由用户确认达成。保留全部历史证据，下周转向当前阶段的下一个未完成里程碑。`
+        : outcome === "relearn"
+          ? `用户复盘后确认「${milestone.title}」需要重学。下周只围绕这项基础补学、基础练习和复盘，不扩大到其他里程碑。`
+          : `用户复盘后决定继续巩固「${milestone.title}」。下周安排针对性练习、错题复习和再次复盘，不扩大到其他里程碑。`;
+      let draftError = "";
+      try {
+        const draftResponse = await fetch("/api/ai/generate-plan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            weekStartDate: `${weekStart}T00:00:00`,
+            weekStartLocal: weekStart,
+            todayLocal: weekStart,
+            generationMode: "local",
+            adjustmentRequest: adjustment,
+            ...(outcome !== "achieved" ? { focusMilestoneId: milestone.id, reviewOutcome: outcome } : {}),
+          }),
+        });
+        const draftResult = await draftResponse.json().catch(() => ({}));
+        if (!draftResponse.ok) draftError = draftResult.error || "生成下周草稿失败";
+      } catch {
+        draftError = "网络暂时不可用";
+      }
+      if (draftError) {
+        setMessage(`复盘结论已保存，但暂未生成下周草稿：${draftError}`);
+        setReviewFollowUp({ label: "前往计划页手动调整", href: `/tasks?week=${weekStart}&adjustment=${encodeURIComponent(adjustment)}` });
+      } else {
+        setMessage(outcome === "achieved"
+          ? "✅ 已确认里程碑达成，并生成转向下一里程碑的下周草稿；确认前不会改变正式任务。"
+          : outcome === "relearn"
+            ? "↺ 已保存“需要重学”，并生成仅针对该里程碑的下周草稿；确认前不会改变正式任务。"
+            : "✓ 已保存“继续巩固”，并生成仅针对该里程碑的下周草稿；确认前不会改变正式任务。");
+        setReviewFollowUp({ label: "查看并确认下周草稿", href: `/tasks?week=${weekStart}` });
+      }
     } catch (err) {
       setMessage(`❌ ${err instanceof Error ? err.message : "保存复盘失败"}`);
     } finally { setUpdatingId(null); }
@@ -492,6 +609,74 @@ export default function StudyPathPage() {
               <Link href={reviewFollowUp.href} className="ml-2 underline font-medium">{reviewFollowUp.label}</Link>
             )}
           </div>
+        )}
+
+        {data.path.status === "active" && (unlinkedEvidenceLoading || unlinkedEvidenceError || unlinkedEvidence.length > 0) && (
+          <details className="rounded-2xl border border-border/50 bg-card p-5">
+            <summary className="cursor-pointer font-semibold">
+              待归属学习记录{unlinkedEvidence.length > 0 ? `（${unlinkedEvidence.length}）` : ""}
+            </summary>
+            <div className="mt-2 text-xs leading-5 text-muted-foreground">
+              这些学习已经被保存，但没有明确属于哪个路线目标，因此暂不计入任何里程碑。请确认后再归属，系统不会按科目或时间自动猜测。
+            </div>
+            {unlinkedEvidenceLoading && <p className="mt-4 text-sm text-muted-foreground">正在读取学习记录…</p>}
+            {unlinkedEvidenceError && (
+              <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-destructive">
+                <span>{unlinkedEvidenceError}</span>
+                <Button size="sm" variant="outline" onClick={loadUnlinkedEvidence}>重试</Button>
+              </div>
+            )}
+            {!unlinkedEvidenceLoading && !unlinkedEvidenceError && (
+              <div className="mt-4 divide-y divide-border/50 rounded-xl border border-border/60">
+                {unlinkedEvidence.map((evidence) => {
+                  const candidates = data.milestones.filter((milestone) => (
+                    !milestone.completedAt && (!evidence.subject || milestone.subject === evidence.subject)
+                  ));
+                  return (
+                    <div
+                      key={evidence.id}
+                      data-testid={`unlinked-evidence-${evidence.id}`}
+                      className="grid gap-3 px-3 py-3 md:grid-cols-[minmax(0,1fr)_minmax(12rem,0.8fr)_auto] md:items-center"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">{evidence.title}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {EVIDENCE_KIND_LABELS[evidence.kind]} · {new Date(evidence.occurredAt).toLocaleDateString("zh-CN")}
+                          {evidence.subject ? ` · ${evidence.subject}` : ""}
+                          {evidence.durationMinutes ? ` · ${evidence.durationMinutes} 分钟` : ""}
+                          {evidence.maxScore !== null ? ` · ${evidence.score ?? 0}/${evidence.maxScore} 分` : ""}
+                        </p>
+                      </div>
+                      {candidates.length > 0 ? (
+                        <select
+                          aria-label={`为“${evidence.title}”选择里程碑`}
+                          value={evidenceAssignments[evidence.id] || ""}
+                          onChange={(event) => setEvidenceAssignments((current) => ({ ...current, [evidence.id]: event.target.value }))}
+                          className="h-9 w-full rounded-lg border border-border/70 bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
+                        >
+                          <option value="">选择要推进的里程碑</option>
+                          {candidates.map((milestone) => (
+                            <option key={milestone.id} value={milestone.id}>{milestone.phase} · {milestone.title}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">当前路线没有同科目的未完成里程碑</p>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!evidenceAssignments[evidence.id] || assigningEvidenceId === evidence.id || candidates.length === 0}
+                        onClick={() => assignEvidence(evidence)}
+                      >
+                        {assigningEvidenceId === evidence.id ? "归属中…" : "确认归属"}
+                      </Button>
+                    </div>
+                  );
+                })}
+                {unlinkedEvidence.length === 0 && <p className="px-3 py-4 text-sm text-muted-foreground">当前没有待归属记录。</p>}
+              </div>
+            )}
+          </details>
         )}
 
         {!data.isDraft && (
@@ -806,7 +991,19 @@ export default function StudyPathPage() {
                     <div className="rounded-xl border border-border/60 bg-muted/30 p-3"><p className="text-xs text-muted-foreground">关联任务</p><p className="mt-1 text-sm font-semibold">{evidenceByMilestone[reviewingMilestone.id].tasks.completed}/{evidenceByMilestone[reviewingMilestone.id].tasks.total} 已完成</p><p className="mt-1 text-xs text-muted-foreground">已沉淀 {evidenceByMilestone[reviewingMilestone.id].tasks.completedMinutes}/{evidenceByMilestone[reviewingMilestone.id].tasks.plannedMinutes} 分钟计划量</p></div>
                     <div className="rounded-xl border border-border/60 bg-muted/30 p-3"><p className="text-xs text-muted-foreground">学习会话</p><p className="mt-1 text-sm font-semibold">{evidenceByMilestone[reviewingMilestone.id].learning.sessions} 次 · {evidenceByMilestone[reviewingMilestone.id].learning.minutes} 分钟</p><p className="mt-1 text-xs text-muted-foreground">清晰 {evidenceByMilestone[reviewingMilestone.id].learning.clear} · 需练习 {evidenceByMilestone[reviewingMilestone.id].learning.needsPractice} · 卡点 {evidenceByMilestone[reviewingMilestone.id].learning.blocked}</p></div>
                     <div className="rounded-xl border border-border/60 bg-muted/30 p-3"><p className="text-xs text-muted-foreground">对应练习</p><p className="mt-1 text-sm font-semibold">{evidenceByMilestone[reviewingMilestone.id].practice.completed} 次完成</p><p className="mt-1 text-xs text-muted-foreground">{evidenceByMilestone[reviewingMilestone.id].practice.averageRate === null ? "尚无可用得分" : `有分练习平均正确率 ${evidenceByMilestone[reviewingMilestone.id].practice.averageRate}%`}</p></div>
-                    <div className="rounded-xl border border-border/60 bg-muted/30 p-3"><p className="text-xs text-muted-foreground">错题复习</p><p className="mt-1 text-sm font-semibold">{evidenceByMilestone[reviewingMilestone.id].wrongQuestions.reviewed} 道已复习</p><p className="mt-1 text-xs text-muted-foreground">按同科目与本里程碑开始时间汇总，仅作辅助证据。</p></div>
+                    <div className="rounded-xl border border-border/60 bg-muted/30 p-3"><p className="text-xs text-muted-foreground">错题复习</p><p className="mt-1 text-sm font-semibold">{evidenceByMilestone[reviewingMilestone.id].wrongQuestions.reviewed} 道已复习</p><p className="mt-1 text-xs text-muted-foreground">只统计明确关联到当前里程碑的复习记录。</p></div>
+                  </div>
+                  <div className="mt-4 rounded-xl border border-border/60">
+                    <div className="flex items-center justify-between border-b border-border/50 px-3 py-2"><p className="text-xs font-medium">具体学习证据</p><p className="text-[11px] text-muted-foreground">最近 {Math.min(evidenceByMilestone[reviewingMilestone.id].items.length, 8)} 条</p></div>
+                    <div className="divide-y divide-border/50">
+                      {evidenceByMilestone[reviewingMilestone.id].items.slice(0, 8).map((item) => {
+                        const content = <><div className="min-w-0"><p className="truncate text-sm font-medium">{item.title}</p><p className="mt-0.5 text-xs text-muted-foreground">{item.kindLabel} · {new Date(item.occurredAt).toLocaleDateString("zh-CN")}{item.durationMinutes ? ` · ${item.durationMinutes} 分钟` : ""}{item.maxScore ? ` · ${item.score ?? 0}/${item.maxScore} 分` : ""}</p></div><span className="shrink-0 text-xs text-brand">{item.href ? "查看 →" : "已记录"}</span></>;
+                        return item.href
+                          ? <Link key={item.id} href={item.href} className="flex items-center justify-between gap-3 px-3 py-2.5 hover:bg-muted/40">{content}</Link>
+                          : <div key={item.id} className="flex items-center justify-between gap-3 px-3 py-2.5">{content}</div>;
+                      })}
+                      {evidenceByMilestone[reviewingMilestone.id].items.length === 0 && <p className="px-3 py-4 text-xs text-muted-foreground">尚无明确归属的完成记录。未归属行为不会被猜测计入。</p>}
+                    </div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-3 text-xs"><Link href="/tasks" className="font-medium text-brand hover:underline">查看关联任务 →</Link><Link href={`/wrong-questions?subject=${encodeURIComponent(reviewingMilestone.subject)}`} className="font-medium text-brand hover:underline">查看本科学错题 →</Link></div>
                 </>

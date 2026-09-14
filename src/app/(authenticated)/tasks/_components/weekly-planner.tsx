@@ -19,6 +19,7 @@ interface WeekTask {
   source?: string | null;
   milestoneId?: string | null;
   milestoneTitle?: string | null;
+  courseLessonId?: string | null;
 }
 
 interface JudgeResult {
@@ -314,6 +315,7 @@ export function WeeklyPlanner({
       {planVersions.length > 0 && (
         <details className="rounded-2xl border border-border/50 bg-card p-4">
           <summary className="cursor-pointer text-sm font-semibold">本周计划版本（{planVersions.length}）</summary>
+          <p className="mt-2 text-xs text-muted-foreground">撤销不会覆盖历史：先从旧版本创建对比草稿，查看影响后再确认应用。</p>
           <div className="mt-3 space-y-2">
             {planVersions.map((version) => (
               <div key={version.id} className="flex flex-wrap items-start justify-between gap-3 rounded-xl bg-muted/40 px-3 py-2.5 text-sm">
@@ -328,7 +330,7 @@ export function WeeklyPlanner({
                   {version.adjustmentRequest && <p className="mt-1 text-xs">调整来源：{version.adjustmentRequest}</p>}
                 </div>
                 <time className="text-xs text-muted-foreground">{new Date(version.createdAt).toLocaleDateString("zh-CN")}</time>
-                {version.status === "archived" && <Button size="sm" variant="outline" onClick={() => onRestoreVersion(version.id)}>恢复为草稿</Button>}
+                {version.status === "archived" && <Button size="sm" variant="outline" onClick={() => onRestoreVersion(version.id)}>对比并撤销到此版</Button>}
               </div>
             ))}
           </div>
@@ -443,6 +445,16 @@ export function WeeklyPlanner({
                               <p className="sm:hidden">{milestoneEvidence[task.milestoneId].reviewReady ? "证据充分，可以复盘" : `路线证据：${milestoneEvidence[task.milestoneId].tasks.completed}/${milestoneEvidence[task.milestoneId].tasks.total} 任务已完成`}</p>
                               <p className="hidden sm:block">{milestoneEvidence[task.milestoneId].reviewReady ? "证据充分，可以复盘此里程碑" : `路线证据：任务 ${milestoneEvidence[task.milestoneId].tasks.completed}/${milestoneEvidence[task.milestoneId].tasks.total} · 学习 ${milestoneEvidence[task.milestoneId].learning.sessions} 次 · 练习 ${milestoneEvidence[task.milestoneId].practice.completed} 次`}</p>
                               <Link href={`/study-path?review=${task.milestoneId}`} onClick={(event) => event.stopPropagation()} className="mt-1 inline-block font-medium text-brand hover:underline">查看证据与复盘 →</Link>
+                            </div>
+                          )}
+                          {!task.completed && (
+                            <div className="mt-2 flex flex-wrap gap-2 text-[10px]">
+                              {task.courseLessonId ? (
+                                <Link href={`/courses?lesson=${task.courseLessonId}&task=${task.id}&week=${toLocalDateString(weekStart)}`} onClick={(event) => event.stopPropagation()} className="font-medium text-brand hover:underline">进入课程 →</Link>
+                              ) : (
+                                <Link href={`/practice?task=${task.id}${task.milestoneId ? `&milestone=${task.milestoneId}` : ""}${task.subject ? `&subject=${encodeURIComponent(task.subject)}` : ""}`} onClick={(event) => event.stopPropagation()} className="font-medium text-brand hover:underline">开始练习 →</Link>
+                              )}
+                              <Link href={`/wrong-questions?tab=due${task.subject ? `&subject=${encodeURIComponent(task.subject)}` : ""}&task=${task.id}${task.milestoneId ? `&milestone=${task.milestoneId}` : ""}`} onClick={(event) => event.stopPropagation()} className="font-medium text-muted-foreground hover:text-brand hover:underline">复习错题 →</Link>
                             </div>
                           )}
                         </div>

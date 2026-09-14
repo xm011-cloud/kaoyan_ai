@@ -40,6 +40,9 @@ function clearAnswers(sessionId: string) {
 export default function PracticePage() {
   // ── URL params ──
   const searchParams = useSearchParams();
+  const requestedTaskId = searchParams.get("task") || undefined;
+  const requestedMilestoneId = searchParams.get("milestone") || undefined;
+  const requestedSubject = searchParams.get("subject") || "";
   const router = useRouter();
   const pathname = usePathname();
   const { setContext } = useStudyContext();
@@ -189,7 +192,7 @@ export default function PracticePage() {
     if (defaultsLoaded.current) return;
     if (subjects.length > 0) {
       defaultsLoaded.current = true;
-      setCreateSubject(subjects[0]);
+      setCreateSubject(requestedSubject && subjects.includes(requestedSubject) ? requestedSubject : subjects[0]);
       setCreateMode(uiDefaults.mode);
       setCreateCount(uiDefaults.count);
       setCreateDifficulty(uiDefaults.difficulty);
@@ -197,7 +200,7 @@ export default function PracticePage() {
       if (uiDefaults.mode === "mock_exam") setCreateType("mock");
       else setCreateType("daily");
     }
-  }, [subjects, uiDefaults]);
+  }, [subjects, uiDefaults, requestedSubject]);
 
   useEffect(() => {
     if (subjects.length > 0 && !createSubject) {
@@ -245,6 +248,8 @@ export default function PracticePage() {
         generationMode: createMode,
         difficulty: createDifficulty,
         includeMermaid,
+        taskId: requestedTaskId,
+        milestoneId: requestedMilestoneId,
       },
       {
         onSuccess: (s: PracticeSession) => {
@@ -323,6 +328,7 @@ export default function PracticePage() {
           question: q.question,
           answer: q.correctAnswer,
           source: "practice",
+          practiceSessionId: resultSession?.id,
           tags: [q.type],
         }),
       });
@@ -343,6 +349,12 @@ export default function PracticePage() {
       <div className="workspace-page">
         <div className="mx-auto max-w-4xl space-y-7">
           <PageHeader title="练习" subtitle="从一次短练开始，完成后把不稳的知识点带进错题复习。" />
+          {(requestedTaskId || requestedMilestoneId) && (
+            <div className="rounded-xl border border-brand/25 bg-brand/5 px-4 py-3 text-sm">
+              <p className="font-medium text-brand">这次练习已连接到当前计划</p>
+              <p className="mt-1 text-xs text-muted-foreground">提交后会形成一条可追溯证据；不会因为得分自动宣告里程碑已掌握。</p>
+            </div>
+          )}
 
           <SessionCreator
             subjects={subjects}

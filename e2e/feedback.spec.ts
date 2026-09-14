@@ -37,7 +37,8 @@ test.describe("Feedback", () => {
     });
 
     await page.reload();
-    await expect(page.getByRole("button", { name: "查看/修改复盘" })).toBeVisible({ timeout: 10000 });
+    // 同一账号可保留历史周报；验证刚保存后的“存在复盘入口”，不假定页面只有一条记录。
+    await expect(page.getByRole("button", { name: "查看/修改复盘" }).first()).toBeVisible({ timeout: 10000 });
   });
 
   test("related module links are visible", async ({ page }) => {

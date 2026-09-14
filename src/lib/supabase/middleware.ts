@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { envConfig } from '@/lib/env-config'
+import { getAuthUserWithRetry } from '@/lib/supabase/auth-retry'
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -33,7 +34,7 @@ export async function updateSession(request: NextRequest) {
   // 获取用户信息，验证登录状态
   const {
     data: { user },
-  } = await supabase.auth.getUser()
+  } = await getAuthUserWithRetry(() => supabase.auth.getUser())
 
   // 未登录用户访问受保护页面时重定向到登录页
   // 公开页面（/ /about /support）直接放行；/suggestions /admin 等保持登录保护

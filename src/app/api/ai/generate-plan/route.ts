@@ -34,6 +34,35 @@ interface StudyLoad {
   busyWeeks?: string[];
 }
 
+function generateMilestoneReviewTasks(
+  milestone: { id: string; title: string; subject: string },
+  outcome: "continue" | "relearn",
+  weekStart: string,
+  phase: string,
+): PlanTask[] {
+  const templates = outcome === "relearn"
+    ? [
+        { offset: 0, title: `重新梳理：${milestone.title}`, description: `回到教材或课程，重新建立「${milestone.title}」的概念、前提与知识框架。`, duration: 60 },
+        { offset: 2, title: `基础练习：${milestone.title}`, description: `完成一组基础题，逐题记录不确定点，不以做完代替理解。`, duration: 60 },
+        { offset: 5, title: `复述与复盘：${milestone.title}`, description: `用自己的话复述核心内容，回看错题与卡点，再决定是否继续巩固。`, duration: 45 },
+      ]
+    : [
+        { offset: 0, title: `针对性练习：${milestone.title}`, description: `围绕「${milestone.title}」完成一组针对性练习，记录正确率和不确定题。`, duration: 60 },
+        { offset: 3, title: `错题复习：${milestone.title}`, description: `重做当前里程碑关联错题，说明每道题的错误原因与正确思路。`, duration: 45 },
+        { offset: 5, title: `巩固复盘：${milestone.title}`, description: `结合任务、练习和错题证据，判断当前里程碑是否达到退出标准。`, duration: 45 },
+      ];
+  return templates.map((item) => ({
+    title: item.title,
+    description: item.description,
+    date: addLocalDays(weekStart, item.offset),
+    duration: item.duration,
+    phase,
+    subject: milestone.subject,
+    milestoneId: milestone.id,
+    milestoneTitle: milestone.title,
+  }));
+}
+
 /** AI 输出只是一份候选草稿。先在服务端收紧其字段、日期和容量，再允许用户看见并确认。 */
 function sanitizePlanTasks(
   tasks: PlanTask[],
@@ -161,6 +190,10 @@ export async function POST(request: NextRequest) {
     const adjustmentRequest = typeof body.adjustmentRequest === "string"
       ? body.adjustmentRequest.trim().slice(0, 1000)
       : "";
+    const focusMilestoneId = typeof body.focusMilestoneId === "string" ? body.focusMilestoneId : "";
+    const reviewOutcome = body.reviewOutcome === "continue" || body.reviewOutcome === "relearn"
+      ? body.reviewOutcome
+      : null;
 
     // 获取目标（可能没有 → 探索期用 planContext）
     const [goal, activeStage, profileFacts] = await Promise.all([
@@ -246,6 +279,12 @@ export async function POST(request: NextRequest) {
     const foundationMode = activeStage
       ? activeStage.key === "foundation" || activeStage.key === "explore"
       : stage.id === "foundation" || stage.id === "explore";
+    const focusMilestone = focusMilestoneId
+      ? activeStage?.milestones.find((milestone) => milestone.id === focusMilestoneId) ?? null
+      : null;
+    if (focusMilestoneId && !focusMilestone) {
+      return jsonNoStore({ error: "当前阶段中没有需要调整的这个里程碑" }, { status: 400 });
+    }
 
     // 周范围（用本地历法日期串：weekStartLocal 来自前端本地周一，避免 UTC 串错位一天）
     const weekEnd = new Date(weekStartDate.getTime() + 7 * 86400000);
@@ -371,6 +410,11 @@ ${sprintContext}${regenerateContext}${pastSkipContext}
       planTasks = generateLocalWeeklyPlan(subjects, weekStartStr, { phase, capacity: weeklyHours, foundationMode, minDateStr: todayLocalStr });
     }
 
+    if (focusMilestone && reviewOutcome) {
+      // 复盘后的下周草稿只围绕用户刚确认的结论展开，不让通用模板稀释“继续巩固/需要重学”。
+      planTasks = generateMilestoneReviewTasks(focusMilestone, reviewOutcome, weekStartStr, phase);
+    }
+
     // 规范化 + 添加周标识；并对 AI 返回的任务做日期清洗：
     // 只保留本周可见范围 [今天, 周日] —— 剔除 AI 生成的过去日期与越界到下周的任务
     planTasks = sanitizePlanTasks(planTasks, {
@@ -427,11 +471,13 @@ ${sprintContext}${regenerateContext}${pastSkipContext}
     if (activeStage?.milestones.length) {
       const nextIndexBySubject = new Map<string, number>();
       planTasks = planTasks.map((task) => {
+        if (focusMilestone) return { ...task, milestoneId: focusMilestone.id, milestoneTitle: focusMilestone.title };
         if (task.milestoneId) return task;
         const candidates = activeStage.milestones.filter((item) => item.subject === task.subject);
-        const pool = candidates.length > 0 ? candidates : activeStage.milestones;
+        // 当前阶段没有同科目里程碑时保持未归属；跨科轮流塞入会制造看似完整、实则错误的路线证据。
+        if (candidates.length === 0) return task;
         const index = nextIndexBySubject.get(task.subject) ?? 0;
-        const milestone = pool[index % pool.length];
+        const milestone = candidates[index % candidates.length];
         nextIndexBySubject.set(task.subject, index + 1);
         return { ...task, milestoneId: milestone.id, milestoneTitle: milestone.title };
       });

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
+import { getAuthUserWithRetry } from "@/lib/supabase/auth-retry";
 
 export async function ensureLocalUser(userId: string, email?: string) {
   // 确保本地 User 表有这条记录（Supabase Auth 和本地 DB 分离）
@@ -17,7 +18,7 @@ export async function getAuthUser(request?: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user: cookieUser },
-  } = await supabase.auth.getUser();
+  } = await getAuthUserWithRetry(() => supabase.auth.getUser());
 
   if (cookieUser) {
     await ensureLocalUser(cookieUser.id, cookieUser.email);
@@ -31,7 +32,7 @@ export async function getAuthUser(request?: NextRequest) {
     const serviceClient = createServiceClient();
     const {
       data: { user: tokenUser },
-    } = await serviceClient.auth.getUser(token);
+    } = await getAuthUserWithRetry(() => serviceClient.auth.getUser(token));
 
     if (tokenUser) {
       await ensureLocalUser(tokenUser.id, tokenUser.email);

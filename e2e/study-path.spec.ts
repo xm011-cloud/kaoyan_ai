@@ -1,4 +1,6 @@
 import { test, expect } from "@playwright/test";
+import { randomUUID } from "node:crypto";
+import { createTestDbPool } from "./test-db";
 
 test.describe("Study Path", () => {
   test.beforeEach(async ({ page }) => {
@@ -25,6 +27,34 @@ test.describe("Study Path", () => {
 
   test("regeneration creates a discardable draft without replacing the active path", async ({ page }) => {
     test.setTimeout(120000);
+    // 此用例需要确认过的最小规划档案。显式准备并在 finally 恢复，不能依赖其它测试留下的用户记忆。
+    const pool = createTestDbPool();
+    const email = process.env.E2E_TEST_USER || "";
+    const userResult = await pool.query('SELECT id FROM "User" WHERE email = $1', [email]);
+    const userId = userResult.rows[0]?.id as string;
+    expect(userId).toBeTruthy();
+    const previousFacts = await pool.query(
+      'SELECT id, status FROM "StudyProfileFact" WHERE "userId" = $1 AND status = \'confirmed\'',
+      [userId],
+    );
+    await pool.query(
+      'UPDATE "StudyProfileFact" SET status = \'superseded\', "updatedAt" = now() WHERE "userId" = $1 AND status = \'confirmed\'',
+      [userId],
+    );
+    const fixtureFactIds = Array.from({ length: 4 }, () => `e2e-path-fact-${randomUUID()}`);
+    const fixtureFacts = [
+      ["planning.statement", "目标与当前情况", { text: "准备计算机类考研，先完成基础阶段。" }],
+      ["planning.subject_baseline", "各科基础", { text: "数学、英语与 408 均需要完成首轮基础。" }],
+      ["planning.foundation_exit", "基础阶段退出标准", { text: "完成首轮课程、基础题与错题复盘。" }],
+      ["planning.weekly_capacity", "每周稳定学习容量", { text: "每周可以稳定投入 12 小时。" }],
+    ] as const;
+    for (const [index, fact] of fixtureFacts.entries()) {
+      await pool.query(
+        `INSERT INTO "StudyProfileFact" ("id","userId","key","label","value","source","confidence","status","observedAt","createdAt","updatedAt")
+         VALUES ($1,$2,$3,$4,$5::jsonb,'user_statement','high','confirmed',now(),now(),now())`,
+        [fixtureFactIds[index], userId, fact[0], fact[1], JSON.stringify(fact[2])],
+      );
+    }
     const originalGoal = await page.evaluate(async () => {
       const res = await fetch("/api/goal");
       return (await res.json()).goal;
@@ -124,6 +154,11 @@ test.describe("Study Path", () => {
           });
         }, originalGoal);
       }
+      await pool.query('DELETE FROM "StudyProfileFact" WHERE "id" = ANY($1::text[])', [fixtureFactIds]);
+      for (const fact of previousFacts.rows) {
+        await pool.query('UPDATE "StudyProfileFact" SET status = $1, "updatedAt" = now() WHERE id = $2', [fact.status, fact.id]);
+      }
+      await pool.end();
     }
   });
 

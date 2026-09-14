@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
@@ -44,6 +44,9 @@ function sourceLabel(s: string) { return SOURCE_LABELS[s] || s; }
 
 export default function WrongQuestionsPage() {
   const searchParams = useSearchParams();
+  const requestedQuestionId = searchParams.get("question");
+  const requestedTaskId = searchParams.get("task") || undefined;
+  const requestedMilestoneId = searchParams.get("milestone") || undefined;
   const router = useRouter();
   const pathname = usePathname();
   const { setContext } = useStudyContext();
@@ -75,6 +78,7 @@ export default function WrongQuestionsPage() {
   const [showBatch, setShowBatch] = useState(false);
   const [reviewing, setReviewing] = useState<WrongQuestion | null>(null);
   const [detail, setDetail] = useState<WrongQuestion | null>(null);
+  const openedQuestionRef = useRef<string | null>(null);
 
   useEffect(() => {
     const current = reviewing ?? detail;
@@ -106,6 +110,15 @@ export default function WrongQuestionsPage() {
   const updateMut = useUpdateWrongQuestion();
   const deleteMut = useDeleteWrongQuestion();
 
+  useEffect(() => {
+    if (!requestedQuestionId || openedQuestionRef.current === requestedQuestionId) return;
+    openedQuestionRef.current = requestedQuestionId;
+    fetch(`/api/wrong-questions/${requestedQuestionId}`)
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => { if (data?.question) setDetail(data.question as WrongQuestion); })
+      .catch(() => {});
+  }, [requestedQuestionId]);
+
   // ── Handlers ──
   const handleReviewed = (id: string, rating: number) => {
     if (rating < 0) {
@@ -113,7 +126,14 @@ export default function WrongQuestionsPage() {
       return;
     }
     updateMut.mutate(
-      { id, reviewed: true, rating },
+      {
+        id,
+        reviewed: true,
+        rating,
+        reviewEventId: crypto.randomUUID(),
+        taskId: requestedTaskId,
+        milestoneId: requestedMilestoneId,
+      },
       { onSuccess: () => setReviewing(null) }
     );
   };
@@ -207,6 +227,12 @@ export default function WrongQuestionsPage() {
             </div>
           }
         />
+        {(requestedTaskId || requestedMilestoneId) && (
+          <div className="rounded-xl border border-brand/25 bg-brand/5 px-4 py-3 text-sm">
+            <p className="font-medium text-brand">本次错题复习已连接到当前计划</p>
+            <p className="mt-1 text-xs text-muted-foreground">评分后会把这次复习准确记录到对应任务和里程碑，不会按科目猜测归属。</p>
+          </div>
+        )}
 
         {/* Tab 按钮区（始终显示） */}
         <div className="flex overflow-x-auto rounded-xl border border-border/50 bg-muted/60 p-1">

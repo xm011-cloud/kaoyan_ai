@@ -63,6 +63,7 @@ model User {
   supporters         Supporter[]
   authorFeedbacks    AuthorFeedback[]
   skills             Skill[]
+  studyEvidence      StudyEvidence[]
 }
 
 // 学习档案事实：保留用户陈述、自评、测评与行为证据的来源和版本。
@@ -133,12 +134,15 @@ model Task {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  weeklyPlan    WeeklyPlan?    @relation(fields: [weeklyPlanId], references: [id], onDelete: SetNull)
-  milestone     StudyPathMilestone? @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
-  courseLesson  CourseLesson?  @relation(fields: [courseLessonId], references: [id], onDelete: SetNull)
-  studySessions StudySession[]
-  studyNotes    StudyNote[]
+  user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weeklyPlan       WeeklyPlan?         @relation(fields: [weeklyPlanId], references: [id], onDelete: SetNull)
+  milestone        StudyPathMilestone? @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  courseLesson     CourseLesson?       @relation(fields: [courseLessonId], references: [id], onDelete: SetNull)
+  studySessions    StudySession[]
+  practiceSessions PracticeSession[]
+  wrongQuestions   WrongQuestion[]
+  studyNotes       StudyNote[]
+  studyEvidence    StudyEvidence[]
 
   courseLessonId String?
 
@@ -253,6 +257,7 @@ model StudySession {
   userId         String
   courseLessonId String
   taskId         String?
+  milestoneId    String?
   status         String    @default("in_progress") // in_progress | completed | abandoned
   startedAt      DateTime  @default(now())
   endedAt        DateTime?
@@ -263,14 +268,16 @@ model StudySession {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  lesson CourseLesson @relation(fields: [courseLessonId], references: [id], onDelete: Cascade)
-  task   Task?        @relation(fields: [taskId], references: [id], onDelete: SetNull)
-  notes  StudyNote[]
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson    CourseLesson        @relation(fields: [courseLessonId], references: [id], onDelete: Cascade)
+  task      Task?               @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  milestone StudyPathMilestone? @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  notes     StudyNote[]
 
   @@index([userId, status])
   @@index([courseLessonId, startedAt])
   @@index([taskId])
+  @@index([milestoneId])
 }
 
 // 关联型笔记：内容留在用户学习上下文中，而不是成为孤立文档。
@@ -359,35 +366,46 @@ model Feedback {
 
 // 错题本
 model WrongQuestion {
-  id             String    @id @default(uuid())
-  userId         String
-  subject        String // 科目名称
-  question       String // 题目内容
-  answer         String // 正确答案/解析
-  source         String // 来源: "chat" | "manual" | "practice"
-  sourceChatId   String? // 关联的 Chat ID
-  tags           String[] // 标签
-  reviewed       Boolean   @default(false)
-  reviewCount    Int       @default(0)
-  lastReviewDate DateTime? // 上次复习日期
-  easeFactor     Float     @default(2.5) // SM-2 ease factor
-  interval       Int       @default(0) // SM-2 复习间隔（天）
-  nextReviewDate DateTime? // 下次复习日期
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id                String    @id @default(uuid())
+  userId            String
+  subject           String // 科目名称
+  question          String // 题目内容
+  answer            String // 正确答案/解析
+  source            String // 来源: "chat" | "manual" | "practice"
+  sourceChatId      String? // 关联的 Chat ID
+  taskId            String? // 产生或复习该错题的计划任务
+  milestoneId       String? // 明确服务的路线里程碑；未知时保持为空
+  practiceSessionId String? // 来源练习会话
+  tags              String[] // 标签
+  reviewed          Boolean   @default(false)
+  reviewCount       Int       @default(0)
+  lastReviewDate    DateTime? // 上次复习日期
+  easeFactor        Float     @default(2.5) // SM-2 ease factor
+  interval          Int       @default(0) // SM-2 复习间隔（天）
+  nextReviewDate    DateTime? // 下次复习日期
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  studyNotes StudyNote[]
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task            Task?               @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  milestone       StudyPathMilestone? @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  practiceSession PracticeSession?    @relation(fields: [practiceSessionId], references: [id], onDelete: SetNull)
+  studyNotes      StudyNote[]
 
   @@index([userId, subject])
   @@index([userId, reviewed])
   @@index([userId, nextReviewDate])
+  @@index([taskId])
+  @@index([milestoneId])
+  @@index([practiceSessionId])
 }
 
 // 练习/考试会话
 model PracticeSession {
   id          String    @id @default(uuid())
   userId      String
+  taskId      String?
+  milestoneId String?
   type        String // "daily" | "mock"
   subject     String // 科目名称
   status      String    @default("in_progress")
@@ -401,11 +419,16 @@ model PracticeSession {
   completedAt DateTime?
   createdAt   DateTime  @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task           Task?               @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  milestone      StudyPathMilestone? @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  wrongQuestions WrongQuestion[]
 
   @@index([userId, type])
   @@index([userId, status])
   @@index([userId, createdAt])
+  @@index([taskId])
+  @@index([milestoneId])
 }
 
 // 番茄钟会话记录
@@ -647,30 +670,64 @@ model WeeklyPlan {
 
 // 学习路径里程碑
 model StudyPathMilestone {
-  id          String    @id @default(uuid())
-  studyPathId String
-  stageId     String?
-  title       String // 里程碑标题
-  description String? // 详细描述
-  phase       String // 阶段: "基础" | "强化" | "冲刺" | "查漏补缺"
-  subject     String // 科目
-  order       Int       @default(0) // 排序
-  targetDate  DateTime? // 目标完成日期
-  completedAt DateTime? // 实际完成日期
-  progress    Float     @default(0.0) // 进度 0-1
-  reviewedAt  DateTime? // 最近一次用户复盘；复盘而非任务勾选决定是否完成
+  id            String    @id @default(uuid())
+  studyPathId   String
+  stageId       String?
+  title         String // 里程碑标题
+  description   String? // 详细描述
+  phase         String // 阶段: "基础" | "强化" | "冲刺" | "查漏补缺"
+  subject       String // 科目
+  order         Int       @default(0) // 排序
+  targetDate    DateTime? // 目标完成日期
+  completedAt   DateTime? // 实际完成日期
+  progress      Float     @default(0.0) // 进度 0-1
+  reviewedAt    DateTime? // 最近一次用户复盘；复盘而非任务勾选决定是否完成
   reviewOutcome String? // achieved | continue | relearn
-  reviewNote  String?   // 用户复盘备注，供 AI 在后续对话中参考
-  tips        String? // AI 学习建议
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  reviewNote    String? // 用户复盘备注，供 AI 在后续对话中参考
+  tips          String? // AI 学习建议
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  studyPath StudyPath       @relation(fields: [studyPathId], references: [id], onDelete: Cascade)
-  stage     StudyPathStage? @relation(fields: [stageId], references: [id], onDelete: SetNull)
-  tasks     Task[]
+  studyPath        StudyPath         @relation(fields: [studyPathId], references: [id], onDelete: Cascade)
+  stage            StudyPathStage?   @relation(fields: [stageId], references: [id], onDelete: SetNull)
+  tasks            Task[]
+  studySessions    StudySession[]
+  practiceSessions PracticeSession[]
+  wrongQuestions   WrongQuestion[]
+  studyEvidence    StudyEvidence[]
 
   @@index([studyPathId, order])
   @@index([stageId])
+}
+
+// 学习证据是追加式事实账本：来源对象可以删除，但发生过的学习事实与当时归属仍可追溯。
+// kind + sourceId 在单个用户内唯一，API 重试只会更新同一条证据，不会重复累计。
+model StudyEvidence {
+  id              String   @id @default(uuid())
+  userId          String
+  milestoneId     String?
+  taskId          String?
+  kind            String // task_completion | course_session | practice_session | wrong_review
+  sourceId        String
+  title           String
+  subject         String?
+  status          String   @default("active") // active | retracted
+  occurredAt      DateTime @default(now())
+  durationMinutes Int?
+  score           Int?
+  maxScore        Int?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  milestone StudyPathMilestone? @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  task      Task?               @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, kind, sourceId])
+  @@index([userId, occurredAt])
+  @@index([milestoneId, status, occurredAt])
+  @@index([taskId])
 }
 
 // 支持作者 — 感谢墙留言（审核通过后才展示）

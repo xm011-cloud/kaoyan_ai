@@ -174,6 +174,7 @@ test.describe("Tasks", () => {
     expect(confirmed.status()).toBe(200);
 
     // 历史版本只能恢复为草稿：不得直接覆盖当前任务或已完成记录。
+    const tasksBeforeRestore = (await (await page.request.get(`/api/tasks?weekStart=${weekStart}`)).json()).tasks;
     const restored = await page.request.patch("/api/weekly-plans", {
       data: { id: generatedBody.draft.id, action: "restore" },
     });
@@ -183,12 +184,16 @@ test.describe("Tasks", () => {
     expect(restoredBody.restoredFromVersion).toBe(generatedBody.draft.version);
     const afterRestore = await (await page.request.get(`/api/weekly-plans?weekStart=${weekStart}`)).json();
     expect(afterRestore.draft.id).toBe(restoredBody.plan.id);
+    const tasksAfterRestore = (await (await page.request.get(`/api/tasks?weekStart=${weekStart}`)).json()).tasks;
+    expect(tasksAfterRestore.map((task: { id: string }) => task.id).sort()).toEqual(
+      tasksBeforeRestore.map((task: { id: string }) => task.id).sort(),
+    );
 
     await page.request.delete(`/api/tasks/${manualTask.id}`);
   });
 
   test("completing a task toggles checkbox without opening edit modal", async ({ page }) => {
-    test.setTimeout(60000);
+    test.setTimeout(90000);
     // 造一个本周任务（用本地日期串：app 现在按本地历法分组/过滤，UTC 串会错位一天）
     const pad = (n: number) => String(n).padStart(2, "0");
     const localDate = (dt: Date) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
@@ -223,15 +228,18 @@ test.describe("Tasks", () => {
 
     // 持久化：刷新后仍勾选（服务器已更新）
     await page.reload();
-    await page.waitForTimeout(1500);
     const rowAfter = page.locator(`#task-${task.id}`);
-    await expect(rowAfter.locator('input[type="checkbox"]')).toBeChecked();
+    await expect(rowAfter.locator('input[type="checkbox"]')).toBeChecked({ timeout: 30000 });
 
-    // 学习概览（dashboard）也应显示已完成 —— 两端同读 DB，状态一致
+    // 学习概览（dashboard）也应显示最新完成度 —— 两端同读 DB，状态一致。
+    // 不依赖“今日任务”可选卡片（它最多展示 6 项，且用户可以在设置中隐藏）。
+    const todayTasksResponse = await page.request.get(`/api/tasks?date=${todayStr}`);
+    expect(todayTasksResponse.status()).toBe(200);
+    const todayTasks = (await todayTasksResponse.json()).tasks as Array<{ completed: boolean }>;
+    const completedToday = todayTasks.filter((item) => item.completed).length;
     await page.goto("/dashboard");
     await page.waitForTimeout(1500);
-    const dashRow = page.locator("div").filter({ hasText: title }).last();
-    await expect(dashRow.locator("span.line-through").first()).toBeVisible({ timeout: 3000 });
+    await expect(page.getByTestId("today-progress")).toHaveText(`${completedToday}/${todayTasks.length} 已完成`);
 
     // 回计划页取消勾选也应持久化
     await page.goto(`/tasks?week=${wsStr}`);
@@ -241,9 +249,8 @@ test.describe("Tasks", () => {
     await page.waitForTimeout(800);
     await expect(rowBefore.locator('input[type="checkbox"]')).not.toBeChecked();
     await page.reload();
-    await page.waitForTimeout(1500);
     const rowAfter2 = page.locator(`#task-${task.id}`);
-    await expect(rowAfter2.locator('input[type="checkbox"]')).not.toBeChecked();
+    await expect(rowAfter2.locator('input[type="checkbox"]')).not.toBeChecked({ timeout: 30000 });
 
     // 清理
     await page.request.delete(`/api/tasks/${task.id}`);
@@ -296,11 +303,13 @@ test.describe("Tasks", () => {
     // 且应提示用户失败
     await expect(page.locator("text=任务状态更新失败").first()).toBeVisible({ timeout: 2000 });
 
-    // dashboard 也应保持一致（未完成）
+    // dashboard 也应保持一致（未完成）；不依赖最多只展示 6 项的可选任务卡片。
+    const todayTasksResponse = await page.request.get(`/api/tasks?date=${todayStr}`);
+    expect(todayTasksResponse.status()).toBe(200);
+    const todayTasks = (await todayTasksResponse.json()).tasks as Array<{ completed: boolean }>;
+    const completedToday = todayTasks.filter((item) => item.completed).length;
     await page.goto("/dashboard");
-    await page.waitForTimeout(1500);
-    const dashRow = page.locator("div").filter({ hasText: title }).last();
-    await expect(dashRow.locator("span.line-through").first()).not.toBeVisible({ timeout: 3000 });
+    await expect(page.getByTestId("today-progress")).toHaveText(`${completedToday}/${todayTasks.length} 已完成`);
 
     // 清理
     await page.request.delete(`/api/tasks/${task.id}`);

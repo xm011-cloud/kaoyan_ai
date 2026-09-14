@@ -41,39 +41,39 @@ export async function GET(request: NextRequest) {
   if (error) return error;
 
   try {
-    const [draft, active, history] = await Promise.all([
-      prisma.studyPath.findFirst({
-        where: { userId: user!.id, status: "draft" },
-        orderBy: { version: "desc" },
-        include: {
-          stages: { orderBy: { order: "asc" } },
-          milestones: { orderBy: { order: "asc" } },
-        },
-      }),
-      prisma.studyPath.findFirst({
-        where: { userId: user!.id, status: "active" },
-        orderBy: { version: "desc" },
-        include: {
-          stages: { orderBy: { order: "asc" } },
-          milestones: { orderBy: { order: "asc" } },
-        },
-      }),
-      prisma.studyPath.findMany({
-        where: { userId: user!.id },
-        orderBy: { version: "desc" },
-        select: {
-          id: true,
-          version: true,
-          status: true,
-          title: true,
-          adjustmentRequest: true,
-          changeImpact: true,
-          confirmedAt: true,
-          createdAt: true,
-          _count: { select: { stages: true, milestones: true } },
-        },
-      }),
-    ]);
+    // 路线本体包含阶段、里程碑关联查询。按顺序读取避免小连接池下三组关联
+    // 查询同时争用连接，激活后立即刷新页面也能稳定得到当前路线。
+    const draft = await prisma.studyPath.findFirst({
+      where: { userId: user!.id, status: "draft" },
+      orderBy: { version: "desc" },
+      include: {
+        stages: { orderBy: { order: "asc" } },
+        milestones: { orderBy: { order: "asc" } },
+      },
+    });
+    const active = await prisma.studyPath.findFirst({
+      where: { userId: user!.id, status: "active" },
+      orderBy: { version: "desc" },
+      include: {
+        stages: { orderBy: { order: "asc" } },
+        milestones: { orderBy: { order: "asc" } },
+      },
+    });
+    const history = await prisma.studyPath.findMany({
+      where: { userId: user!.id },
+      orderBy: { version: "desc" },
+      select: {
+        id: true,
+        version: true,
+        status: true,
+        title: true,
+        adjustmentRequest: true,
+        changeImpact: true,
+        confirmedAt: true,
+        createdAt: true,
+        _count: { select: { stages: true, milestones: true } },
+      },
+    });
 
     return jsonNoStore({ ...pathResponse(draft || active, active?.id ?? null), history });
   } catch (err) {
@@ -310,7 +310,7 @@ ${gapLines}
       });
 
       return { path: created, activePathId: active?.id ?? null };
-    }, { maxWait: 5000, timeout: 15000 });
+    }, { maxWait: 5000, timeout: 30_000 });
 
     return jsonNoStore({
       ...pathResponse(path, activePathId),
@@ -403,7 +403,7 @@ export async function PATCH(request: NextRequest) {
           milestones: { orderBy: { order: "asc" } },
         },
       });
-    });
+    }, { timeout: 30_000 });
 
     return jsonNoStore(pathResponse(activated, activated.id));
   } catch (err) {

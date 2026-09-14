@@ -9,6 +9,7 @@ import { redirect } from "next/navigation"
 import { derivePrepStage } from "@/lib/prep-stage"
 import type { SubjectProgress } from "@/lib/completion"
 import { getDaysToGoal } from "@/lib/goal-model"
+import { getAuthUserWithRetry } from "@/lib/supabase/auth-retry"
 
 export default async function AuthenticatedLayout({
   children,
@@ -16,7 +17,7 @@ export default async function AuthenticatedLayout({
   children: React.ReactNode
 }) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = await getAuthUserWithRetry(() => supabase.auth.getUser())
 
   if (!user) {
     redirect("/login")

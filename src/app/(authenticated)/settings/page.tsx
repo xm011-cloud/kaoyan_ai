@@ -71,19 +71,15 @@ export default function SettingsPage() {
 
   // ── Export ──
   const [exporting, setExporting] = useState(false)
-  const handleExport = async () => {
+  const handleExport = () => {
     setExporting(true)
     try {
-      const res = await fetch('/api/user/export')
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error || '导出失败') }
-      const data = await res.json()
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' })
-      const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
-      a.href = url
-      a.download = `kaoyan-export-${new Date().toISOString().split('T')[0]}.json`
+      a.href = '/api/user/export?download=1'
+      a.style.display = 'none'
+      document.body.appendChild(a)
       a.click()
-      URL.revokeObjectURL(url)
+      a.remove()
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : '导出失败')
     } finally {

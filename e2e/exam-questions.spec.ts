@@ -1,22 +1,14 @@
 import { test, expect } from "@playwright/test";
-import pg from "pg";
+import { createTestDbPool } from "./test-db";
 
 // 真题链路（已登录）：真题 Tab 展示 + 真题练习 API
 // 直插测试库数据（网络受限不依赖真实导入），验证管理 + 练习闭环
-
-function testDbUrl(): string {
-  const url = process.env.DATABASE_URL || process.env.MEMFIRE_DATABASE_URL;
-  const qIdx = url!.indexOf("?");
-  const base = qIdx === -1 ? url! : url!.slice(0, qIdx);
-  const slash = base.lastIndexOf("/");
-  return `${base.slice(0, slash + 1)}${base.slice(slash + 1)}_test${qIdx === -1 ? "" : url!.slice(qIdx)}`;
-}
 
 // 确保 E2E 用户有目标科目（真题导入/练习出题的科目下拉依赖 goal.subjects）
 // 用 upsert 防并行用例相互覆盖（Goal.userId unique）
 async function ensureGoalSubjects(subjects: string[]) {
   const email = process.env.E2E_TEST_USER || "";
-  const pool = new pg.Pool({ connectionString: testDbUrl() });
+  const pool = createTestDbPool();
   try {
     const u = await pool.query('SELECT id FROM "User" WHERE email = $1', [email]);
     const userId = u.rows[0]?.id || "";
@@ -85,7 +77,7 @@ test("exam questions: listed in 真题 tab and usable in practice", async ({ pag
   // 准备：E2E 用户 id + 直插两条真题（跨 run 唯一文本）
   const email = process.env.E2E_TEST_USER || "";
   const stamp = Date.now() % 1000000;
-  const pool = new pg.Pool({ connectionString: testDbUrl() });
+    const pool = createTestDbPool();
   let userId = "";
   try {
     const u = await pool.query('SELECT id FROM "User" WHERE email = $1', [email]);

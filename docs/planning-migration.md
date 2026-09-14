@@ -2,7 +2,7 @@
 
 > 本文定义迁移顺序，不授权修改生产数据库。
 
-## 当前实施状态（2026-09-03）
+## 当前实施状态（2026-09-12）
 
 - Goal 已支持探索/暂定/确认/暂停及可空目标字段。
 - StudyPath 已版本化，新增正式 StudyPathStage 和阶段变更提案。
@@ -11,6 +11,8 @@
 - 周计划和路线都采用“草稿 → 影响分析 → 确认生效”。
 - 旧 Task.phase 与无 weeklyPlanId 任务仍兼容读取。
 - 历史 weekStartDate 仍可能存在本地周一和旧周日两种口径，暂不删除兼容窗口。
+- StudyEvidence 已成为任务完成、课程学习、练习提交和错题复习的统一事实账本；无法可靠判断的历史行为保持未归属。
+- StudySession、PracticeSession 与 WrongQuestion 已增加显式 taskId/milestoneId 链路，任务关联优先沿链路传递，不按科目或时间猜测。
 
 ## 迁移顺序
 
@@ -20,8 +22,9 @@
 - StudyPath 改为可版本化；增加 goalId、version、status、confirmedAt、supersedesId、adjustmentRequest、changeImpact。
 - 新增 StudyPathStage 与 WeeklyPlan。
 - Milestone 已增加 stageId；successCriteria/status 延后，继续复用 progress/completedAt。
-- Task 已增加 weeklyPlanId；milestoneId/status/actionType/actionPayload/sortOrder 延后。
+- Task 已增加 weeklyPlanId 与 milestoneId；status/actionType/actionPayload/sortOrder 延后。
 - 新增 StudyProfileFact；Goal.progress/studyLoad 继续作为科目进度与容量的兼容入口。
+- 新增 StudyEvidence；为 StudySession、PracticeSession、WrongQuestion 增加可空的任务/里程碑/来源关联字段。
 
 ### M2：兼容读取
 
@@ -55,7 +58,14 @@ npm run planning:backfill:apply  # 必须显式确认，事务性执行
 - 已完成进度、手动任务、ai_confirmed 任务和无法可靠归属的数据不修改。
 - 脚本只插入新实体并填充空外键，失败时整体回滚。
 
-### M5：延后清理
+### M5：证据账本
+
+- 迁移 `20260912133000_study_evidence_ledger` 只增加表、可空列、索引与外键，不删除或改型旧字段。
+- 只回填能够沿既有外键确定的归属；旧练习和错题若没有明确任务/里程碑，证据仍写入账本但 milestoneId 保持为空。
+- `(userId, kind, sourceId)` 唯一，重试不会重复累计；撤销完成使用 `retracted` 状态保留历史。
+- 发布前用 `prisma migrate diff --from-schema-datasource ... --to-schema-datamodel ...` 核对线上差异只包含本阶段新增对象。
+
+### M6：延后清理
 
 新旧读取稳定、导出完整、E2E 覆盖后，另开任务废弃旧 phase 判断和周起始兼容窗口。
 
@@ -66,5 +76,6 @@ npm run planning:backfill:apply  # 必须显式确认，事务性执行
 - 先备份，再在独立测试库执行 `prisma db push`、dry-run、apply 和回滚演练；生产库禁止直接试跑。
 - 用功能开关逐步开放；回滚时关闭新写入口，旧页面继续读取基础字段。
 - 禁止无备份、审计和回滚验证时对生产库执行 `prisma db push`。
+- 若历史环境曾使用 `prisma db push` 而没有 `_prisma_migrations`，必须先逐项核对实际结构并将已存在迁移标记为 applied，再执行 `prisma migrate deploy`；禁止直接重放旧迁移。
 
 StudyPath、WeeklyPlan 和 StudyProfileFact 全版本已纳入用户数据导出；级联注销、私有 API 鉴权和 E2E 已覆盖。漏斗事件仍待补。

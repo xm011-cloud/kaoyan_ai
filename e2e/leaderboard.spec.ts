@@ -1,5 +1,20 @@
 import { test, expect } from "@playwright/test";
 
+function studyDateString() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+    .formatToParts(new Date())
+    .reduce<Record<string, string>>((result, part) => {
+      result[part.type] = part.value;
+      return result;
+    }, {});
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
 // 排行榜（已登录）：页面渲染 + 周期切换 + API 鉴权
 // 排行榜内容取决于打卡数据，不做数据断言，只验证 UI 结构
 
@@ -12,7 +27,7 @@ test("leaderboard page loads with period tabs", async ({ page }) => {
   await expect(page.getByRole("button", { name: "全部" })).toBeVisible();
   // 加载结束后显示排行榜或空态（二选一）
   await expect(page.locator("text=加载中...").first()).toBeHidden({ timeout: 10000 }).catch(() => {});
-  await expect(page.locator("text=排行榜")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "🏆 排行榜" })).toBeVisible();
 });
 
 test("leaderboard API requires auth", async ({ request }) => {
@@ -30,9 +45,10 @@ test("leaderboard period switching updates data", async ({ page }) => {
 
 test("clicking a member opens their public profile", async ({ page }) => {
   // 先打卡保证当前用户在榜（upsert 无副作用）
-  await page.request.post("/api/checkin", {
-    data: { date: new Date().toISOString().split("T")[0], duration: 1, status: "good", note: "e2e" },
+  const checkin = await page.request.post("/api/checkin", {
+    data: { date: studyDateString(), duration: 1, status: "good", note: "e2e" },
   });
+  expect(checkin.status()).toBe(200);
   await page.goto("/leaderboard");
   await page.locator('a[href^="/user/"]').first().waitFor({ timeout: 10000 });
   await page.locator('a[href^="/user/"]').first().click();

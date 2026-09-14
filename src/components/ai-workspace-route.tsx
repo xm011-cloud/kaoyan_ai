@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAiWorkspace } from '@/components/ai-workspace-context'
 
 /**
@@ -10,12 +10,17 @@ import { useAiWorkspace } from '@/components/ai-workspace-context'
  */
 export function AiWorkspaceRoute() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { setOpen } = useAiWorkspace()
 
   useEffect(() => {
     setOpen(true)
-    if (window.matchMedia('(min-width: 1024px)').matches) router.replace('/dashboard')
-  }, [router, setOpen])
+    if (window.matchMedia('(min-width: 1024px)').matches) {
+      const params = new URLSearchParams(searchParams.toString())
+      params.set('ai', '1')
+      router.replace(`/dashboard?${params.toString()}`)
+    }
+  }, [router, searchParams, setOpen])
 
   return <div className="workspace-page lg:hidden"><p className="text-sm text-muted-foreground">正在打开 AI 工作区…</p></div>
 }

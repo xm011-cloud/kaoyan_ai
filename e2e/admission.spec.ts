@@ -1,16 +1,8 @@
 import { test, expect } from "@playwright/test";
-import pg from "pg";
+import { createTestDbPool } from "./test-db";
 
 // E2E 环境网络受限（百度搜索拿不到结果），共享链路用"直插测试库全局数据"验证：
 // 查库优先（无需 AI）+ 认同/质疑反馈 + 状态流转
-
-function testDbUrl(): string {
-  const url = process.env.DATABASE_URL || process.env.MEMFIRE_DATABASE_URL;
-  const qIdx = url!.indexOf("?");
-  const base = qIdx === -1 ? url! : url!.slice(0, qIdx);
-  const slash = base.lastIndexOf("/");
-  return `${base.slice(0, slash + 1)}${base.slice(slash + 1)}_test${qIdx === -1 ? "" : url!.slice(qIdx)}`;
-}
 
 test.describe("Admission", () => {
   test.beforeEach(async ({ page }) => {
@@ -41,9 +33,8 @@ test.describe("Admission", () => {
 
   test("nav shows 院校 entry and navigates to it", async ({ page }) => {
     await page.goto("/dashboard");
-    // 打开 slide-over 菜单（logo 按钮），知识组里应出现院校入口
-    await page.getByRole("button", { name: /考研助手/ }).first().click();
-    const admissionLink = page.locator('a[href="/admission"]');
+    // 桌面工作台使用常驻左侧导航，不再依赖旧版 logo 抽屉。
+    const admissionLink = page.getByRole("link", { name: "院校情报", exact: true });
     await expect(admissionLink).toBeVisible({ timeout: 5000 });
     await admissionLink.click();
     await expect(page).toHaveURL(/\/admission/);
@@ -81,7 +72,7 @@ test.describe("Admission", () => {
 
   test("shared library: pre-seeded global data is queryable; vouch/dispute feedback works", async ({ page }) => {
     const uni = `共享库${Date.now() % 1000000}`;
-    const pool = new pg.Pool({ connectionString: testDbUrl() });
+    const pool = createTestDbPool();
     let id = "";
     try {
       const { rows } = await pool.query(
@@ -130,7 +121,7 @@ test.describe("Admission", () => {
 
   test("search returns aggregated multi-source view; library API + detail page work", async ({ page }) => {
     const uni = `聚合库${Date.now() % 1000000}`;
-    const pool = new pg.Pool({ connectionString: testDbUrl() });
+    const pool = createTestDbPool();
     const ids: string[] = [];
     try {
       // 同一院校+专业+年份+分数线，两条不同来源（总分冲突），一条 verified

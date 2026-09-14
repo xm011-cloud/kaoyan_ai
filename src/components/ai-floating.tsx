@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { ChatMarkdown } from '@/components/chat-markdown'
 import { AiWaiting } from '@/components/ai-waiting'
 import { AiConfigBanner } from '@/components/ai-config-banner'
@@ -14,6 +15,17 @@ import { useAiConfigStatus } from '@/hooks/use-ai-config-status'
 import { useAiWorkspace } from '@/components/ai-workspace-context'
 import { useGoal } from '@/hooks/use-goal'
 import { useStudyContext } from '@/components/study-context'
+import { SkillSuggestionChip } from '@/components/skill-suggestion'
+import type { SkillSuggestionData } from '@/components/skill-suggestion'
+import type { SkillStep } from '@/lib/skill-templates'
+
+interface Source {
+  id: string
+  name: string
+  score: number
+  preview: string
+  segments: string[]
+}
 
 interface ActionCard {
   type: "task_created" | "task_completed" | "checkin_created" | "reminder_updated" | "planning_intake" | "milestone_review"
@@ -26,9 +38,11 @@ interface Message {
   id: string
   role: 'user' | 'assistant'
   content: string
+  sources?: Source[]
   actions?: ActionCard[]
   reasoning?: string
   proposal?: Proposal
+  suggestedSkill?: SkillSuggestionData
 }
 
 interface ChatHistory {
@@ -53,6 +67,23 @@ interface SkillBrief {
 type RunningSkill = SkillBrief & { completed: boolean }
 const EMPTY_SUBJECTS: string[] = []
 
+function skillStepLabel(step: SkillStep, index: number): string {
+  switch (step.type) {
+    case 'data':
+      return `读取数据：${(step as { sources?: string[] }).sources?.join('、') || '默认'}`
+    case 'ask':
+      return `提问：${(step as { question?: string }).question || ''}`
+    case 'ai':
+      return (step as { instruction?: string }).instruction || `AI 步骤 ${index + 1}`
+    case 'note':
+      return `记入档案${(step as { label?: string }).label ? `（${(step as { label?: string }).label}）` : ''}`
+    case 'finish':
+      return '结束技能'
+    default:
+      return `步骤 ${index + 1}`
+  }
+}
+
 function looksLikeProblemQuestion(question: string) {
   const text = question.trim()
   if (text.length < 4) return false
@@ -63,6 +94,9 @@ function looksLikeProblemQuestion(question: string) {
 }
 
 export function AiWorkspace() {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const { open, setOpen, width, toggle, toggleWidth, requestedPrompt, clearRequestedPrompt } = useAiWorkspace()
   const { context: studyContext } = useStudyContext()
   const [messages, setMessages] = useState<Message[]>([])
@@ -77,6 +111,17 @@ export function AiWorkspace() {
   const [userSkills, setUserSkills] = useState<SkillBrief[]>([])
   const [showSkillMenu, setShowSkillMenu] = useState(false)
   const [runningSkill, setRunningSkill] = useState<RunningSkill | null>(null)
+  const [historiesLoaded, setHistoriesLoaded] = useState(false)
+  const [skillsLoaded, setSkillsLoaded] = useState(false)
+  const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set())
+  const [distillPreview, setDistillPreview] = useState<{
+    name: string
+    description: string
+    triggerKeywords: string[]
+    steps: SkillStep[]
+  } | null>(null)
+  const [distillStatus, setDistillStatus] = useState<'idle' | 'loading' | 'saving'>('idle')
+  const [distillError, setDistillError] = useState<string | null>(null)
   const [wrongDraft, setWrongDraft] = useState<{ question: string; answer: string } | null>(null)
   const [wrongSubject, setWrongSubject] = useState('')
   const [wrongTags, setWrongTags] = useState('')
@@ -89,6 +134,7 @@ export function AiWorkspace() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const savedChatIdRef = useRef<string | null>(null)
+  const handledRouteRequestRef = useRef<string | null>(null)
 
   // Hydration guard
   useEffect(() => { setMounted(true) }, [])
@@ -100,6 +146,7 @@ export function AiWorkspace() {
       const data = await res.json()
       if (res.ok) setHistories(data.chats || [])
     } catch { /* ignore */ }
+    finally { setHistoriesLoaded(true) }
   }, [])
 
   const loadMaterials = useCallback(async () => {
@@ -116,6 +163,7 @@ export function AiWorkspace() {
       const data = await res.json()
       if (res.ok) setUserSkills(data.skills || [])
     } catch { /* ignore */ }
+    finally { setSkillsLoaded(true) }
   }, [])
 
   useEffect(() => {
@@ -125,6 +173,12 @@ export function AiWorkspace() {
       loadUserSkills()
     }
   }, [mounted, loadHistories, loadMaterials, loadUserSkills])
+
+  useEffect(() => {
+    if (skillsLoaded && input.startsWith('/')) {
+      queueMicrotask(() => setShowSkillMenu(userSkills.length > 0))
+    }
+  }, [input, skillsLoaded, userSkills.length])
 
   useEffect(() => {
     if (!wrongSubject && subjects.length > 0) setWrongSubject(subjects[0])
@@ -246,9 +300,11 @@ export function AiWorkspace() {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: data.reply || '抱歉，我暂时无法回答。',
+        sources: data.sources,
         actions: data.actions,
         reasoning: data.reasoning,
         proposal: data.proposal,
+        suggestedSkill: data.suggestedSkill,
       }
       if (data.skillRun?.completed) {
         setRunningSkill((current) => current ? { ...current, completed: true } : current)
@@ -293,6 +349,13 @@ export function AiWorkspace() {
     savedChatIdRef.current = null
     setShowHistory(false)
     setRunningSkill(null)
+    setDismissedSuggestions(new Set())
+    setDistillError(null)
+    const next = new URLSearchParams(searchParams.toString())
+    next.delete('chat')
+    next.delete('skill')
+    const query = next.toString()
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
     inputRef.current?.focus()
   }
 
@@ -300,6 +363,15 @@ export function AiWorkspace() {
     setMessages(history.messages)
     savedChatIdRef.current = history.id
     setShowHistory(false)
+    setDismissedSuggestions(new Set())
+    const kickoff = history.messages[0]
+    if (kickoff?.role === 'user' && kickoff.content.startsWith('运行技能「')) {
+      const name = kickoff.content.replace(/^运行技能「/, '').replace(/」$/, '')
+      const skill = userSkills.find((item) => item.name === name)
+      setRunningSkill({ id: skill?.id || '', name, icon: skill?.icon || '⚡', completed: false })
+    } else {
+      setRunningSkill(null)
+    }
   }
 
   // 采纳/拒绝由 ProposalCard 直连确认接口；这里仅同步移除已处理卡片并保存统一会话。
@@ -357,9 +429,11 @@ export function AiWorkspace() {
         id: `${Date.now()}_assistant`,
         role: 'assistant',
         content: data.reply || '抱歉，我暂时无法回答。',
+        sources: data.sources,
         actions: data.actions,
         reasoning: data.reasoning,
         proposal: data.proposal,
+        suggestedSkill: data.suggestedSkill,
       }]
       setMessages(finalMessages)
       if (data.skillRun?.completed) setRunningSkill((current) => current ? { ...current, completed: true } : current)
@@ -385,6 +459,90 @@ export function AiWorkspace() {
   const endSkill = () => {
     if (!runningSkill || runningSkill.completed || loading) return
     handleSubmit(undefined, '结束技能')
+  }
+
+  // /chat?chat= 与 /chat?skill= 在合并为右侧工作区后仍保持原链接语义。
+  useEffect(() => {
+    const chatId = searchParams.get('chat')
+    const skillId = searchParams.get('skill')
+    const requestKey = chatId ? `chat:${chatId}` : skillId ? `skill:${skillId}` : null
+    if (!requestKey || handledRouteRequestRef.current === requestKey) return
+
+    if (chatId && historiesLoaded) {
+      handledRouteRequestRef.current = requestKey
+      const history = histories.find((item) => item.id === chatId)
+      if (history) queueMicrotask(() => loadChat(history))
+      return
+    }
+
+    if (skillId && skillsLoaded) {
+      handledRouteRequestRef.current = requestKey
+      const skill = userSkills.find((item) => item.id === skillId)
+      if (skill) queueMicrotask(() => startSkillRun(skill))
+    }
+  }, [histories, historiesLoaded, searchParams, skillsLoaded, userSkills]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleDistill = async () => {
+    if (distillStatus !== 'idle' || messages.length === 0) return
+    setDistillStatus('loading')
+    setDistillError(null)
+    try {
+      let targetChatId = savedChatIdRef.current
+      if (!targetChatId) {
+        const saveResponse = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chatId: null, messages }),
+        })
+        const saved = await saveResponse.json()
+        if (!saveResponse.ok || !saved.chat?.id) throw new Error('无法创建对话')
+        targetChatId = saved.chat.id
+        savedChatIdRef.current = targetChatId
+        loadHistories()
+      }
+
+      const response = await fetch('/api/skills/distill', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatId: targetChatId }),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        setDistillError(data.invalid ? data.reason || '这段对话不适合转成技能' : data.error || '蒸馏失败，请重试')
+        return
+      }
+      setDistillPreview(data.skill)
+    } catch {
+      setDistillError('AI 服务暂时不可用，请稍后再试')
+    } finally {
+      setDistillStatus('idle')
+    }
+  }
+
+  const confirmDistill = async () => {
+    if (!distillPreview || distillStatus !== 'idle') return
+    setDistillStatus('saving')
+    try {
+      const response = await fetch('/api/skills', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: distillPreview.name,
+          description: distillPreview.description,
+          triggerKeywords: distillPreview.triggerKeywords,
+          steps: distillPreview.steps,
+          source: 'user',
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || '保存失败')
+      setDistillPreview(null)
+      loadUserSkills()
+      router.push('/skills')
+    } catch (error) {
+      setDistillError(error instanceof Error ? error.message : '保存失败，请重试')
+      setDistillStatus('idle')
+    }
   }
 
   const saveWrongQuestion = async () => {
@@ -438,9 +596,10 @@ export function AiWorkspace() {
               runningSkill.completed ? (
                 <span className="max-w-24 truncate px-1 text-[10px] text-muted-foreground">{runningSkill.icon} 已结束</span>
               ) : (
-                <button onClick={endSkill} disabled={loading} className="max-w-28 truncate rounded-md bg-brand-muted px-2 py-1 text-[10px] text-brand hover:bg-brand/15">
-                  {runningSkill.icon} 结束技能
-                </button>
+                <>
+                  <span aria-label={`正在运行技能：${runningSkill.name}`} className="hidden max-w-28 truncate rounded-full bg-brand-muted px-2 py-1 text-[10px] text-brand sm:inline">{runningSkill.icon} 技能：{runningSkill.name}</span>
+                  <button onClick={endSkill} disabled={loading} className="rounded-md px-2 py-1 text-[10px] text-brand hover:bg-brand-muted">结束技能</button>
+                </>
               )
             )}
             <button
@@ -514,6 +673,7 @@ export function AiWorkspace() {
               <AiConfigBanner compact />
             </div>
           )}
+          {!aiConfigured && messages.length > 0 && <AiConfigBanner compact />}
           {messages.length === 0 && aiConfigured && (
             <div className="flex h-full flex-col items-center justify-center px-4 text-center text-muted-foreground">
               <span className="mb-3 grid h-11 w-11 place-items-center rounded-2xl bg-brand-muted text-lg font-semibold text-brand">AI</span>
@@ -540,48 +700,58 @@ export function AiWorkspace() {
             </div>
           )}
 
-          {messages.map((msg, index) => (
-            <div
-              key={msg.id}
-              className={cn(
-                'flex',
-                msg.role === 'user' ? 'justify-end' : 'justify-start'
-              )}
-            >
+          {messages.map((msg, index) => {
+            const isKickoff = msg.role === 'user' && msg.content.startsWith('运行技能「')
+            if (isKickoff) {
+              const name = msg.content.replace(/^运行技能「/, '').replace(/」$/, '')
+              return <div key={msg.id} className="flex justify-center"><span className="rounded-full bg-muted px-3 py-1.5 text-xs text-muted-foreground">⚡ 正在运行技能：{name}</span></div>
+            }
+            return (
               <div
-                className={cn(
-                  'max-w-[90%] px-3 py-2 rounded-xl text-sm',
-                  msg.role === 'user'
-                    ? 'bg-brand text-white'
-                    : 'bg-muted border border-border/50'
-                )}
+                key={msg.id}
+                className={cn('flex', msg.role === 'user' ? 'justify-end' : 'justify-start')}
               >
-                {msg.role === 'user' ? (
-                  <p className="whitespace-pre-wrap">{msg.content}</p>
-                ) : (
-                  <>
-                    <ChatMarkdown
-                      content={msg.content}
-                      reasoning={msg.reasoning}
-                      actions={msg.actions}
-                      onSaveToWrongBook={
-                        index > 0 && messages[index - 1]?.role === 'user' && looksLikeProblemQuestion(messages[index - 1].content)
-                          ? (answer) => setWrongDraft({ question: messages[index - 1].content, answer })
-                          : undefined
-                      }
-                    />
-                    {msg.proposal && (
-                      <ProposalCard
-                        proposal={msg.proposal}
-                        chatId={savedChatIdRef.current}
-                        onHandled={() => handleProposalHandled(msg.id)}
+                <div
+                  className={cn(
+                    'max-w-[90%] px-3 py-2 rounded-xl text-sm',
+                    msg.role === 'user' ? 'bg-brand text-white' : 'bg-muted border border-border/50'
+                  )}
+                >
+                  {msg.role === 'user' ? (
+                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                  ) : (
+                    <>
+                      <ChatMarkdown
+                        content={msg.content}
+                        reasoning={msg.reasoning}
+                        sources={msg.sources}
+                        actions={msg.actions}
+                        onSaveToWrongBook={
+                          index > 0 && messages[index - 1]?.role === 'user' && looksLikeProblemQuestion(messages[index - 1].content)
+                            ? (answer) => setWrongDraft({ question: messages[index - 1].content, answer })
+                            : undefined
+                        }
                       />
-                    )}
-                  </>
-                )}
+                      {msg.proposal && (
+                        <ProposalCard
+                          proposal={msg.proposal}
+                          chatId={savedChatIdRef.current}
+                          onHandled={() => handleProposalHandled(msg.id)}
+                        />
+                      )}
+                      {msg.suggestedSkill && !dismissedSuggestions.has(msg.id) && (
+                        <SkillSuggestionChip
+                          suggestion={msg.suggestedSkill}
+                          onRun={(skill) => startSkillRun(skill)}
+                          onClose={() => setDismissedSuggestions((current) => new Set(current).add(msg.id))}
+                        />
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
 
           {loading && (
             <AiWaiting phase={waitPhase} estimate={waitEstimate} onCancel={waitCancel} />
@@ -595,6 +765,19 @@ export function AiWorkspace() {
           onSubmit={handleSubmit}
           className="shrink-0 border-t border-border/50 p-3"
         >
+          {messages.length > 0 && (
+            <div className="mb-2 flex items-center justify-end gap-2">
+              {distillError && <span className="max-w-[65%] truncate text-[10px] text-destructive">{distillError}</span>}
+              <button
+                type="button"
+                onClick={handleDistill}
+                disabled={distillStatus !== 'idle' || loading}
+                className="rounded-full border border-border/60 px-2.5 py-1 text-[11px] text-muted-foreground transition-colors hover:border-brand/30 hover:text-brand disabled:opacity-40"
+              >
+                {distillStatus === 'loading' ? '蒸馏中…' : '💾 存为技能'}
+              </button>
+            </div>
+          )}
           {materials.length > 0 && (
             <div className="mb-2">
               <button
@@ -665,6 +848,23 @@ export function AiWorkspace() {
               {subjects.map((subject) => <option key={subject} value={subject}>{subject}</option>)}
             </select>
             <input value={wrongTags} onChange={(event) => setWrongTags(event.target.value)} placeholder="标签（可选，用逗号分隔）" className="w-full rounded-lg border bg-background px-3 py-2 text-sm" />
+          </div>
+        </Modal>
+      )}
+      {distillPreview && (
+        <Modal
+          open
+          onClose={() => { setDistillPreview(null); setDistillError(null); setDistillStatus('idle') }}
+          title="存为技能"
+          description="AI 从这段对话中提炼出的可复用流程，可调整后保存。"
+          footer={<><Button variant="outline" onClick={() => setDistillPreview(null)}>取消</Button><Button onClick={confirmDistill} disabled={distillStatus === 'saving' || !distillPreview.name.trim()}>{distillStatus === 'saving' ? '保存中…' : '保存技能'}</Button></>}
+        >
+          <div className="space-y-3">
+            {distillError && <p className="text-xs text-destructive">{distillError}</p>}
+            <label className="block text-sm font-medium">技能名称<input value={distillPreview.name} onChange={(event) => setDistillPreview({ ...distillPreview, name: event.target.value })} className="mt-1 w-full rounded-xl border bg-muted/40 px-3 py-2 text-sm" /></label>
+            <label className="block text-sm font-medium">描述<input value={distillPreview.description} onChange={(event) => setDistillPreview({ ...distillPreview, description: event.target.value })} className="mt-1 w-full rounded-xl border bg-muted/40 px-3 py-2 text-sm" /></label>
+            <label className="block text-sm font-medium">触发关键词<input value={distillPreview.triggerKeywords.join('，')} onChange={(event) => setDistillPreview({ ...distillPreview, triggerKeywords: event.target.value.split(/[,，]/).map((item) => item.trim()).filter(Boolean) })} placeholder="例如：复盘，今日总结" className="mt-1 w-full rounded-xl border bg-muted/40 px-3 py-2 text-sm" /></label>
+            <div><p className="text-sm font-medium">流程预览</p><ol className="mt-1 space-y-1.5">{distillPreview.steps.map((step, index) => <li key={`${step.type}-${index}`} className="rounded-lg bg-muted/50 px-3 py-2 text-xs">{index + 1}. {skillStepLabel(step, index)}</li>)}</ol></div>
           </div>
         </Modal>
       )}

@@ -17,6 +17,8 @@ export interface PracticeQuestion {
 
 export interface PracticeSession {
   id: string;
+  taskId: string | null;
+  milestoneId: string | null;
   type: "daily" | "mock";
   subject: string;
   status: "in_progress" | "completed" | "abandoned";

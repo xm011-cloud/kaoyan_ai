@@ -22,6 +22,14 @@ test("run button links to chat with skill param", async ({ page }) => {
     .getByRole("link", { name: /运行/ })
     .getAttribute("href");
   expect(href).toMatch(/^\/chat\?skill=/);
+
+  await page.route("**/api/ai/chat", async (route) => {
+    await route.fulfill({ json: { reply: "E2E 技能已启动", chatId: null } });
+  });
+  await page.goto(href!);
+  const workspace = page.getByLabel("AI 工作区");
+  await expect(workspace.getByText("⚡ 正在运行技能：每日复盘")).toBeVisible({ timeout: 20000 });
+  await expect(workspace.getByText("E2E 技能已启动")).toBeVisible({ timeout: 20000 });
 });
 
 test("create, edit and delete a custom skill via API + UI", async ({ page }) => {
@@ -94,8 +102,8 @@ test("duplicate skill name returns 409", async ({ page }) => {
 
 test("chat slash menu lists user skills", async ({ page }) => {
   await page.goto("/chat");
-  // 注意：页面右下角有浮动 AI 组件（自带输入框），用占位符精确锁定主对话输入框
-  const chatInput = page.getByPlaceholder(/输入你的问题/);
+  const workspace = page.getByLabel("AI 工作区");
+  const chatInput = workspace.getByPlaceholder(/输入指令/);
   await expect(chatInput).toBeVisible({ timeout: 20000 });
 
   await chatInput.type("/");
@@ -108,7 +116,7 @@ test("chat slash menu lists user skills", async ({ page }) => {
 test("chat restores skill chat with running badge + kickoff notice", async ({ page }) => {
   // 先造一条技能对话（首条 kickoff 消息），走 /api/chat 持久化
   await page.goto("/chat");
-  await expect(page.locator("h1").filter({ hasText: "AI 对话" })).toBeVisible({ timeout: 20000 });
+  await expect(page.getByLabel("AI 工作区").getByRole("heading", { name: "AI 学习伙伴" })).toBeVisible({ timeout: 20000 });
   const id = await page.evaluate(async () => {
     const res = await fetch("/api/chat", {
       method: "POST",
@@ -124,22 +132,24 @@ test("chat restores skill chat with running badge + kickoff notice", async ({ pa
   expect(id).toBeTruthy();
 
   await page.goto(`/chat?chat=${id}`);
-  await expect(page.getByText("⚡ 正在运行技能：每日复盘")).toBeVisible({ timeout: 20000 });
-  await expect(page.getByText("⚡ 技能：每日复盘", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "结束技能" })).toBeVisible();
+  const workspace = page.getByLabel("AI 工作区");
+  await expect(workspace.getByText("⚡ 正在运行技能：每日复盘")).toBeVisible({ timeout: 20000 });
+  await expect(workspace.getByLabel("正在运行技能：每日复盘")).toBeVisible();
+  await expect(workspace.getByRole("button", { name: "结束技能" })).toBeVisible();
 });
 
 test("chat ?skill=nonexistent falls back to normal chat", async ({ page }) => {
   await page.goto("/chat?skill=nonexistent-id");
-  await expect(page.locator("h1").filter({ hasText: "AI 对话" })).toBeVisible({ timeout: 20000 });
-  await expect(page.getByText("开始提问吧")).toBeVisible({ timeout: 20000 });
+  const workspace = page.getByLabel("AI 工作区");
+  await expect(workspace.getByRole("heading", { name: "AI 学习伙伴" })).toBeVisible({ timeout: 20000 });
+  await expect(workspace.getByText("从你正在做的事开始")).toBeVisible({ timeout: 20000 });
 });
 
 // ── Round C：对话蒸馏 + AI 主动提议（避开真实 AI 调用）──
 
 test("skill distill API validates chatId", async ({ page }) => {
   await page.goto("/chat");
-  await expect(page.locator("h1").filter({ hasText: "AI 对话" })).toBeVisible({ timeout: 20000 });
+  await expect(page.getByLabel("AI 工作区").getByRole("heading", { name: "AI 学习伙伴" })).toBeVisible({ timeout: 20000 });
 
   const missing = await page.evaluate(async () => {
     const res = await fetch("/api/skills/distill", {
@@ -164,7 +174,7 @@ test("skill distill API validates chatId", async ({ page }) => {
 
 test("chat shows skill suggestion chip (suggestedSkill field) and can close it", async ({ page }) => {
   await page.goto("/chat");
-  await expect(page.locator("h1").filter({ hasText: "AI 对话" })).toBeVisible({ timeout: 20000 });
+  await expect(page.getByLabel("AI 工作区").getByRole("heading", { name: "AI 学习伙伴" })).toBeVisible({ timeout: 20000 });
 
   // 造一条带 suggestedSkill 的消息（模拟 AI 主动提议响应），走 /api/chat 持久化
   const id = await page.evaluate(async () => {
@@ -190,11 +200,12 @@ test("chat shows skill suggestion chip (suggestedSkill field) and can close it",
   expect(id).toBeTruthy();
 
   await page.goto(`/chat?chat=${id}`);
+  const workspace = page.getByLabel("AI 工作区");
   // 有消息 → 「存为技能」按钮可见
-  await expect(page.getByRole("button", { name: "💾 存为技能" })).toBeVisible({ timeout: 20000 });
+  await expect(workspace.getByRole("button", { name: "💾 存为技能" })).toBeVisible({ timeout: 20000 });
   // 建议芯片渲染
-  await expect(page.getByText(/你可能想用「🌅 每日复盘」/)).toBeVisible({ timeout: 20000 });
+  await expect(workspace.getByText(/你可能想用「🌅 每日复盘」/)).toBeVisible({ timeout: 20000 });
   // 可关闭
-  await page.getByRole("button", { name: "关闭技能建议" }).click();
-  await expect(page.getByText(/你可能想用「🌅 每日复盘」/)).toHaveCount(0, { timeout: 10000 });
+  await workspace.getByRole("button", { name: "关闭技能建议" }).click();
+  await expect(workspace.getByText(/你可能想用「🌅 每日复盘」/)).toHaveCount(0, { timeout: 10000 });
 });

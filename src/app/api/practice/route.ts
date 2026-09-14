@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { generatePracticeQuestions } from "@/lib/practice-generator";
 import { Prisma } from "@prisma/client";
 import { handleApiError, jsonNoStore } from "@/lib/api-utils";
+import { resolveEvidenceLink } from "@/lib/study-evidence";
 
 export async function GET(request: NextRequest) {
   const { user, error } = await getAuthUser(request);
@@ -49,6 +50,8 @@ export async function POST(request: NextRequest) {
       generationMode = "custom",
       difficulty,
       includeMermaid,
+      taskId,
+      milestoneId,
     } = body;
 
     if (!subject) {
@@ -58,6 +61,8 @@ export async function POST(request: NextRequest) {
     if (!["daily", "mock"].includes(type)) {
       return jsonNoStore({ error: "类型无效" }, { status: 400 });
     }
+    const resolved = await resolveEvidenceLink(prisma, user!.id, { taskId, milestoneId, subject });
+    if (resolved.error) return jsonNoStore({ error: resolved.error }, { status: 400 });
 
     // Resolve wrongQuestionIds
     let resolvedWrongIds: string[] | undefined;
@@ -115,6 +120,8 @@ export async function POST(request: NextRequest) {
         startedAt: new Date(),
         questions: questions as unknown as Prisma.InputJsonValue,
         maxScore,
+        taskId: resolved.link?.taskId ?? null,
+        milestoneId: resolved.link?.milestoneId ?? null,
       },
     });
 

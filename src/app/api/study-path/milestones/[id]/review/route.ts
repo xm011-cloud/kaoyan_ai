@@ -23,7 +23,14 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     });
     if (!milestone) return jsonNoStore({ error: "当前路线中没有这个里程碑" }, { status: 404 });
 
-    const evidence = await getMilestoneEvidence(user!.id, milestone);
+    // 复盘结论是用户的明确操作，证据汇总仅用于回显；汇总的瞬时读取失败
+    // 不应阻止用户保存“已达成/继续巩固/需要重学”的判断。
+    let evidence: Awaited<ReturnType<typeof getMilestoneEvidence>> | null = null;
+    try {
+      evidence = await getMilestoneEvidence(user!.id, milestone);
+    } catch (e) {
+      console.warn("Milestone evidence summary unavailable during review:", e);
+    }
     const data = outcome === "achieved"
       ? { progress: 1, completedAt: new Date(), reviewedAt: new Date(), reviewOutcome: outcome, reviewNote: note || null }
       : outcome === "relearn"

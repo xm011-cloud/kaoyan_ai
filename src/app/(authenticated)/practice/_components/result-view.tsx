@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { ModuleLinks } from "@/components/ui/module-links";
 import { ChatMarkdown } from "@/components/chat-markdown";
+import Link from "next/link";
 import type { PracticeQuestion, PracticeSession } from "@/lib/practice-types";
 
 interface ResultViewProps {
@@ -47,6 +48,13 @@ export function ResultView({
           {percentage >= 80 && <p className="text-success font-medium mt-2">表现优秀，继续保持！</p>}
           {percentage >= 60 && percentage < 80 && <p className="text-brand font-medium mt-2">不错，还有提升空间！</p>}
           {percentage < 60 && <p className="text-orange-500 font-medium mt-2">继续努力，多加练习！</p>}
+          {resultSession.milestoneId && (
+            <div className="mt-4 rounded-xl border border-brand/20 bg-brand/5 px-3 py-2 text-left text-xs">
+              <p className="font-medium text-brand">本次结果已保存为路线证据</p>
+              <p className="mt-1 text-muted-foreground">得分用于复盘参考，里程碑仍需你确认“达成、巩固或重学”。</p>
+              <Link href={`/study-path?review=${resultSession.milestoneId}`} className="mt-2 inline-flex font-medium text-brand hover:underline">查看证据与复盘 →</Link>
+            </div>
+          )}
         </div>
 
         {/* Per-question review */}

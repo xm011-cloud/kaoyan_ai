@@ -5,6 +5,7 @@ import { getUserAiConfig, callAI, truncateReasoning } from "@/lib/ai-config";
 import { prisma } from "@/lib/prisma";
 import { startOfDay, getWeekStart, getWeekEnd } from "@/lib/date-utils";
 import { getDaysToGoal, getGoalLabel } from "@/lib/goal-model";
+import { getWeeklyPlanHealth } from "@/lib/weekly-plan-health";
 
 export async function POST(request: NextRequest) {
   const { user, error } = await getAuthUser(request);
@@ -33,6 +34,7 @@ export async function POST(request: NextRequest) {
       where: { userId: user!.id, date: { gte: weekStart, lte: weekEnd } },
     });
     const goal = await prisma.goal.findUnique({ where: { userId: user!.id } });
+    const planHealth = await getWeeklyPlanHealth(user!.id, today);
 
     // 上周数据（做"vs 上周的自己"对比，软化非零和）
     const prevWeekStart = new Date(weekStart.getTime() - 7 * 86400000);
@@ -88,12 +90,16 @@ export async function POST(request: NextRequest) {
     }
 
     const prevWeekStats = `- 上周对比：上周打卡 ${prevCheckInDays}/7 天（${(prevTotalMinutes / 60).toFixed(1)} 小时）、完成任务 ${prevTaskCompleted}/${prevTaskTotal}；本周打卡 ${checkInDays}/7 天（${totalHours} 小时）、完成任务 ${taskCompleted}/${taskTotal}`;
+    const healthSummary = planHealth.plan
+      ? `- 本周计划：${planHealth.plan.objective}；计划 ${planHealth.plan.plannedMinutes} 分钟，截至今天节奏应约 ${planHealth.expectedMinutes ?? 0} 分钟，已打卡 ${planHealth.checkInMinutes} 分钟，状态：${planHealth.capacityStatus === "on_track" ? "节奏正常" : "需要复盘调整"}`
+      : "- 本周计划：尚未确认；不要假定用户已有稳定的学习容量，先建议其确认可执行时间。";
 
     const dataSummary = `本周学习数据：
 - 总学习时长：${totalHours} 小时
 - 打卡天数：${checkInDays}/7 天
 - 任务完成：${taskCompleted}/${taskTotal}
 ${prevWeekStats}
+${healthSummary}
 - 状态分布：${Object.entries(moodCounts).map(([k,v]) => `${k === 'good' ? '状态好' : k === 'normal' ? '一般' : '疲惫'} ${v}天`).join('，')}${scoreGap}
 ${goal ? `- 学习目标：${getGoalLabel(goal)}${goal.examDate ? `，考试日期：${goal.examDate.toISOString().split("T")[0]}` : "，考试日期待确定"}` : ''}`;
 
@@ -172,6 +178,7 @@ ${goal ? `- 学习目标：${getGoalLabel(goal)}${goal.examDate ? `，考试日�
             taskCompleted,
             taskTotal,
           },
+          planHealth,
         },
       },
     });

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
@@ -94,10 +95,80 @@ interface Milestone {
   completedMilestones: number
 }
 
+interface WeeklyPlanHealth {
+  plan: { id: string; objective: string; plannedMinutes: number } | null
+  tasks: { completed: number; total: number; plannedMinutes: number }
+  checkInMinutes: number
+  expectedMinutes: number | null
+  capacityStatus: 'unplanned' | 'on_track' | 'behind'
+  evidence: { courseSessions: number; practiceSessions: number; wrongReviews: number }
+  notices: string[]
+  nextStep: { label: string; href: string }
+}
+
+function WeeklyHealthCard({ health }: { health: WeeklyPlanHealth }) {
+  const status = health.capacityStatus === 'on_track'
+    ? { label: '节奏正常', className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' }
+    : health.capacityStatus === 'behind'
+      ? { label: '建议复盘', className: 'bg-amber-500/10 text-amber-800 dark:text-amber-200' }
+      : { label: '待确认计划', className: 'bg-muted text-muted-foreground' }
+  const hour = (minutes: number) => `${(minutes / 60).toFixed(minutes % 60 === 0 ? 0 : 1)}h`
+
+  return (
+    <section className="rounded-2xl border border-border/60 bg-card p-5" aria-labelledby="weekly-health-title">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium text-muted-foreground">生成周报前，先看执行事实</p>
+          <h2 id="weekly-health-title" className="mt-1 font-semibold">本周计划健康度</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {health.plan ? health.plan.objective : '还没有确认本周目标'}
+          </p>
+        </div>
+        <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${status.className}`}>{status.label}</span>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="rounded-xl bg-muted/50 px-3 py-2.5">
+          <p className="text-[11px] text-muted-foreground">已打卡时长</p>
+          <p className="mt-1 text-sm font-semibold">{hour(health.checkInMinutes)}</p>
+        </div>
+        <div className="rounded-xl bg-muted/50 px-3 py-2.5">
+          <p className="text-[11px] text-muted-foreground">当前节奏</p>
+          <p className="mt-1 text-sm font-semibold">{health.expectedMinutes == null ? '待确认' : `${hour(health.expectedMinutes)} 应完成`}</p>
+        </div>
+        <div className="rounded-xl bg-muted/50 px-3 py-2.5">
+          <p className="text-[11px] text-muted-foreground">任务推进</p>
+          <p className="mt-1 text-sm font-semibold">{health.tasks.completed}/{health.tasks.total || 0}</p>
+        </div>
+        <div className="rounded-xl bg-muted/50 px-3 py-2.5">
+          <p className="text-[11px] text-muted-foreground">学习证据</p>
+          <p className="mt-1 text-sm font-semibold">{health.evidence.courseSessions + health.evidence.practiceSessions + health.evidence.wrongReviews} 条</p>
+        </div>
+      </div>
+
+      {health.notices.length > 0 && (
+        <ul className="mt-4 space-y-1.5 text-xs text-muted-foreground">
+          {health.notices.map(notice => <li key={notice}>• {notice}</li>)}
+        </ul>
+      )}
+      <div className="mt-4 flex items-center justify-between gap-3 border-t border-border/50 pt-3">
+        <p className="text-xs text-muted-foreground">课程、练习和错题证据只用于复盘，不会自动判定掌握。</p>
+        <Link
+          href={health.nextStep.href}
+          className="inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-input bg-background px-3 text-xs font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+        >
+          {health.nextStep.label}
+        </Link>
+      </div>
+    </section>
+  )
+}
+
 export default function FeedbackPage() {
   const router = useRouter()
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([])
   const [milestone, setMilestone] = useState<Milestone | null>(null)
+  const [health, setHealth] = useState<WeeklyPlanHealth | null>(null)
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState('')
@@ -114,6 +185,7 @@ export default function FeedbackPage() {
       const data = await res.json()
       setFeedbacks(data.feedbacks || [])
       setMilestone(data.milestone ?? null)
+      setHealth(data.health ?? null)
     } catch {
       // 加载失败
     } finally {
@@ -231,6 +303,8 @@ export default function FeedbackPage() {
           </p>
         )}
 
+        {health && <WeeklyHealthCard health={health} />}
+
         {/* 具体数字里程碑肯定 */}
         {milestone && (milestone.currentStreak > 1 || milestone.completedMilestones > 0) && (
           <div className="rounded-2xl bg-muted/40 border border-border/50 px-5 py-4 text-sm">
@@ -247,7 +321,7 @@ export default function FeedbackPage() {
           </div>
         )}
 
-        <div className="space-y-6">
+        <div id="feedback-history" className="space-y-6">
           {loading ? (
             <div className="text-center py-8 text-muted-foreground">加载中...</div>
           ) : feedbacks.length === 0 ? (

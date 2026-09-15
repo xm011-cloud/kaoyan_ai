@@ -22,6 +22,8 @@ interface QueuedWrite {
   createdAt: number;
 }
 
+let activeFlush: Promise<number> | null = null;
+
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     if (typeof indexedDB === "undefined") {
@@ -91,36 +93,58 @@ export async function queuedCount(): Promise<number> {
   }
 }
 
-/** 联网后按时间顺序补传。返回成功补传的条数。 */
-export async function flushQueue(): Promise<number> {
-  let flushed = 0;
+/** 判断某个去重写入是否仍在队列中，供学习现场确认“等待同步”提示能否撤下。 */
+export async function isWriteQueued(id: string): Promise<boolean> {
   try {
     const db = await openDb();
-    const all = await new Promise<QueuedWrite[]>((resolve, reject) => {
+    return await new Promise<boolean>((resolve) => {
       const tx = db.transaction(STORE, "readonly");
-      const req = tx.objectStore(STORE).getAll();
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
+      const req = tx.objectStore(STORE).get(id);
+      req.onsuccess = () => resolve(Boolean(req.result));
+      req.onerror = () => resolve(true);
     });
-    all.sort((a, b) => a.createdAt - b.createdAt);
-
-    for (const w of all) {
-      const res = await fetch(w.url, {
-        method: w.method,
-        headers: w.headers ?? { "Content-Type": "application/json" },
-        body: w.body,
-      });
-      // 出队：成功(2xx) / 请求无效(400) / 资源已不存在(404) —— 重放无意义
-      // 保留并停：认证失败(401/403，需重新登录) / 服务器错误(5xx) —— 等下次重试
-      if (res.ok || res.status === 400 || res.status === 404) {
-        await txDone(db, "readwrite", (store) => store.delete(w.id));
-        flushed++;
-      } else {
-        break;
-      }
-    }
   } catch {
-    // 仍不可达，保留队列待下次
+    // 无法读取队列时保持保守态，避免把尚未确认的学习证据误报为已同步。
+    return true;
   }
-  return flushed;
+}
+
+/** 联网后按时间顺序补传。返回成功补传的条数。 */
+export function flushQueue(): Promise<number> {
+  if (activeFlush) return activeFlush;
+  activeFlush = (async () => {
+    let flushed = 0;
+    try {
+      const db = await openDb();
+      const all = await new Promise<QueuedWrite[]>((resolve, reject) => {
+        const tx = db.transaction(STORE, "readonly");
+        const req = tx.objectStore(STORE).getAll();
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+      all.sort((a, b) => a.createdAt - b.createdAt);
+
+      for (const w of all) {
+        const res = await fetch(w.url, {
+          method: w.method,
+          headers: w.headers ?? { "Content-Type": "application/json" },
+          body: w.body,
+        });
+        // 出队：成功(2xx) / 请求无效(400) / 资源已不存在(404) —— 重放无意义
+        // 保留并停：认证失败(401/403，需重新登录) / 服务器错误(5xx) —— 等下次重试
+        if (res.ok || res.status === 400 || res.status === 404) {
+          await txDone(db, "readwrite", (store) => store.delete(w.id));
+          flushed++;
+        } else {
+          break;
+        }
+      }
+    } catch {
+      // 仍不可达，保留队列待下次
+    }
+    return flushed;
+  })().finally(() => {
+    activeFlush = null;
+  });
+  return activeFlush;
 }

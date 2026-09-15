@@ -690,7 +690,7 @@ export function AiWorkspace() {
                   <button
                     key={q}
                     onClick={() => setInput(q)}
-                    className="text-xs text-left px-3 py-2 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+                    className="min-h-11 rounded-lg bg-muted/50 px-3 py-2 text-left text-xs hover:bg-muted transition-colors"
                   >
                     {q}
                   </button>
@@ -813,13 +813,13 @@ export function AiWorkspace() {
                 setShowSkillMenu(value.startsWith('/') && userSkills.length > 0)
               }}
               placeholder={aiConfigured ? "输入指令，AI 帮你执行..." : "配置 AI 后开启对话..."}
-              className="flex-1 px-3 py-2 text-sm rounded-xl border border-border bg-muted/50 focus:outline-none focus:ring-2 focus:ring-brand/20"
+              className="min-h-11 flex-1 rounded-xl border border-border bg-muted/50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
               disabled={loading || !aiConfigured}
             />
             <button
               type="submit"
               disabled={loading || !input.trim() || !aiConfigured}
-              className="shrink-0 px-4 py-2 text-sm font-medium bg-brand text-white rounded-xl hover:bg-brand/90 disabled:opacity-50 transition-colors"
+              className="min-h-11 shrink-0 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand/90 disabled:opacity-50 transition-colors"
             >
               发送
             </button>

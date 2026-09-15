@@ -56,6 +56,48 @@ test.describe('Workspace shell', () => {
     await expect(workspace.getByRole('heading', { name: 'AI 学习伙伴' })).toBeVisible()
   })
 
+  test('手机端外壳把当前场景置于顶部，导航稳定停靠在底部', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/courses')
+
+    await expect(page.locator('header')).toContainText('我的课程')
+    const mobileNav = page.locator('nav[class*="safe-area-bottom"]')
+    await expect(mobileNav).toBeVisible()
+    const box = await mobileNav.boundingBox()
+    expect(box).not.toBeNull()
+    expect(box!.y).toBeGreaterThan(760)
+    expect(box!.y + box!.height).toBeLessThanOrEqual(844)
+  })
+
+  test('手机端首页把下一步学习作为整行主操作', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/dashboard')
+
+    const primaryAction = page.getByRole('link', { name: /开始这一项|安排今天|查看本周计划|查看完成情况/ })
+    await expect(primaryAction).toBeVisible()
+    const box = await primaryAction.boundingBox()
+    expect(box).not.toBeNull()
+    expect(box!.width).toBeGreaterThan(300)
+    expect(box!.height).toBeGreaterThanOrEqual(44)
+  })
+
+  test('手机端抽屉表单在输入时让出键盘空间，确认操作保持可点', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/courses')
+    await page.getByRole('button', { name: /添加.*课程/ }).first().click()
+
+    const titleInput = page.locator('input[name="title"]')
+    await expect(titleInput).toBeVisible()
+    await titleInput.focus()
+    await expect(page.locator('nav[class*="safe-area-bottom"]')).toHaveCount(0)
+
+    const confirm = page.getByRole('button', { name: '创建课程' })
+    const box = await confirm.boundingBox()
+    expect(box).not.toBeNull()
+    expect(box!.width).toBeGreaterThan(300)
+    expect(box!.height).toBeGreaterThanOrEqual(44)
+  })
+
   test('工作台偏好会保留侧栏收起与 AI 宽度状态', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/dashboard')

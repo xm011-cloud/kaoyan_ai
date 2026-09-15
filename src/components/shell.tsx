@@ -42,10 +42,11 @@ export function Shell({
     <AiWorkspaceProvider>
       <div className="h-dvh flex bg-background pt-[env(safe-area-inset-top)]">
         <PomodoroEngine />
-        <OfflineBanner />
         <SwUpdateNotice />
         {!focusMode && <WorkspaceSidebar />}
         <div className="flex min-w-0 flex-1 flex-col">
+          {/* 状态提示、页头、内容和移动端导航必须纵向排列；不能作为工作台横向列。 */}
+          <OfflineBanner />
           {!focusMode && <Header daysLeft={daysLeft} daysLabel={daysLabel} />}
           {/* AI 工作区是同一 flex 布局的一列，展开时主内容真实收缩而非被遮挡。 */}
           <div className="flex min-h-0 flex-1">
@@ -63,13 +64,13 @@ export function Shell({
             </main>
             <AiWorkspace />
           </div>
-        </div>
-        {/* Desktop: ActivityBar only when active. Mobile: handled inside MobileNav */}
-        <div className="hidden lg:block">
-          <ActivityBar />
-        </div>
-        <div className="lg:hidden">
-          <MobileNav />
+          {/* Desktop: activity appears at the bottom of the canvas. Mobile: navigation stays at the bottom. */}
+          <div className="hidden lg:block">
+            <ActivityBar />
+          </div>
+          <div className="lg:hidden">
+            <MobileNav />
+          </div>
         </div>
       </div>
     </AiWorkspaceProvider>

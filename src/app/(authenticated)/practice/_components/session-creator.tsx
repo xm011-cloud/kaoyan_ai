@@ -88,7 +88,7 @@ export function SessionCreator(p: SessionCreatorProps) {
           </div>
 
           <Button onClick={p.onCreate} disabled={p.creating || !p.subject}
-            className="h-11 px-6 rounded-full font-semibold text-sm bg-brand hover:bg-brand/90 text-brand-foreground active:scale-[0.98] transition-all">
+            className="h-11 w-full rounded-full bg-brand px-6 text-sm font-semibold text-brand-foreground transition-all active:scale-[0.98] hover:bg-brand/90 sm:w-auto">
             {p.creating ? "生成中..." : "开始练习"}
           </Button>
         </div>

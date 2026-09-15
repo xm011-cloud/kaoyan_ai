@@ -16,9 +16,33 @@ function normalizeDatabaseUrl(url: string): string {
   );
 }
 
+/**
+ * Neon 的直连端点适合 CLI 建库与迁移；Web 运行时有并发请求时应走 pooler。
+ * 非 Neon 地址保持原样，MemFire 与本地 PostgreSQL 不受影响。
+ */
+function toRuntimeDatabaseUrl(url: string): string {
+  if (!url) return url;
+  try {
+    const parsed = new URL(url);
+    const hostParts = parsed.hostname.split(".");
+    if (
+      parsed.hostname.endsWith(".neon.tech") &&
+      hostParts.length > 0 &&
+      !hostParts[0].endsWith("-pooler")
+    ) {
+      hostParts[0] = `${hostParts[0]}-pooler`;
+      parsed.hostname = hostParts.join(".");
+    }
+    return parsed.toString();
+  } catch {
+    // 无法解析时沿用原串，让 pg 给出明确配置错误。
+    return url;
+  }
+}
+
 function getDatabaseUrl(): string {
   const raw = process.env.MEMFIRE_DATABASE_URL || process.env.DATABASE_URL || "";
-  return normalizeDatabaseUrl(raw);
+  return toRuntimeDatabaseUrl(normalizeDatabaseUrl(raw));
 }
 
 export const envConfig = {

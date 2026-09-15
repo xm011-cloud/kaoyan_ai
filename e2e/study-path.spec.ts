@@ -250,102 +250,59 @@ test.describe("Study Path", () => {
   });
 
   test("stage adjustment creates an impact proposal and preserves the current stage", async ({ page }) => {
-    test.setTimeout(60000);
-    const goalStatus = await page.evaluate(async () => {
-      const response = await fetch("/api/goal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+    // 这条用例会连续读写路线。使用 Playwright APIRequestContext，避免浏览器页面在路由重编译/瞬态 TLS 抖动时取消 fetch。
+    test.setTimeout(120000);
+    const goalResponse = await page.request.post("/api/goal", {
+      data: {
           direction: "计算机类考研",
           university: "测试大学",
           major: "计算机科学与技术",
           examDate: "2027-12-25",
           subjects: ["数学一", "英语一", "408计算机"],
           studyLoad: { weeklyHours: 12 },
-        }),
-      });
-      return response.status;
+      },
     });
-    expect(goalStatus).toBe(200);
-    const profileStatus = await page.evaluate(async () => {
-      const response = await fetch("/api/study-profile", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+    expect(goalResponse.status()).toBe(200);
+    const profileResponse = await page.request.post("/api/study-profile", {
+      data: {
           action: "confirm",
           statement: "我准备计算机考研，目前数据结构还没开始，数学基础较弱，需要先完成全科基础。",
           answers: { foundation_exit: "能独立完成典型题", weekly_capacity: "12" },
-        }),
-      });
-      return response.status;
+      },
     });
-    expect(profileStatus).toBe(200);
+    expect(profileResponse.status()).toBe(200);
     // 每次先启用一条干净的本地路线，避免共享测试账号残留的“已补计算机网络”状态让提案正确地返回 no_change。
-    const freshPath = await page.evaluate(async () => {
-      const generated = await fetch("/api/study-path", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ generationMode: "local" }),
-      });
-      const body = await generated.json();
-      if (!generated.ok) return { status: generated.status, body };
-      const activated = await fetch("/api/study-path", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pathId: body.path.id, action: "activate" }),
-      });
-      return { status: activated.status, body: await activated.json() };
-    });
+    const generated = await page.request.post("/api/study-path", { data: { generationMode: "local" } });
+    const generatedBody = await generated.json();
+    let freshPath = { status: generated.status(), body: generatedBody };
+    if (generated.ok()) {
+      const activated = await page.request.patch("/api/study-path", { data: { pathId: generatedBody.path.id, action: "activate" } });
+      freshPath = { status: activated.status(), body: await activated.json() };
+    }
     expect(freshPath.status, JSON.stringify(freshPath.body)).toBe(200);
-    const before = await page.evaluate(async () => {
-      const res = await fetch("/api/study-path");
-      return res.json();
-    });
+    const beforeResponse = await page.request.get("/api/study-path");
+    expect(beforeResponse.ok()).toBeTruthy();
+    const before = await beforeResponse.json();
     expect(before.path?.status).toBe("active");
     const currentStage = before.stages.find((stage: { status: string }) => stage.status === "active");
     expect(currentStage).toBeTruthy();
     const milestoneToPreserve = before.milestones.find((milestone: { stageId: string | null }) => milestone.stageId === currentStage.id);
     expect(milestoneToPreserve).toBeTruthy();
-    const completed = await page.evaluate(async (milestoneId) => {
-      const res = await fetch("/api/study-path/progress", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ milestoneId, progress: 1, completed: true }),
-      });
-      return res.status;
-    }, milestoneToPreserve.id);
-    expect(completed).toBe(200);
+    const completed = await page.request.patch("/api/study-path/progress", { data: { milestoneId: milestoneToPreserve.id, progress: 1, completed: true } });
+    expect(completed.status()).toBe(200);
 
-    const reviewed = await page.evaluate(async (milestoneId) => {
-      const res = await fetch(`/api/study-path/milestones/${milestoneId}/review`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ outcome: "achieved", note: "E2E 复盘结论应在路线调整后保留" }),
-      });
-      return { status: res.status, body: await res.json() };
-    }, milestoneToPreserve.id);
+    const reviewedResponse = await page.request.post(`/api/study-path/milestones/${milestoneToPreserve.id}/review`, { data: { outcome: "achieved", note: "E2E 复盘结论应在路线调整后保留" } });
+    const reviewed = { status: reviewedResponse.status(), body: await reviewedResponse.json() };
     expect(reviewed.status).toBe(200);
 
-    const weeklyScoped = await page.evaluate(async () => {
-      const res = await fetch("/api/study-path/adjust", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ request: "这周只有 8 小时，周三没空" }),
-      });
-      return { status: res.status, body: await res.json() };
-    });
+    const weeklyResponse = await page.request.post("/api/study-path/adjust", { data: { request: "这周只有 8 小时，周三没空" } });
+    const weeklyScoped = { status: weeklyResponse.status(), body: await weeklyResponse.json() };
     expect(weeklyScoped.status).toBe(409);
     expect(weeklyScoped.body.scope).toBe("weekly");
     expect(weeklyScoped.body.suggestedHref).toBe("/tasks");
 
-    const proposal = await page.evaluate(async () => {
-      const res = await fetch("/api/study-path/adjust", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ request: "计算机网络还没学，数学基础也弱，需要补一遍基础" }),
-      });
-      return { status: res.status, body: await res.json() };
-    });
+    const proposalResponse = await page.request.post("/api/study-path/adjust", { data: { request: "计算机网络还没学，数学基础也弱，需要补一遍基础" } });
+    const proposal = { status: proposalResponse.status(), body: await proposalResponse.json() };
     expect(proposal.status).toBe(200);
     expect(proposal.body.isDraft).toBe(true);
     expect(proposal.body.activePathId).toBe(before.activePathId);
@@ -359,25 +316,13 @@ test.describe("Study Path", () => {
     expect(proposal.body.milestones.find((milestone: { title: string }) => milestone.title === milestoneToPreserve.title).completedAt).toBeTruthy();
     expect(proposal.body.milestones.find((milestone: { title: string }) => milestone.title === milestoneToPreserve.title).reviewOutcome).toBe("achieved");
 
-    const blocked = await page.evaluate(async (pathId) => {
-      const res = await fetch("/api/study-path", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pathId, action: "activate" }),
-      });
-      return { status: res.status, body: await res.json() };
-    }, proposal.body.path.id);
+    const blockedResponse = await page.request.patch("/api/study-path", { data: { pathId: proposal.body.path.id, action: "activate" } });
+    const blocked = { status: blockedResponse.status(), body: await blockedResponse.json() };
     expect(blocked.status).toBe(409);
     expect(blocked.body.requiresConfirmation).toBe(true);
 
-    const activated = await page.evaluate(async (pathId) => {
-      const res = await fetch("/api/study-path", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pathId, action: "activate", confirmImpact: true }),
-      });
-      return { status: res.status, body: await res.json() };
-    }, proposal.body.path.id);
+    const activatedResponse = await page.request.patch("/api/study-path", { data: { pathId: proposal.body.path.id, action: "activate", confirmImpact: true } });
+    const activated = { status: activatedResponse.status(), body: await activatedResponse.json() };
     expect(activated.status).toBe(200);
     expect(activated.body.isDraft).toBe(false);
     expect(activated.body.stages.find((stage: { status: string }) => stage.status === "active").key).toBe(currentStage.key);

@@ -1,11 +1,10 @@
 // Basic Service Worker for offline support + notification click handling
-// v8：不再由 Service Worker 缓存用户私有 API 响应，避免账号切换或网络波动导致旧数据回流。
-const CACHE_NAME = 'c6-study-v8';
+// v9：只缓存公开导航和静态资源；登录后的页面与私有 API 都不能跨账号回放。
+const CACHE_NAME = 'c6-study-v9';
 
 // Assets to cache on install
 const PRECACHE_ASSETS = [
   '/',
-  '/dashboard',
   '/login',
   '/favicon.ico',
   '/offline.html',
@@ -16,6 +15,8 @@ const PRECACHE_ASSETS = [
   '/icons/icon-maskable-512.png',
   '/icons/apple-touch-icon.png',
 ];
+
+const PUBLIC_NAVIGATION_PATHS = new Set(['/', '/login', '/offline.html']);
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -50,8 +51,8 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Network-first strategy for navigation, cache-first for static assets.
-// /api/* → 网络直连。私有学习数据由 API 的 no-store 约束；离线只由明确可重放的写入队列处理。
+// 公开导航采用网络优先；认证后的页面和 /api/* 均网络直连。
+// 离线时，已打开的学习现场由内存、本地草稿与写入队列维持；重新打开应用只显示无个人数据的离线页。
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
@@ -61,19 +62,22 @@ self.addEventListener('fetch', (event) => {
   // 用户私有 API（读取和写入）均不落入 Cache Storage。
   if (url.pathname.startsWith('/api/')) return;
 
-  // Navigation requests - network first, fallback to cache, then offline.html
+  // Navigation requests - never cache authenticated pages or use them as offline fallbacks.
   if (event.request.mode === 'navigate') {
+    const isPublicNavigation = PUBLIC_NAVIGATION_PATHS.has(url.pathname);
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          const cloned = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cloned));
+          if (isPublicNavigation && response.ok) {
+            const cloned = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cloned));
+          }
           return response;
         })
         .catch(() =>
-          caches.match(event.request).then(
-            (cached) => cached || caches.match('/offline.html')
-          )
+          isPublicNavigation
+            ? caches.match(event.request).then((cached) => cached || caches.match('/offline.html'))
+            : caches.match('/offline.html')
         )
     );
     return;
@@ -85,7 +89,7 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// 登出时清空 API 缓存，避免下一位登录者读到上一位用户的数据
+// 登出时清掉任何可能被旧版本写入的私有导航或 API 缓存，避免下一位登录者读到上一位用户的数据。
 self.addEventListener('message', (event) => {
   if (!event.data || event.data.type !== 'clear-api-cache') return;
   event.waitUntil(
@@ -93,7 +97,10 @@ self.addEventListener('message', (event) => {
       cache.keys().then((keys) =>
         Promise.all(
           keys
-            .filter((req) => new URL(req.url).pathname.startsWith('/api/'))
+            .filter((req) => {
+              const path = new URL(req.url).pathname;
+              return path.startsWith('/api/') || !PUBLIC_NAVIGATION_PATHS.has(path);
+            })
             .map((req) => cache.delete(req))
         )
       )

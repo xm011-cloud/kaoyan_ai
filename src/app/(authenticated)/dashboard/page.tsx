@@ -16,6 +16,38 @@ import { getMilestoneEvidence } from "@/lib/milestone-evidence"
 // 每次请求服务端渲染，避免客户端软导航时命中 RSC 缓存显示旧任务状态（勾选后 dashboard 需实时同步）
 export const dynamic = "force-dynamic"
 
+const DASHBOARD_QUERY_TIMEOUT_MS = 5_000
+let lastDashboardTimeoutLogAt = 0
+
+/**
+ * 概览页的统计和推荐都属于可恢复信息：数据库偶发冷启动时，不能因为一项辅助查询
+ * 让整个学习工作台掉进错误页。核心认证失败仍由上层正常处理。
+ */
+async function recoverDashboardQuery<T>(label: string, query: Promise<T>, fallback: T): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      query,
+      new Promise<T>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(`查询超过 ${DASHBOARD_QUERY_TIMEOUT_MS / 1000} 秒`)), DASHBOARD_QUERY_TIMEOUT_MS)
+      }),
+    ])
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("查询超过")) {
+      // 同一请求会并行降级多项统计；只记录一次，避免网络波动淹没服务端日志。
+      if (Date.now() - lastDashboardTimeoutLogAt > 60_000) {
+        lastDashboardTimeoutLogAt = Date.now()
+        console.warn("[dashboard] 数据库响应较慢，概览页已降级展示可操作内容")
+      }
+      return fallback
+    }
+    console.error(`[dashboard] ${label} 加载失败，已降级为空数据`, error)
+    return fallback
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId)
+  }
+}
+
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -60,7 +92,7 @@ export default async function DashboardPage({
     recentWrongQuestions,
   ] = await Promise.all([
     // 今日任务
-    prisma.task.findMany({
+    recoverDashboardQuery("今日任务", prisma.task.findMany({
       where: { userId, date: { gte: today, lte: todayEnd } },
       orderBy: { createdAt: "asc" },
       include: {
@@ -68,25 +100,25 @@ export default async function DashboardPage({
           select: { id: true, title: true, subject: true, createdAt: true, progress: true, completedAt: true },
         },
       },
-    }),
+    }), []),
     // 全部任务计数
-    prisma.task.aggregate({
+    recoverDashboardQuery("任务统计", prisma.task.aggregate({
       where: { userId },
       _count: { id: true },
-    }),
+    }), { _count: { id: 0 } }),
     // 目标
-    prisma.goal.findUnique({ where: { userId } }),
+    recoverDashboardQuery("考研目标", prisma.goal.findUnique({ where: { userId } }), null),
     // 正式长期路线的当前阶段（存在时优先于算法建议）
-    prisma.studyPathStage.findFirst({
+    recoverDashboardQuery("当前阶段", prisma.studyPathStage.findFirst({
       where: { studyPath: { userId, status: "active" }, status: "active" },
       orderBy: { order: "asc" },
-    }),
-    prisma.studyPathMilestone.findFirst({
+    }), null),
+    recoverDashboardQuery("当前里程碑", prisma.studyPathMilestone.findFirst({
       where: { studyPath: { userId, status: "active" }, stage: { status: "active" }, completedAt: null },
       orderBy: { order: "asc" },
-    }),
+    }), null),
     // 当前自然周的周计划版本：草稿优先展示，提醒用户确认；否则展示活动版本。
-    prisma.weeklyPlan.findMany({
+    recoverDashboardQuery("本周计划", prisma.weeklyPlan.findMany({
       where: {
         userId,
         weekStart: new Date(planningWeekStartStr),
@@ -94,33 +126,33 @@ export default async function DashboardPage({
       },
       orderBy: { version: "desc" },
       select: { id: true, status: true, objective: true, plannedMinutes: true, weekStart: true },
-    }),
+    }), []),
     // 最近打卡（5 条用于显示）
-    prisma.checkIn.findMany({
+    recoverDashboardQuery("最近打卡", prisma.checkIn.findMany({
       where: { userId },
       orderBy: { date: "desc" },
       take: 5,
-    }),
+    }), []),
     // 90 天打卡数据
-    prisma.checkIn.findMany({
+    recoverDashboardQuery("打卡趋势", prisma.checkIn.findMany({
       where: { userId, date: { gte: chartStart } },
       orderBy: { date: "asc" },
       select: { id: true, date: true, duration: true, status: true, note: true },
-    }),
+    }), []),
     // 90 天任务数据
-    prisma.task.findMany({
+    recoverDashboardQuery("任务趋势", prisma.task.findMany({
       where: { userId, date: { gte: chartStart } },
       select: { id: true, title: true, phase: true, completed: true, duration: true },
-    }),
+    }), []),
     // 最近上传资料
-    prisma.material.findMany({
+    recoverDashboardQuery("最近资料", prisma.material.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
       take: 5,
       select: { id: true, name: true, type: true, createdAt: true },
-    }),
+    }), []),
     // 到期需复习的错题
-    prisma.wrongQuestion.findMany({
+    recoverDashboardQuery("到期错题", prisma.wrongQuestion.findMany({
       where: {
         userId,
         reviewed: false,
@@ -129,9 +161,9 @@ export default async function DashboardPage({
       orderBy: { nextReviewDate: "asc" },
       take: 10,
       select: { id: true, question: true, subject: true, interval: true, nextReviewDate: true },
-    }),
+    }), []),
     // 课程工作台只取少量“下一节可行动”的课时，避免首页变成整套课程目录。
-    prisma.courseLesson.findMany({
+    recoverDashboardQuery("继续学习课时", prisma.courseLesson.findMany({
       where: {
         status: { in: ['in_progress', 'not_started'] },
         unit: { course: { userId } },
@@ -150,14 +182,14 @@ export default async function DashboardPage({
         },
         _count: { select: { notes: true } },
       },
-    }),
+    }), []),
     // 最近错题
-    prisma.wrongQuestion.findMany({
+    recoverDashboardQuery("最近错题", prisma.wrongQuestion.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
       take: 5,
       select: { id: true, question: true, subject: true, interval: true, nextReviewDate: true },
-    }),
+    }), []),
   ])
 
   // ── 派生统计数据 ──
@@ -251,7 +283,9 @@ export default async function DashboardPage({
   const nextTodayTask = todayTasks.find((task) => !task.completed) ?? null
   // 有今日任务时只展示它的真实归属；未归属任务不能用路线默认里程碑冒充。
   const focusMilestone = nextTodayTask ? nextTodayTask.milestone : currentMilestone
-  const currentMilestoneEvidence = focusMilestone ? await getMilestoneEvidence(userId, focusMilestone) : null
+  const currentMilestoneEvidence = focusMilestone
+    ? await recoverDashboardQuery("里程碑证据", getMilestoneEvidence(userId, focusMilestone), null)
+    : null
 
   // ── 重入判断：今日未打卡 + 距上次打卡 > 3 天 → 显示温柔重入卡 ──
   const checkedInToday = Boolean(todayCheckin)

@@ -47,6 +47,10 @@ export function Header({ daysLeft, daysLabel }: { daysLeft: number; daysLabel?: 
 
   // slide-over 菜单：所有可见分组（含设置组）
   const menuGroups = visibleGroups
+  const mobileTitle = visibleGroups
+    .flatMap((group) => group.items)
+    .find((item) => pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(`${item.href}/`)))
+    ?.label ?? '学习'
 
   return (
     <>
@@ -55,11 +59,14 @@ export function Header({ daysLeft, daysLabel }: { daysLeft: number; daysLabel?: 
         {/* Logo + menu */}
         <button
           onClick={() => setMenuOpen(!menuOpen)}
-          className="flex items-center gap-1 shrink-0 px-2 py-1 rounded-md hover:bg-muted transition-colors lg:hidden"
+          className="-ml-1 flex h-11 w-11 shrink-0 items-center justify-center gap-1 rounded-md hover:bg-muted transition-colors lg:hidden"
+          aria-label="打开导航"
+          aria-expanded={menuOpen}
         >
           <Menu className="h-4 w-4" aria-hidden />
-          <span className="text-sm font-semibold sm:inline">C6</span>
+          <span className="text-sm font-semibold">C6</span>
         </button>
+        <span className="min-w-0 truncate text-sm font-medium lg:hidden">{mobileTitle}</span>
 
         {/* Desktop tabs */}
         <nav className="hidden items-center h-full ml-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -127,7 +134,7 @@ export function Header({ daysLeft, daysLabel }: { daysLeft: number; daysLabel?: 
         </button>
 
         {/* Settings */}
-        <Link href="/settings" className={cn('p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0', pathname.startsWith('/settings') && 'text-brand bg-brand-muted')}>
+        <Link href="/settings" aria-label="设置" className={cn('flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0', pathname.startsWith('/settings') && 'text-brand bg-brand-muted')}>
           <Settings2 className="h-4 w-4" aria-hidden />
         </Link>
       </header>

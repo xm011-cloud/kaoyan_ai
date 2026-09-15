@@ -103,6 +103,19 @@ export function needsConfirmation(p: SubjectProgress): boolean {
   return stageIndex(getEffectiveStage(p)) >= stageIndex("learning");
 }
 
+/**
+ * 对话校准不是永久结论。超过四周没有再次确认时，计划应重新安排一次巩固/验证，
+ * 但绝不静默降低用户档位或宣称其已经遗忘。
+ */
+export const RECALIBRATION_AFTER_DAYS = 28;
+
+export function needsRecalibration(p: SubjectProgress, now = new Date()): boolean {
+  if (!isStageConfirmed(p) || !p.lastProbeAt) return false;
+  const lastProbeAt = new Date(p.lastProbeAt);
+  if (Number.isNaN(lastProbeAt.getTime())) return false;
+  return now.getTime() - lastProbeAt.getTime() >= RECALIBRATION_AFTER_DAYS * 86_400_000;
+}
+
 // ── 科目感知完成标准（SUBJECT_COMPLETION_GUIDE）──
 
 export interface CompletionGuideEntry {

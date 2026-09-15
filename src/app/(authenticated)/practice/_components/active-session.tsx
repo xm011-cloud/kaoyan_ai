@@ -44,14 +44,14 @@ export function ActiveSession({
       {/* Header */}
       <div className="shrink-0 border-b px-4 py-3">
         <div className="max-w-2xl mx-auto">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2">
               <span className="text-sm font-medium">
                 {session.type === "daily" ? "📝 每日一练" : "⏱️ 模拟考试"}
               </span>
-              <span className="text-xs text-gray-400">· {session.subject}</span>
+              <span className="truncate text-xs text-gray-400">· {session.subject}</span>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               {timeLeft !== null ? (
                 <span className={`text-sm font-mono font-bold ${timeLeft < 300 ? "text-red-500" : ""}`}>
                   ⏱️ {formatTime(timeLeft)}
@@ -62,6 +62,9 @@ export function ActiveSession({
               <span className="text-xs text-gray-500">
                 第 {currentIndex + 1}/{questions.length} 题
               </span>
+              <Button variant="ghost" size="sm" className="min-h-9 px-2 text-xs" onClick={onBack}>
+                暂存退出
+              </Button>
             </div>
           </div>
           <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
@@ -94,9 +97,9 @@ export function ActiveSession({
                 <ChatMarkdown content={q?.question || ""} />
               </div>
 
-              <div className="mt-5 flex items-center justify-between gap-3 border-t border-border/60 pt-4">
+              <div className="mt-5 flex flex-col items-stretch gap-3 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-xs text-muted-foreground">先自己作答；卡住时让 AI 给思路，不直接公布答案。</p>
-                <Button size="sm" variant="outline" onClick={() => aiWorkspace.requestHelp("我正在做当前这道题。请先给我一个不泄露答案的提示：指出应从哪个知识点或哪一步开始，并等我继续作答。")}>请求提示 →</Button>
+                <Button size="sm" variant="outline" className="min-h-11 shrink-0" onClick={() => aiWorkspace.requestHelp("我正在做当前这道题。请先给我一个不泄露答案的提示：指出应从哪个知识点或哪一步开始，并等我继续作答。")}>请求提示 →</Button>
               </div>
 
               {q?.type === "choice" && q.options && (
@@ -140,17 +143,17 @@ export function ActiveSession({
       {/* Navigation */}
       <div className="shrink-0 border-t border-border/50 px-4 py-3 bg-card">
         <div className="max-w-2xl mx-auto flex items-center justify-between gap-3">
-          <Button variant="outline" onClick={onPrev} disabled={currentIndex === 0}>
+          <Button variant="outline" className="min-h-11" onClick={onPrev} disabled={currentIndex === 0}>
             ← 上一题
           </Button>
 
           {currentIndex < questions.length - 1 ? (
-            <Button onClick={onNext}>下一题 →</Button>
+            <Button className="min-h-11" onClick={onNext}>下一题 →</Button>
           ) : (
             <Button
               onClick={onSubmit}
               disabled={submitting}
-              className="bg-green-600 hover:bg-green-700"
+              className="min-h-11 bg-green-600 hover:bg-green-700"
             >
               {submitting ? "提交中..." : "提交答卷 ✅"}
             </Button>

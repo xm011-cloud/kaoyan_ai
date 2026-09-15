@@ -3,6 +3,11 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { flushQueue } from "@/lib/offline-queue";
 
+async function flushAndNotify() {
+  const flushed = await flushQueue();
+  window.dispatchEvent(new CustomEvent("c6:offline-queue-flushed", { detail: { flushed } }));
+}
+
 // 订阅 navigator.onLine（React 推荐的 useSyncExternalStore 方式）。
 // getServerSnapshot 固定返回 true：SSR 与首屏水合都当作在线（不渲染离线横幅），
 // 避免服务端（Node 自带全局 navigator）与浏览器读到的 onLine 不一致导致 hydration mismatch。
@@ -32,9 +37,9 @@ export function useOfflineSync(): boolean {
   const online = useOnlineStatus();
   useEffect(() => {
     if (!online) return;
-    void flushQueue();
+    void flushAndNotify();
     const timer = setInterval(() => {
-      void flushQueue();
+      void flushAndNotify();
     }, 30_000);
     return () => clearInterval(timer);
   }, [online]);

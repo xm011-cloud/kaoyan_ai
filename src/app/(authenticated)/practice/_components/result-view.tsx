@@ -95,7 +95,7 @@ export function ResultView({
                     {!isCorrect && (
                       <button
                         onClick={() => onAddToWrongBook(q)}
-                        className="text-xs text-destructive hover:text-destructive/80 transition-colors"
+                        className="min-h-9 text-xs text-destructive transition-colors hover:text-destructive/80"
                         disabled={addingWrongId === q.id || addedWrongIds.has(q.id)}
                       >
                         {addedWrongIds.has(q.id) ? "✅ 已收录" : addingWrongId === q.id ? "收录中..." : "🔴 收录错题"}
@@ -159,9 +159,9 @@ export function ResultView({
         </div>
 
         {/* Actions */}
-        <div className="flex gap-3">
-          <Button variant="outline" onClick={onBack}>返回列表</Button>
-          <Button onClick={onRetry}>再来一组</Button>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <Button variant="outline" className="min-h-11 w-full sm:w-auto" onClick={onBack}>返回列表</Button>
+          <Button className="min-h-11 w-full sm:w-auto" onClick={onRetry}>再来一组</Button>
         </div>
 
         {/* 模块联动 */}

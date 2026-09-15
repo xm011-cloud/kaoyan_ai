@@ -5,6 +5,7 @@ import { getUserAiConfig, callAI, truncateReasoning } from "@/lib/ai-config";
 import type { AiToolCall } from "@/lib/ai-config";
 import { prisma } from "@/lib/prisma";
 import { searchMaterials, buildRagContext, findRelevantSegments } from "@/lib/rag";
+import { isMaterialSearchable } from "@/lib/material-readiness";
 import { getToolDefinitions, getSkillRunTools, executeTool, isSkillFinishCall } from "@/lib/ai-tools";
 import { buildChatSystemPrompt } from "@/lib/ai-prompts";
 import { formatStudyProfileFactsForPrompt, getPlanningReadiness } from "@/lib/study-profile";
@@ -361,10 +362,13 @@ export async function POST(request: NextRequest) {
     let ragContext = buildRagContext(searchResults);
     if (!ragContext && materialIds?.length > 0 && userMaterials.length > 0) {
       ragContext = userMaterials
-        .filter(m => m.content && m.content.length > 10)
+        .filter(m => isMaterialSearchable(m.content))
         .map((m, i) => `[资料${i + 1}: ${m.name}]\n${m.content!.slice(0, 4000)}`)
         .join("\n\n---\n\n");
     }
+    const unavailableSelectedMaterials = materialIds?.length
+      ? userMaterials.filter((material) => !isMaterialSearchable(material.content)).map((material) => material.name)
+      : [];
 
     const selectedLabel = materialIds?.length > 0 ? `（用户指定了 ${materialIds.length} 份资料）` : "";
 
@@ -377,6 +381,9 @@ export async function POST(request: NextRequest) {
       drivingMode: aiConfig.drivingMode,
       floating: !!floating,
     });
+    if (unavailableSelectedMaterials.length > 0) {
+      systemContent += `\n\n## 资料可用性\n以下用户指定资料当前没有可检索文本：${unavailableSelectedMaterials.join("、")}。不能将其作为回答依据；先明确说明这一限制，并建议用户上传可提取的文本或补充可复制内容。`;
+    }
 
     let pageContextPrompt = "";
     switch (pageContext?.kind) {
@@ -586,7 +593,7 @@ export async function POST(request: NextRequest) {
         ? { id: activeSkill.id, name: activeSkill.name, icon: activeSkill.icon, completed: skillComplete }
         : undefined,
       sources: (searchResults.length > 0 ? searchResults
-        : materialIds?.length > 0 ? userMaterials.filter(m => m.content && m.content.length > 10).map(m => ({ id: m.id, name: m.name, content: m.content ?? "", score: 1 }))
+        : materialIds?.length > 0 ? userMaterials.filter(m => isMaterialSearchable(m.content)).map(m => ({ id: m.id, name: m.name, content: m.content ?? "", score: 1 }))
         : [] as { id: string; name: string; content: string; score: number }[]
       ).map(r => ({
         id: r.id, name: r.name,

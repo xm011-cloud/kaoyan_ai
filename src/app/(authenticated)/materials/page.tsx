@@ -7,6 +7,7 @@ import { Modal } from '@/components/ui/modal'
 import { confirmDialog } from '@/stores/confirm-store'
 import { cn } from '@/lib/utils'
 import { useStudyContext } from '@/components/study-context'
+import { getMaterialReadiness } from '@/lib/material-readiness'
 
 interface Material {
   id: string
@@ -15,6 +16,7 @@ interface Material {
   size: number
   url: string
   content?: string | null
+  aiReady?: boolean
   createdAt: string
 }
 
@@ -79,7 +81,7 @@ export default function MaterialsPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || '上传失败')
 
-      setMaterials(prev => [data.material, ...prev])
+      setMaterials(prev => [{ ...data.material, aiReady: data.aiReady }, ...prev])
     } catch (err: unknown) {
       setUploadError(err instanceof Error ? err.message : '上传失败')
     } finally {
@@ -146,12 +148,14 @@ export default function MaterialsPage() {
     return '📁'
   }
 
+  const aiReadiness = (material: Material) => material.aiReady ?? getMaterialReadiness(material.content) === 'ready'
+
   return (
     <div className="workspace-page">
       <div className="mx-auto max-w-4xl space-y-7">
         <PageHeader
           title="学习资料"
-          subtitle="上传资料后可以在线查看，也可以让 AI 基于资料回答"
+          subtitle="上传资料后可以在线查看；只有可提取的文字资料才会成为 AI 回答依据。"
           action={
             // 文件框直接铺满按钮（absolute + opacity-0）——点击落点在 <input type=file> 本体，
             // 走原生用户手势打开选择器，不依赖程序化 .click() 或 label→input 转发，
@@ -199,7 +203,9 @@ export default function MaterialsPage() {
                   <p className="font-medium truncate">{material.name}</p>
                   <p className="text-sm text-muted-foreground">
                     {formatSize(material.size)} · {formatDate(material.createdAt)}
-                    {material.content && <span className="ml-2 text-success">· 可查看</span>}
+                    {aiReadiness(material)
+                      ? <span className="ml-2 text-success">· AI 可检索</span>
+                      : <span className="ml-2 text-warning">· AI 暂不可检索</span>}
                   </p>
                 </div>
                 <Button
@@ -254,7 +260,7 @@ export default function MaterialsPage() {
         >
               {viewLoading ? (
                 <div className="text-center py-12 text-muted-foreground">加载中...</div>
-              ) : viewing.content ? (
+              ) : viewing.content && aiReadiness(viewing) ? (
                 <div className="bg-muted/50 rounded-xl p-4">
                   <pre className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap font-sans break-words">
                     {viewing.content}
@@ -263,11 +269,12 @@ export default function MaterialsPage() {
               ) : (
                 <div className="text-center py-12 text-muted-foreground">
                   <div className="text-4xl mb-3">{typeIcon(viewing.type)}</div>
-                  <p>暂不支持预览此文件类型</p>
+                  <p>当前无法提取可检索文字</p>
                   <p className="text-sm mt-1">
-                    {viewing.type === 'pdf' && 'PDF 文件需要安装解析库才能提取文本'}
-                    {viewing.type?.startsWith('word') && 'Word 文件需要文档解析器才能提取文本'}
-                    {viewing.type?.startsWith('image') && '图片文件无法直接提取文本'}
+                    {viewing.type === 'pdf' && '可能是扫描件或图片型 PDF；请上传可复制文字版，或补充文本摘录。'}
+                    {viewing.type?.startsWith('word') && '请导出为可复制的 .txt 文本后上传。'}
+                    {viewing.type?.startsWith('image') && '图片暂不能提取文字；请补充文本内容。'}
+                    {viewing.type === 'other' && '当前格式暂不能提取文字；请补充文本内容。'}
                   </p>
                 </div>
               )}

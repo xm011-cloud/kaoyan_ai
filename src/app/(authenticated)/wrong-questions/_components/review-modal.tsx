@@ -63,20 +63,20 @@ export function ReviewModal({ question, unreviewedList, onClose, onReviewed }: R
         showAnswer ? (
           <div className="w-full">
             <p className="text-xs text-muted-foreground mb-2 text-center">你对这道题的掌握程度？</p>
-            <div className="flex gap-1.5">
+            <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-6">
               {RATINGS.map((r) => (
                 <button
                   key={r.value}
                   onClick={() => handleRate(r.value)}
-                  className={`flex-1 text-white text-xs font-medium py-2 rounded-lg transition-colors ${r.color}`}
+                  className={`min-h-11 rounded-lg px-1 py-2 text-xs font-medium text-white transition-colors ${r.color}`}
                 >
                   {r.label}
                 </button>
               ))}
             </div>
-            <div className="flex gap-2 mt-2 justify-between">
-              <Button variant="outline" size="sm" onClick={handleSkip}>再看看</Button>
-              <span className="text-xs text-muted-foreground self-center">0=完全忘了 · 3=还可以 · 5=很熟练</span>
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <Button className="min-h-11 w-full sm:w-auto" variant="outline" size="sm" onClick={handleSkip}>再看看</Button>
+              <span className="text-center text-xs text-muted-foreground">0=完全忘了 · 3=还可以 · 5=很熟练</span>
             </div>
           </div>
         ) : undefined
@@ -91,7 +91,7 @@ export function ReviewModal({ question, unreviewedList, onClose, onReviewed }: R
           </div>
 
           {!showAnswer ? (
-            <Button variant="outline" className="w-full" onClick={() => setShowAnswer(true)}>
+            <Button variant="outline" className="min-h-11 w-full" onClick={() => setShowAnswer(true)}>
               👆 点击查看答案
             </Button>
           ) : (

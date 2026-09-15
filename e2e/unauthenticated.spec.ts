@@ -116,6 +116,8 @@ test("service worker is served", async ({ request }) => {
   const body = await response.text();
   expect(body).toContain("install");
   expect(body).toContain("activate");
+  expect(body).toContain("PUBLIC_NAVIGATION_PATHS");
+  expect(body).not.toContain("'/dashboard',");
 });
 
 test("offline page is served", async ({ request }) => {

@@ -2,6 +2,7 @@
  * RAG utilities — text extraction, embedding, similarity search
  */
 import { inflateSync } from "zlib";
+import { isMaterialSearchable } from "@/lib/material-readiness";
 
 // Minimal PDF text extraction using only Node.js built-ins (no pdf2json dependency)
 function extractPdfTextFromBuffer(buffer: Buffer): string {
@@ -173,7 +174,7 @@ export async function searchMaterials(
     // Semantic search via embeddings (in-memory fallback)
     const scored = await Promise.all(
       materials
-        .filter((m) => m.content && m.content.length > 10)
+        .filter((m) => isMaterialSearchable(m.content))
         .map(async (m) => {
           const emb = await getEmbedding(m.content!);
           const score = emb ? cosineSimilarity(queryEmbedding, emb) : 0;
@@ -203,7 +204,7 @@ export async function searchMaterials(
   ].filter((w) => w.length > 1);
 
   return materials
-    .filter((m) => m.content && m.content.length > 10)
+    .filter((m) => isMaterialSearchable(m.content))
     .map((m) => {
       const contentLower = m.content!.toLowerCase();
       const matches = allWords.filter((w) => contentLower.includes(w));

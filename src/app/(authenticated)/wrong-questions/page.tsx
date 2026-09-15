@@ -220,10 +220,10 @@ export default function WrongQuestionsPage() {
               : "收集错题，定期复习，巩固薄弱知识点"
           }
           action={
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setShowBatch(true)}>📥 批量导入</Button>
-              <Button variant="outline" onClick={handleExportPDF}>🖨️ 导出</Button>
-              <Button onClick={() => setShowAdd(true)}>添加错题</Button>
+            <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:flex-nowrap">
+              <Button className="min-h-11 flex-1 sm:flex-none" variant="outline" onClick={() => setShowBatch(true)}>📥 批量导入</Button>
+              <Button className="min-h-11 flex-1 sm:flex-none" variant="outline" onClick={handleExportPDF}>🖨️ 导出</Button>
+              <Button className="min-h-11 w-full sm:w-auto" onClick={() => setShowAdd(true)}>添加错题</Button>
             </div>
           }
         />
@@ -246,7 +246,7 @@ export default function WrongQuestionsPage() {
             <button
               key={k}
               onClick={() => { setTab(k as typeof tab); syncUrl({ tab: k === "all" ? "" : k }); }}
-              className={`px-3 py-1.5 text-sm rounded-xl transition-all ${
+              className={`min-h-11 shrink-0 rounded-xl px-3 py-1.5 text-sm transition-all ${
                 tab === k ? "bg-card shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -263,11 +263,11 @@ export default function WrongQuestionsPage() {
 
         {/* 错题筛选（真题 Tab 不显示） */}
         {tab !== "exam" && (
-          <div className="flex flex-wrap gap-3 items-center">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <select
             value={subjectFilter}
             onChange={(e) => { setSubjectFilter(e.target.value); syncUrl({ subject: e.target.value }); }}
-            className="text-sm h-10 rounded-xl border border-border/50 bg-muted/50 px-3"
+            className="h-11 w-full rounded-xl border border-border/50 bg-muted/50 px-3 text-sm sm:w-auto"
           >
             <option value="">全部科目</option>
             {subjects.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -277,7 +277,7 @@ export default function WrongQuestionsPage() {
             placeholder="搜索错题..."
             value={searchTerm}
             onChange={(e) => { setSearchTerm(e.target.value); syncUrl({ q: e.target.value }); }}
-            className="text-sm h-10 rounded-xl border border-border/50 bg-muted/50 px-3 flex-1 min-w-[120px] focus:outline-none focus:ring-2 focus:ring-brand/20"
+            className="h-11 min-w-[120px] w-full flex-1 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
           />
         </div>
         )}
@@ -338,7 +338,7 @@ export default function WrongQuestionsPage() {
                   <div className="flex flex-col gap-1 shrink-0">
                     <button
                       onClick={(e) => { e.stopPropagation(); setReviewing(q); }}
-                      className="text-xs text-brand hover:text-brand/80 px-2 py-1" title="复习" aria-label="复习"
+                      className="flex h-11 w-11 items-center justify-center rounded-lg text-brand hover:bg-brand/10 hover:text-brand/80" title="复习" aria-label="复习"
                     >📖</button>
                   </div>
                 </div>

@@ -69,12 +69,12 @@ export function MobileNav() {
               <div className="flex items-center gap-1 shrink-0">
                 {pomodoro.isPaused ? (
                   <button onClick={storeResume}
-                    className="w-8 h-8 rounded-full bg-success/20 text-success flex items-center justify-center active:scale-[0.92] transition-all">
+                    className="h-10 w-10 rounded-full bg-success/20 text-success flex items-center justify-center active:scale-[0.92] transition-all">
                     ▶
                   </button>
                 ) : (
                   <button onClick={storePause}
-                    className="w-8 h-8 rounded-full bg-warning/20 text-warning flex items-center justify-center active:scale-[0.92] transition-all">
+                    className="h-10 w-10 rounded-full bg-warning/20 text-warning flex items-center justify-center active:scale-[0.92] transition-all">
                     ⏸
                   </button>
                 )}
@@ -94,7 +94,7 @@ export function MobileNav() {
                   }
                   storeReset()
                 }}
-                  className="w-8 h-8 rounded-full bg-muted-foreground/10 text-muted-foreground flex items-center justify-center active:scale-[0.92] transition-all">
+                  className="h-10 w-10 rounded-full bg-muted-foreground/10 text-muted-foreground flex items-center justify-center active:scale-[0.92] transition-all">
                   ⏹
                 </button>
               </div>

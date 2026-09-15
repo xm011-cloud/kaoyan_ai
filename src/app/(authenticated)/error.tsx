@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
 
 export default function AuthenticatedError({
   error,
@@ -14,20 +15,23 @@ export default function AuthenticatedError({
   }, [error]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center">
-      <div className="text-5xl mb-4">😵</div>
-      <h2 className="text-xl font-bold text-foreground mb-2">
-        页面出了点问题
-      </h2>
-      <p className="text-sm text-muted-foreground mb-6 max-w-md">
-        {error.message || "加载页面时发生错误，请稍后再试"}
+    <div className="mx-auto flex min-h-[60vh] max-w-sm flex-col items-center justify-center px-6 py-10 text-center">
+      <div className="grid h-14 w-14 place-items-center rounded-2xl bg-brand-muted text-2xl text-brand">↻</div>
+      <p className="mt-5 text-sm font-medium text-foreground">这页暂时没有加载出来</p>
+      <p className="mt-2 text-sm leading-6 text-muted-foreground">
+        通常是网络短暂波动。你的本地草稿和待同步学习记录不会丢失。
       </p>
-      <button
-        onClick={reset}
-        className="px-6 py-2 bg-brand text-white rounded-xl hover:bg-brand/90 transition-colors text-sm font-medium"
-      >
-        重试
-      </button>
+      <div className="mt-6 flex w-full gap-3">
+        <Link href="/dashboard" className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl border border-border bg-card px-4 text-sm font-medium text-muted-foreground">
+          回到概览
+        </Link>
+        <button
+          onClick={reset}
+          className="min-h-11 flex-1 rounded-xl bg-brand px-4 text-sm font-medium text-white transition-colors hover:bg-brand/90"
+        >
+          重新加载
+        </button>
+      </div>
     </div>
   );
 }

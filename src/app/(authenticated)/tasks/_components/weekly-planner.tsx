@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { AiWaiting } from "@/components/ai-waiting";
 import { toLocalDateString } from "@/lib/date-utils";
+import { clearWeeklyAdjustment, loadWeeklyAdjustment, saveWeeklyAdjustment } from "@/lib/study-drafts";
 import type { AiWaitPhase } from "@/hooks/use-ai-task";
 
 interface WeekTask {
@@ -135,7 +136,13 @@ export function WeeklyPlanner({
 }: WeeklyPlannerProps) {
   const [showJudge, setShowJudge] = useState(false);
   // 调整建议只在打开周计划时作为输入预填；后续输入应由用户自己掌控。
-  const [adjustment, setAdjustment] = useState(initialAdjustment);
+  const weekKey = toLocalDateString(weekStart);
+  const [adjustment, setAdjustment] = useState(() => initialAdjustment || loadWeeklyAdjustment(weekKey));
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 切换周次时读取对应周的独立草稿
+    setAdjustment(initialAdjustment || loadWeeklyAdjustment(weekKey));
+  }, [initialAdjustment, weekKey]);
 
   useEffect(() => {
     if (!highlightTaskId) return;
@@ -165,10 +172,10 @@ export function WeeklyPlanner({
   return (
     <div className="space-y-4">
       {/* Week selector */}
-      <div className="flex items-center justify-between bg-card rounded-2xl border border-border/50 p-4">
-        <Button variant="outline" size="sm" onClick={() => onWeekChange(-1)}>◀ 上周</Button>
-        <div className="text-center">
-          <div className="font-medium flex items-center justify-center gap-1.5">
+      <div className="flex items-center justify-between gap-2 bg-card rounded-2xl border border-border/50 p-3 sm:p-4">
+        <Button variant="outline" size="sm" className="min-h-11 shrink-0 px-3" onClick={() => onWeekChange(-1)}>◀ 上周</Button>
+        <div className="min-w-0 text-center">
+          <div className="flex items-center justify-center gap-1.5 text-sm font-medium sm:text-base">
             {formatDate(weekStart)} - {formatDate(weekEnd)}
             {sprintMode && (
               <span className="text-[10px] font-medium bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-300 px-1.5 py-0.5 rounded-full">冲刺</span>
@@ -178,7 +185,7 @@ export function WeeklyPlanner({
             {hasGenerated ? `${totalTasks} 任务 · ${completedTasks}/${totalTasks} 完成 · ${Math.round(totalMinutes / 60)}h` : "未生成计划"}
           </div>
         </div>
-        <Button variant="outline" size="sm" onClick={() => onWeekChange(1)}>下周 ▶</Button>
+        <Button variant="outline" size="sm" className="min-h-11 shrink-0 px-3" onClick={() => onWeekChange(1)}>下周 ▶</Button>
       </div>
 
       {contextualPlan?.stage && (
@@ -193,14 +200,14 @@ export function WeeklyPlanner({
       )}
 
       {/* Action buttons */}
-      <div className="flex flex-wrap gap-2 items-center">
-        <Button onClick={onGenerate} disabled={generating}>
+      <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        <Button className="min-h-11 w-full sm:w-auto" onClick={onGenerate} disabled={generating}>
           {generating ? "生成中..." : hasGenerated ? "🤖 重新生成周计划" : "🤖 生成周计划"}
         </Button>
         {generating && <AiWaiting variant="inline" phase={generatingPhase} estimate={generatingEstimate} onCancel={onCancelGenerate} />}
         {hasGenerated && (
           <>
-            <Button variant="outline" onClick={() => { setShowJudge(!showJudge); if (!judgeResult && !showJudge) onJudge(); }} disabled={judging}>
+            <Button className="min-h-11 w-full sm:w-auto" variant="outline" onClick={() => { setShowJudge(!showJudge); if (!judgeResult && !showJudge) onJudge(); }} disabled={judging}>
               {judging ? "评审中..." : "🔍 评审周计划"}
             </Button>
             {judging && <AiWaiting variant="inline" phase={judgingPhase} estimate={judgingEstimate} onCancel={onCancelJudge} />}
@@ -215,16 +222,18 @@ export function WeeklyPlanner({
           <textarea
             id="weekly-plan-adjustment-input"
             value={adjustment}
-            onChange={(event) => setAdjustment(event.target.value)}
+            onChange={(event) => { setAdjustment(event.target.value); saveWeeklyAdjustment(weekKey, event.target.value); }}
             placeholder="描述你的时间变化、不可用日期或科目侧重……"
             rows={2}
-            className="min-h-16 flex-1 rounded-xl border border-border/60 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
+            className="min-h-24 flex-1 rounded-xl border border-border/60 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 sm:min-h-16"
           />
           <Button
+            className="min-h-11 w-full sm:w-auto"
             variant="outline"
             disabled={generating || !adjustment.trim()}
             onClick={async () => {
               await onAdjust(adjustment.trim());
+              clearWeeklyAdjustment(weekKey);
             }}
           >
             按要求生成草稿
@@ -246,9 +255,9 @@ export function WeeklyPlanner({
                 <p className="mt-2 rounded-lg bg-muted/60 px-3 py-2 text-sm">你的调整要求：{draftPlan.adjustmentRequest}</p>
               )}
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={onDiscardDraft}>废弃草稿</Button>
-              <Button onClick={onConfirmDraft}>确认并应用</Button>
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+              <Button className="min-h-11 w-full sm:w-auto" variant="outline" onClick={onDiscardDraft}>废弃草稿</Button>
+              <Button className="min-h-11 w-full sm:w-auto" onClick={onConfirmDraft}>确认并应用</Button>
             </div>
           </div>
 
@@ -397,8 +406,11 @@ export function WeeklyPlanner({
         </div>
       )}
 
-      {/* Daily task columns —— 始终显示：未生成的周也能自己手动添加任务 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-7 gap-3">
+      {/* 手机端按日横滑，避免七天任务变成难以浏览的纵向卡片墙；sm 以上保留多列总览。 */}
+      <div
+        data-testid="weekly-day-canvas"
+        className="grid auto-cols-[minmax(17.5rem,86vw)] grid-flow-col gap-3 overflow-x-auto overscroll-x-contain pb-2 snap-x snap-mandatory sm:auto-cols-auto sm:grid-flow-row sm:grid-cols-2 sm:overflow-visible sm:pb-0 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-7"
+      >
           {DAY_NAMES.map((dayName, i) => {
             const dayDate = new Date(weekStart.getTime() + i * 86400000);
             const ds = toLocalDateString(dayDate);
@@ -407,7 +419,7 @@ export function WeeklyPlanner({
             const isToday = toLocalDateString(new Date()) === ds;
 
             return (
-              <div key={i} className={`border border-border/50 rounded-lg ${isToday ? "border-brand/40 bg-brand/5" : "border-border/50"}`}>
+              <div key={i} className={`snap-start border border-border/50 rounded-lg ${isToday ? "border-brand/40 bg-brand/5" : "border-border/50"}`}>
                 <div className={`px-3 py-2 border-b flex items-center justify-between text-xs ${isToday ? "bg-brand/10" : "bg-muted/50"}`}>
                   <span>
                     <span className="font-medium">{dayName}</span>
@@ -415,7 +427,7 @@ export function WeeklyPlanner({
                     {isToday && <span className="ml-1 text-blue-500 font-medium">今天</span>}
                   </span>
                   <button
-                    className="text-muted-foreground hover:text-brand"
+                    className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground hover:bg-brand/10 hover:text-brand"
                     title="重新生成这一天"
                     aria-label={`重新生成 ${dayName} 计划`}
                     onClick={() => onRegenerateDay(ds)}
@@ -423,15 +435,15 @@ export function WeeklyPlanner({
                     ↻
                   </button>
                 </div>
-                <div className="p-2 space-y-2 min-h-[60px]">
+                <div className="min-h-[60px] space-y-2 p-3 sm:p-2">
                   {dayTasks.map((task) => (
-                    <div id={`task-${task.id}`} key={task.id} className={`text-xs p-2 rounded border group cursor-pointer hover:shadow-sm transition-shadow ${task.id === highlightTaskId ? "border-brand bg-brand/5 ring-2 ring-brand/15" : task.completed ? "opacity-50 bg-muted/50" : "bg-card"}`}
+                    <div id={`task-${task.id}`} key={task.id} className={`group cursor-pointer rounded border p-3 text-sm transition-shadow hover:shadow-sm sm:p-2 sm:text-xs ${task.id === highlightTaskId ? "border-brand bg-brand/5 ring-2 ring-brand/15" : task.completed ? "bg-muted/50 opacity-50" : "bg-card"}`}
                       onClick={() => onEditTask(task)}>
-                      <div className="flex items-start gap-1">
+                      <div className="flex items-start gap-2 sm:gap-1">
                         <input type="checkbox" checked={task.completed}
                           onClick={(e) => e.stopPropagation()} // 阻止 click 冒泡到行的 onEditTask（否则勾选会误打开编辑弹窗）
                           onChange={(e) => { e.stopPropagation(); onToggleComplete(task); }}
-                          className="mt-0.5 h-3.5 w-3.5 rounded shrink-0" />
+                          className="mt-0.5 h-5 w-5 shrink-0 rounded sm:h-3.5 sm:w-3.5" />
                         <div className="flex-1 min-w-0">
                           <p className={task.completed ? "line-through" : ""}>{task.title}</p>
                           <div className="flex flex-wrap gap-1 mt-1">
@@ -459,12 +471,12 @@ export function WeeklyPlanner({
                           )}
                         </div>
                         <button onClick={(e) => { e.stopPropagation(); onDeleteTask(task.id); }}
-                          className="text-muted-foreground hover:text-destructive shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" aria-label="删除任务">✕</button>
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-muted-foreground opacity-100 transition-opacity hover:bg-destructive/10 hover:text-destructive sm:h-auto sm:w-auto sm:opacity-0 sm:group-hover:opacity-100" aria-label="删除任务">✕</button>
                       </div>
                       {isToday && !task.completed && (
                         <div className="mt-2 flex flex-wrap gap-1 border-t border-border/40 pt-2">
-                          <button type="button" onClick={(e) => { e.stopPropagation(); onQuickAdjustTask(task, { duration: 25 }); }} className="rounded-md bg-muted px-1.5 py-1 text-[10px] text-muted-foreground hover:bg-brand/10 hover:text-brand">缩短至 25 分钟</button>
-                          <button type="button" onClick={(e) => { e.stopPropagation(); const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); onQuickAdjustTask(task, { date: toLocalDateString(tomorrow) }); }} className="rounded-md bg-muted px-1.5 py-1 text-[10px] text-muted-foreground hover:bg-brand/10 hover:text-brand">移至明天</button>
+                          <button type="button" onClick={(e) => { e.stopPropagation(); onQuickAdjustTask(task, { duration: 25 }); }} className="min-h-9 rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground hover:bg-brand/10 hover:text-brand sm:min-h-0 sm:px-1.5 sm:text-[10px]">缩短至 25 分钟</button>
+                          <button type="button" onClick={(e) => { e.stopPropagation(); const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); onQuickAdjustTask(task, { date: toLocalDateString(tomorrow) }); }} className="min-h-9 rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground hover:bg-brand/10 hover:text-brand sm:min-h-0 sm:px-1.5 sm:text-[10px]">移至明天</button>
                         </div>
                       )}
                     </div>
@@ -473,7 +485,7 @@ export function WeeklyPlanner({
                     <p className="text-[10px] text-muted-foreground/60 text-center py-2">暂无任务</p>
                   )}
                   <button onClick={() => onAddTask(ds)}
-                    className="w-full text-[10px] text-muted-foreground hover:text-brand py-1 border border-dashed border-border/50 rounded text-center transition-colors">
+                    className="min-h-10 w-full rounded border border-dashed border-border/50 py-1 text-xs text-muted-foreground transition-colors hover:text-brand sm:min-h-0 sm:text-[10px]">
                     + 添加
                   </button>
                 </div>

@@ -4,7 +4,7 @@
  * 覆盖：
  * 1. zustand 持久化 store（practice-store/ui-store/pomodoro-store，localStorage）
  * 2. 离线写队列（IndexedDB `c6-offline-queue`）
- * 3. SW 的 API 缓存（postMessage 给 Service Worker）
+ * 3. SW 的私有导航 / API 缓存（postMessage 给 Service Worker）
  */
 const STORE_KEYS = ["ui-store", "practice-store", "pomodoro-store"];
 
@@ -12,6 +12,10 @@ export function clearClientStateOnLogout() {
   // 1. 持久化 store（同步，立刻生效，防下一个账号读到本账号的练习/UI 数据）
   try {
     for (const k of STORE_KEYS) localStorage.removeItem(k);
+    for (let index = localStorage.length - 1; index >= 0; index--) {
+      const key = localStorage.key(index);
+      if (key?.startsWith("c6:course-draft:") || key?.startsWith("c6:weekly-adjustment:")) localStorage.removeItem(key);
+    }
   } catch { /* ignore */ }
 
   // 2. 离线写队列（尽力而为，deleteDatabase 异步）
@@ -19,7 +23,7 @@ export function clearClientStateOnLogout() {
     indexedDB.deleteDatabase("c6-offline-queue");
   } catch { /* ignore */ }
 
-  // 3. SW 的 API 缓存（postMessage 给 SW 清理本账号的接口响应缓存）
+  // 3. SW 的私有缓存（兼容旧版本消息名；新版本同时清理私有导航与接口响应）
   if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
     try {
       navigator.serviceWorker.controller.postMessage({ type: "clear-api-cache" });

@@ -28,6 +28,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const content = typeof body.content === "string" ? body.content.trim().slice(0, 10000) : "";
+    const id = typeof body.id === "string" && /^[0-9a-f-]{36}$/i.test(body.id) ? body.id : null;
     const kind = typeof body.kind === "string" && NOTE_KINDS.has(body.kind) ? body.kind : "note";
     const courseLessonId = typeof body.courseLessonId === "string" ? body.courseLessonId : null;
     const studySessionId = typeof body.studySessionId === "string" ? body.studySessionId : null;
@@ -47,7 +48,16 @@ export async function POST(request: NextRequest) {
       if (!lesson) return jsonNoStore({ error: "课时不存在" }, { status: 400 });
     }
 
-    const note = await prisma.studyNote.create({ data: { userId: user!.id, content, kind, courseLessonId: lessonId, studySessionId } });
+    // 离线重放使用客户端 UUID：同一请求即使被补传多次，也只保留一条笔记。
+    if (id) {
+      const existing = await prisma.studyNote.findUnique({ where: { id } });
+      if (existing) {
+        if (existing.userId !== user!.id) return jsonNoStore({ error: "笔记标识冲突" }, { status: 409 });
+        return jsonNoStore({ note: existing });
+      }
+    }
+
+    const note = await prisma.studyNote.create({ data: { ...(id ? { id } : {}), userId: user!.id, content, kind, courseLessonId: lessonId, studySessionId } });
     return jsonNoStore({ note }, { status: 201 });
   } catch (err) {
     return handleApiError(err, "保存学习笔记");

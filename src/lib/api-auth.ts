@@ -4,13 +4,34 @@ import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUserWithRetry } from "@/lib/supabase/auth-retry";
 
+const LOCAL_USER_CACHE_MS = 5 * 60_000;
+const knownLocalUsers = new Map<string, { email: string; expiresAt: number }>();
+const pendingLocalUsers = new Map<string, Promise<void>>();
+
 export async function ensureLocalUser(userId: string, email?: string) {
-  // 确保本地 User 表有这条记录（Supabase Auth 和本地 DB 分离）
-  await prisma.user.upsert({
-    where: { id: userId },
-    create: { id: userId, email: email || `${userId}@unknown` },
-    update: { email: email || undefined },
+  // Supabase Auth 与本地 User 表分离。过去每个私有 API 都执行 upsert，首页并发
+  // 拉取时会对同一用户发起多次无意义 UPDATE，放大 Neon 冷连接和锁竞争。
+  const resolvedEmail = email || `${userId}@unknown`;
+  const now = Date.now();
+  const cached = knownLocalUsers.get(userId);
+  if (cached && cached.email === resolvedEmail && cached.expiresAt > now) return;
+
+  const pending = pendingLocalUsers.get(userId);
+  if (pending) return pending;
+
+  // createMany + skipDuplicates 对重复调用幂等：新用户会被创建，已有用户不再被更新。
+  // 邮箱的权威来源是 Supabase；本地副本无需在每一个 API 请求中同步。
+  const operation = prisma.user.createMany({
+    data: { id: userId, email: resolvedEmail },
+    skipDuplicates: true,
+  }).then(() => {
+    knownLocalUsers.set(userId, { email: resolvedEmail, expiresAt: Date.now() + LOCAL_USER_CACHE_MS });
+  }).finally(() => {
+    pendingLocalUsers.delete(userId);
   });
+
+  pendingLocalUsers.set(userId, operation);
+  return operation;
 }
 
 export async function getAuthUser(request?: NextRequest) {

@@ -65,7 +65,7 @@ export function AddModal({ subjects, initialSubject, onClose, onSaved }: AddModa
             <select
               value={form.subject}
               onChange={(e) => setForm({ ...form, subject: e.target.value })}
-              className="w-full h-10 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
+              className="h-11 w-full rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
             >
               <option value="">选择科目</option>
               {subjects.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -78,7 +78,7 @@ export function AddModal({ subjects, initialSubject, onClose, onSaved }: AddModa
               value={form.question}
               onChange={(e) => setForm({ ...form, question: e.target.value })}
               rows={3}
-              className="w-full rounded-xl border border-border/50 bg-muted/50 px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-brand/20"
+              className="min-h-28 w-full resize-y rounded-xl border border-border/50 bg-muted/50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
               placeholder="输入题目内容..."
             />
           </div>
@@ -88,7 +88,7 @@ export function AddModal({ subjects, initialSubject, onClose, onSaved }: AddModa
               value={form.answer}
               onChange={(e) => setForm({ ...form, answer: e.target.value })}
               rows={4}
-              className="w-full rounded-xl border border-border/50 bg-muted/50 px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-brand/20"
+              className="min-h-32 w-full resize-y rounded-xl border border-border/50 bg-muted/50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
               placeholder="输入正确答案和解析..."
             />
           </div>
@@ -97,7 +97,7 @@ export function AddModal({ subjects, initialSubject, onClose, onSaved }: AddModa
             <input
               value={form.tags}
               onChange={(e) => setForm({ ...form, tags: e.target.value })}
-              className="w-full h-10 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
+              className="h-11 w-full rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
               placeholder="如：极限, 连续性, 导数"
             />
           </div>

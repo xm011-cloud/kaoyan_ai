@@ -67,7 +67,7 @@ export function Modal({
               </div>
               <Dialog.Close
                 aria-label="关闭"
-                className="shrink-0 text-xl leading-none text-muted-foreground transition-colors hover:text-foreground"
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-xl leading-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 ✕
               </Dialog.Close>
@@ -75,7 +75,7 @@ export function Modal({
           )}
           {children && <div className="flex-1 overflow-y-auto p-5">{children}</div>}
           {footer && (
-            <div className="flex shrink-0 justify-end gap-2 border-t border-border/50 px-5 py-3">
+            <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-border/50 px-5 py-3 max-sm:[&>*]:min-h-11 max-sm:[&>*]:w-full sm:flex-row sm:justify-end">
               {footer}
             </div>
           )}

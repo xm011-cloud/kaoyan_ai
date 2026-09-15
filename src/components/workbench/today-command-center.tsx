@@ -81,13 +81,13 @@ export function TodayCommandCenter({
               <span data-testid="today-progress" className="shrink-0 text-sm tabular-nums text-muted-foreground">{today.completed}/{today.total} 已完成</span>
             </div>
             <div className="mt-4 flex flex-wrap items-center gap-2.5">
-              <Link href={primaryHref} className="inline-flex min-h-10 items-center rounded-xl bg-brand px-4 text-sm font-medium text-white transition-transform hover:bg-brand/90 active:scale-[0.98]">
+              <Link href={primaryHref} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-brand px-4 text-sm font-medium text-white transition-transform hover:bg-brand/90 active:scale-[0.98] max-sm:w-full sm:min-h-10">
                 {primaryLabel}
               </Link>
               <button
                 type="button"
                 onClick={() => aiWorkspace.requestHelp(`我正在执行今天的学习计划。下一步是「${nextAction}」。请结合我的阶段和本周目标，告诉我应如何开始；先给最小可执行的一步。`)}
-                className="inline-flex min-h-10 items-center rounded-xl border border-border bg-background px-4 text-sm font-medium text-muted-foreground transition-colors hover:border-brand/30 hover:bg-brand-muted/40 hover:text-brand"
+                className="inline-flex min-h-11 items-center rounded-xl border border-border bg-background px-4 text-sm font-medium text-muted-foreground transition-colors hover:border-brand/30 hover:bg-brand-muted/40 hover:text-brand sm:min-h-10"
               >
                 让 AI 帮我开始
               </button>

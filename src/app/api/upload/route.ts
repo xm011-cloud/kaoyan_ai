@@ -4,6 +4,7 @@ import { getAuthUser } from "@/lib/api-auth";
 import { createServiceClient } from "@/lib/supabase/service";
 import { prisma } from "@/lib/prisma";
 import { extractText } from "@/lib/rag";
+import { isMaterialSearchable } from "@/lib/material-readiness";
 
 export async function POST(request: NextRequest) {
   const { user, error } = await getAuthUser(request);
@@ -98,7 +99,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return jsonNoStore({ material, hasContent: !!content && !content.startsWith("[") });
+    return jsonNoStore({ material, hasContent: !!content && !content.startsWith("["), aiReady: isMaterialSearchable(content) });
   } catch (err) {
     console.error("Upload error:", err);
     return jsonNoStore({ error: "文件上传失败" }, { status: 500 });

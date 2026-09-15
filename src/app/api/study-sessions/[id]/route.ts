@@ -24,6 +24,10 @@ export async function PATCH(
       },
     });
     if (!session) return jsonNoStore({ error: "学习会话不存在" }, { status: 404 });
+    // 离线队列会重放同一“结束会话”请求；相同终态可安全幂等返回，不能二次写证据。
+    if (session.status !== "in_progress" && session.status === body.status) {
+      return jsonNoStore({ session, alreadyCompleted: true });
+    }
     if (session.status !== "in_progress") {
       return jsonNoStore({ error: "这次学习会话已经结束，不能重复提交" }, { status: 409 });
     }

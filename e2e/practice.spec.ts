@@ -43,6 +43,50 @@ test.describe("Practice", () => {
     await expect(page.locator("text=练习记录")).toBeVisible({ timeout: 10000 });
   });
 
+  test("手机端进行中的练习可暂存退出，核心操作保持触控尺寸", async ({ page }) => {
+    const session = {
+      id: "mobile-active-session",
+      taskId: null,
+      milestoneId: null,
+      type: "daily",
+      subject: "计算机网络",
+      status: "in_progress",
+      questions: [{
+        id: "mobile-question-1",
+        type: "choice",
+        question: "TCP 建立连接时，客户端首先发送什么？",
+        options: ["A. ACK", "B. SYN", "C. FIN", "D. RST"],
+        correctAnswer: "B",
+        explanation: "三次握手由客户端先发送 SYN 开始。",
+      }],
+      answers: {},
+      scores: {},
+      totalScore: null,
+      maxScore: null,
+      duration: null,
+      startedAt: null,
+      completedAt: null,
+      createdAt: new Date().toISOString(),
+    };
+    await page.route("**/api/practice/mobile-active-session", (route) => route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ session }),
+    }));
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/practice?session=mobile-active-session");
+
+    const stashExit = page.getByRole("button", { name: "暂存退出" });
+    await expect(stashExit).toBeVisible({ timeout: 10000 });
+    const box = await stashExit.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.height).toBeGreaterThanOrEqual(36);
+    await expect(page.getByRole("button", { name: "请求提示 →" })).toHaveCSS("min-height", "44px");
+
+    await stashExit.click();
+    await expect(page.locator("h1").filter({ hasText: "练习" })).toBeVisible();
+  });
+
   test("AI generation shows inline wait indicator (no cancel)", async ({ page }) => {
     // 准备：目标科目（出题的科目下拉依赖它）
     await ensureGoalSubjects(["计算机"]);

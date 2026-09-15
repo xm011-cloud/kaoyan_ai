@@ -13,6 +13,22 @@ test.describe("Feedback", () => {
     await expect(page.getByRole("button", { name: /生成/ })).toBeVisible({ timeout: 10000 });
   });
 
+  test("week health explains execution facts before AI feedback", async ({ page }) => {
+    const response = await page.request.get("/api/feedback");
+    expect(response.ok()).toBeTruthy();
+    const body = await response.json();
+    expect(body.health).toMatchObject({
+      tasks: { completed: expect.any(Number), total: expect.any(Number) },
+      evidence: {
+        courseSessions: expect.any(Number),
+        practiceSessions: expect.any(Number),
+        wrongReviews: expect.any(Number),
+      },
+      nextStep: { label: expect.any(String), href: expect.any(String) },
+    });
+    await expect(page.getByRole("heading", { name: "本周计划健康度" })).toBeVisible({ timeout: 10000 });
+  });
+
   test("review reasons are persisted without changing a plan", async ({ page }) => {
     const generated = await page.request.post("/api/ai/generate-feedback");
     expect(generated.ok()).toBeTruthy();

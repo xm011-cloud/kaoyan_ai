@@ -3,6 +3,7 @@ import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, jsonNoStore } from "@/lib/api-utils";
 import { getMilestone } from "@/lib/milestone";
+import { getWeeklyPlanHealth } from "@/lib/weekly-plan-health";
 
 // GET: 获取反馈列表
 export async function GET(request: NextRequest) {
@@ -16,9 +17,12 @@ export async function GET(request: NextRequest) {
       take: 10,
     });
 
-    const milestone = await getMilestone(user!.id);
+    const [milestone, health] = await Promise.all([
+      getMilestone(user!.id),
+      getWeeklyPlanHealth(user!.id),
+    ]);
 
-    return jsonNoStore({ feedbacks, milestone });
+    return jsonNoStore({ feedbacks, milestone, health });
   } catch (err) {
     return handleApiError(err, "获取反馈列表");
   }

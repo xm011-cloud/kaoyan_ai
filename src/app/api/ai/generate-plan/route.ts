@@ -5,7 +5,7 @@ import { getUserAiConfig, callAI, extractJsonArray, truncateReasoning } from "@/
 import { prisma } from "@/lib/prisma";
 import { normalizeSubject } from "@/lib/subject-standards";
 import { derivePrepStage, stageToPlanPhase } from "@/lib/prep-stage";
-import { getEffectiveStage, STAGE_LABELS, needsConfirmation, type SubjectProgress } from "@/lib/completion";
+import { getEffectiveStage, STAGE_LABELS, needsConfirmation, needsRecalibration, type SubjectProgress } from "@/lib/completion";
 import { addLocalDays, toLocalDateString } from "@/lib/date-utils";
 import type { Prisma } from "@prisma/client";
 import { applyWeeklyAdjustment, parseWeeklyAdjustment } from "@/lib/weekly-plan-adjustment";
@@ -311,10 +311,14 @@ export async function POST(request: NextRequest) {
         for (const [subj, p] of Object.entries(progress)) {
           const pp = p as SubjectProgress;
           const eff = getEffectiveStage(pp);
-          const conf = needsConfirmation(pp) ? "（未确认，保守对待）" : "（已确认）";
+          const conf = needsConfirmation(pp)
+            ? "（未确认，保守对待）"
+            : needsRecalibration(pp, today)
+              ? "（上次校准已久，应安排一次巩固或复述验证；不要直接跳过基础）"
+              : "（已确认）";
           progressContext += `- ${subj}：档位 ${STAGE_LABELS[eff]}${conf} · 参考进度 ${pp.percent ?? 0}%${pp.note ? `（${pp.note}）` : ""}\n`;
         }
-        progressContext += "对用户自评持保守态度：档位未确认时，优先安排基础巩固而不是强化/冲刺内容。\n";
+        progressContext += "对用户自评持保守态度：档位未确认时，优先安排基础巩固而不是强化/冲刺内容；校准已久时先安排一次巩固或复述验证，但不要擅自降低档位。\n";
       }
 
       let feedbackContext = "";

@@ -36,6 +36,23 @@ test.describe("Tasks", () => {
     }
   });
 
+  test("手机端周计划按日横向浏览，日操作保持足够触控尺寸", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/tasks");
+    await expect(page.locator("h1").filter({ hasText: /计划|规划|任务/ })).toBeVisible({ timeout: 10000 });
+
+    const canvas = page.getByTestId("weekly-day-canvas");
+    await expect(canvas).toBeVisible();
+    await expect(canvas.locator(":scope > div")).toHaveCount(7);
+    expect(await canvas.evaluate((element) => getComputedStyle(element).overflowX)).toBe("auto");
+    expect(await canvas.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+
+    const regenerate = canvas.getByRole("button", { name: /重新生成 .* 计划/ }).first();
+    const box = await regenerate.boundingBox();
+    expect(box?.width).toBeGreaterThanOrEqual(44);
+    expect(box?.height).toBeGreaterThanOrEqual(44);
+  });
+
   test("任务即使缺少 weekStartDate 也会在所属周计划中显示", async ({ page }) => {
     const pad = (n: number) => String(n).padStart(2, "0");
     const localDate = (dt: Date) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
@@ -75,6 +92,35 @@ test.describe("Tasks", () => {
     const related = page.getByText("继续学习").first();
     if (await related.isVisible({ timeout: 5000 }).catch(() => false)) {
       await expect(page.locator('a[href="/knowledge-graph"]').first()).toBeVisible();
+    }
+  });
+
+  test("过久的掌握度校准会提示复盘，但不会静默降级", async ({ page }) => {
+    const goalResponse = await page.request.get("/api/goal");
+    expect(goalResponse.ok()).toBeTruthy();
+    const goal = (await goalResponse.json()).goal as { subjects?: string[]; progress?: Record<string, unknown> } | null;
+    const subject = goal?.subjects?.[0];
+    test.skip(!subject, "测试账号没有可校准科目");
+
+    const originalProgress = goal?.progress ?? null;
+    const progress = {
+      ...(goal?.progress ?? {}),
+      [subject!]: {
+        stage: "foundation",
+        calibratedStage: "foundation",
+        confidence: "high",
+        percent: 70,
+        lastProbeAt: new Date(Date.now() - 29 * 86_400_000).toISOString(),
+      },
+    };
+    try {
+      const saved = await page.request.put("/api/goal", { data: { progress } });
+      expect(saved.ok()).toBeTruthy();
+      await page.goto("/tasks");
+      await expect(page.getByText("建议复盘")).toBeVisible({ timeout: 10000 });
+      await expect(page.getByText("已确认")).toBeVisible();
+    } finally {
+      await page.request.put("/api/goal", { data: { progress: originalProgress } });
     }
   });
 

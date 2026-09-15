@@ -15,7 +15,7 @@ import { enqueueWrite } from "@/lib/offline-queue";
 import { toast } from "@/stores/toast-store";
 import {
   STAGE_ORDER, STAGE_LABELS, STAGE_TO_PERCENT,
-  inferStageFromPercent, needsConfirmation, isStageConfirmed,
+  inferStageFromPercent, needsConfirmation, isStageConfirmed, needsRecalibration,
   getSubjectGuide,
   type SubjectProgress, type SubjectStage,
 } from "@/lib/completion";
@@ -687,10 +687,10 @@ export default function TasksPage() {
             )}
         </section>
 
-        <section className="grid gap-3 sm:grid-cols-3" aria-label="调整学习安排">
-          <div className="rounded-xl border border-border/60 bg-card p-4"><p className="text-sm font-medium">今天临时有变化</p><p className="mt-1 text-xs leading-5 text-muted-foreground">在今天的任务上直接缩短时长或移到明天，只影响这一项。</p></div>
-          <a href="#weekly-plan-adjustment" className="rounded-xl border border-border/60 bg-card p-4 transition-colors hover:border-brand/35 hover:bg-brand/5"><p className="text-sm font-medium">这周容量变了</p><p className="mt-1 text-xs leading-5 text-muted-foreground">说明可用时间、空闲日或科目侧重，先看草稿和影响再确认。</p></a>
-          <button type="button" onClick={() => router.push("/study-path#stage-adjustment")} className="rounded-xl border border-border/60 bg-card p-4 text-left transition-colors hover:border-brand/35 hover:bg-brand/5"><p className="text-sm font-medium">长期目标需要调整</p><p className="mt-1 text-xs leading-5 text-muted-foreground">保留已完成证据，只重新计算后续阶段与未完成任务。</p></button>
+        <section className="grid gap-2 sm:grid-cols-3 sm:gap-3" aria-label="调整学习安排">
+          <div className="rounded-xl border border-border/60 bg-card px-4 py-3"><p className="text-sm font-medium">今天临时有变化</p><p className="mt-1 hidden text-xs leading-5 text-muted-foreground sm:block">在今天的任务上直接缩短时长或移到明天，只影响这一项。</p><p className="mt-1 text-xs text-muted-foreground sm:hidden">直接调整对应任务即可</p></div>
+          <a href="#weekly-plan-adjustment" className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-card px-4 py-3 transition-colors hover:border-brand/35 hover:bg-brand/5"><div><p className="text-sm font-medium">这周容量变了</p><p className="mt-1 hidden text-xs leading-5 text-muted-foreground sm:block">说明可用时间、空闲日或科目侧重，先看草稿和影响再确认。</p><p className="mt-1 text-xs text-muted-foreground sm:hidden">先看草稿与影响</p></div><span className="text-brand sm:hidden">›</span></a>
+          <button type="button" onClick={() => router.push("/study-path#stage-adjustment")} className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-card px-4 py-3 text-left transition-colors hover:border-brand/35 hover:bg-brand/5"><div><p className="text-sm font-medium">长期目标需要调整</p><p className="mt-1 hidden text-xs leading-5 text-muted-foreground sm:block">保留已完成证据，只重新计算后续阶段与未完成任务。</p><p className="mt-1 text-xs text-muted-foreground sm:hidden">保留证据，重算后续计划</p></div><span className="text-brand sm:hidden">›</span></button>
         </section>
 
         {/* Zone 2: Subject progress */}
@@ -715,7 +715,7 @@ export default function TasksPage() {
                       )}
                       <input type="number" value={ep.percent || ""}
                         onChange={(e) => setEditProgress((prev) => ({ ...prev, [subj]: { ...prev[subj], percent: parseInt(e.target.value) || 0, note: prev[subj]?.note || "" } }))}
-                        min={0} max={100} className="w-16 min-w-0 px-2 py-0.5 text-xs border border-border/50 rounded text-right bg-muted/50" />
+                        min={0} max={100} className="h-10 w-16 min-w-0 rounded border border-border/50 bg-muted/50 px-2 text-right text-xs" />
                       <span className="text-xs text-gray-400 w-6">%</span>
                     </div>
                   </div>
@@ -728,7 +728,7 @@ export default function TasksPage() {
                         <button
                           key={st} type="button"
                           onClick={() => setSubjectStage(subj, st)}
-                          className={`px-2 py-1 rounded-full text-[11px] border transition-colors ${
+                          className={`min-h-9 px-2 py-1 rounded-full text-[11px] border transition-colors ${
                             active
                               ? "bg-brand/10 border-brand/40 text-brand font-medium"
                               : "border-border/50 text-muted-foreground hover:bg-muted/60"
@@ -746,10 +746,15 @@ export default function TasksPage() {
                     {isStageConfirmed(ep) && (
                       <span className="text-[10px] text-success">✅ 已确认</span>
                     )}
+                    {needsRecalibration(ep) && (
+                      <span className="text-[10px] text-warning" title="上次对话校准已超过四周。系统不会自动降级，但新计划会先安排一次巩固或验证。">
+                        ⏱ 建议复盘
+                      </span>
+                    )}
                     <button
                       type="button"
                       onClick={() => setProbeSubject({ subject: subj, stage: ep.stage ?? inferStageFromPercent(ep.percent) })}
-                      className="px-2 py-1 rounded-full text-[11px] border border-dashed border-border/60 text-muted-foreground hover:bg-muted/60 transition-colors"
+                      className="min-h-9 px-2 py-1 rounded-full text-[11px] border border-dashed border-border/60 text-muted-foreground hover:bg-muted/60 transition-colors"
                       title="用 2-3 个对话式问题确认你的掌握度（不判分、不打脸）"
                     >
                       🤔 确认掌握度
@@ -763,15 +768,16 @@ export default function TasksPage() {
                     <input type="text" value={ep.note || ""}
                       onChange={(e) => setEditProgress((prev) => ({ ...prev, [subj]: { ...prev[subj], percent: prev[subj]?.percent || 0, note: e.target.value } }))}
                       placeholder="学到哪了..."
-                      className="flex-1 px-2 py-0.5 text-xs border border-border/50 rounded bg-muted/50 max-w-[280px]" />
+                      className="h-10 flex-1 rounded border border-border/50 bg-muted/50 px-2 text-xs max-w-[280px]" />
                   </div>
 
                   {/* 科目感知完成标准 */}
                   <p className="text-[10px] text-muted-foreground/80">{getSubjectGuide(subj)}</p>
+                  {needsRecalibration(ep) && <p className="text-[10px] text-muted-foreground">上次确认较久，可用 2–3 个问题重新验证；不重新确认也不会阻止你继续学习。</p>}
                 </div>
               );
             })}
-            <Button variant="outline" size="sm" onClick={handleSaveProgress} disabled={savingProgress}>
+            <Button variant="outline" size="sm" className="min-h-11" onClick={handleSaveProgress} disabled={savingProgress}>
               {savingProgress ? "保存中..." : "💾 保存进度"}
             </Button>
           </section>

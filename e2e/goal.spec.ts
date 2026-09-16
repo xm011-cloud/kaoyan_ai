@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { randomUUID } from "node:crypto";
 import { createTestDbPool } from "./test-db";
 
 test.describe("Goal", () => {
@@ -41,14 +42,24 @@ test.describe("Goal", () => {
       'SELECT id, status FROM "StudyProfileFact" WHERE "userId" = $1 AND status = \'confirmed\'',
       [userId],
     );
+    const activePaths = await pool.query(
+      'SELECT id, status FROM "StudyPath" WHERE "userId" = $1 AND status = \'active\'',
+      [userId],
+    );
     await pool.query(
       'UPDATE "StudyProfileFact" SET status = \'superseded\', "updatedAt" = now() WHERE "userId" = $1 AND status = \'confirmed\'',
+      [userId],
+    );
+    // 这条用例验证“首次”生成的保护；暂时移开历史路线，最后按原状态还原。
+    await pool.query(
+      'UPDATE "StudyPath" SET status = \'archived\', "updatedAt" = now() WHERE "userId" = $1 AND status = \'active\'',
       [userId],
     );
     const original = await page.evaluate(async () => {
       const res = await fetch("/api/goal");
       return (await res.json()).goal;
     });
+    let readyFactIds: string[] = [];
 
     try {
       const result = await page.evaluate(async () => {
@@ -93,6 +104,64 @@ test.describe("Goal", () => {
       expect(pathResult.status).toBe(409);
       expect(pathResult.body.needsIntake).toBe(true);
       expect(pathResult.body.readiness.unresolvedFields.length).toBeGreaterThan(0);
+
+      // 周计划入口也必须遵守同一门槛，并且在拒绝时不能创建草稿。
+      const weeklyResult = await page.evaluate(async () => {
+        await fetch("/api/goal", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            direction: "计算机类考研",
+            university: null,
+            major: null,
+            examDate: null,
+            subjects: ["数学一"],
+          }),
+        });
+        const weekStart = "2035-01-01";
+        const before = await fetch(`/api/weekly-plans?weekStart=${weekStart}`).then((res) => res.json());
+        const res = await fetch("/api/ai/generate-plan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ weekStartDate: weekStart, weekStartLocal: weekStart, todayLocal: weekStart, generationMode: "local" }),
+        });
+        const after = await fetch(`/api/weekly-plans?weekStart=${weekStart}`).then((response) => response.json());
+        return { status: res.status, body: await res.json(), beforeDraftId: before.draft?.id ?? null, afterDraftId: after.draft?.id ?? null };
+      });
+      expect(weeklyResult.status).toBe(409);
+      expect(weeklyResult.body.needsIntake).toBe(true);
+      expect(weeklyResult.body.readiness.unresolvedFields).toEqual(expect.arrayContaining(["目标与当前情况", "各科基础"]));
+      expect(weeklyResult.afterDraftId).toBe(weeklyResult.beforeDraftId);
+
+      // 资料齐全后也先进入路线确认，不允许绕过阶段和里程碑直接排周任务。
+      readyFactIds = Array.from({ length: 4 }, () => `e2e-weekly-route-gate-${randomUUID()}`);
+      const readyFacts = [
+        ["planning.statement", "目标与当前情况", { text: "准备计算机类考研，先完成基础阶段。" }],
+        ["planning.subject_baseline", "各科基础", { text: "数学一需要从基础开始。" }],
+        ["planning.foundation_exit", "基础阶段退出标准", { text: "能独立完成典型基础题。" }],
+        ["planning.weekly_capacity", "每周稳定学习容量", { text: "每周可以稳定投入 12 小时。" }],
+      ] as const;
+      for (const [index, fact] of readyFacts.entries()) {
+        await pool.query(
+          `INSERT INTO "StudyProfileFact" ("id","userId","key","label","value","source","confidence","status","observedAt","createdAt","updatedAt")
+           VALUES ($1,$2,$3,$4,$5::jsonb,'user_statement','high','confirmed',now(),now(),now())`,
+          [readyFactIds[index], userId, fact[0], fact[1], JSON.stringify(fact[2])],
+        );
+      }
+      const routeGateResult = await page.evaluate(async () => {
+        const weekStart = "2035-01-08";
+        const before = await fetch(`/api/weekly-plans?weekStart=${weekStart}`).then((res) => res.json());
+        const res = await fetch("/api/ai/generate-plan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ weekStartDate: weekStart, weekStartLocal: weekStart, todayLocal: weekStart, generationMode: "local" }),
+        });
+        const after = await fetch(`/api/weekly-plans?weekStart=${weekStart}`).then((response) => response.json());
+        return { status: res.status, body: await res.json(), beforeDraftId: before.draft?.id ?? null, afterDraftId: after.draft?.id ?? null };
+      });
+      expect(routeGateResult.status).toBe(409);
+      expect(routeGateResult.body.needsStudyPath).toBe(true);
+      expect(routeGateResult.afterDraftId).toBe(routeGateResult.beforeDraftId);
     } finally {
       if (original) {
         await page.evaluate(async (goal) => {
@@ -107,6 +176,12 @@ test.describe("Goal", () => {
       }
       for (const fact of confirmedFacts.rows) {
         await pool.query('UPDATE "StudyProfileFact" SET status = $1, "updatedAt" = now() WHERE id = $2', [fact.status, fact.id]);
+      }
+      for (const path of activePaths.rows) {
+        await pool.query('UPDATE "StudyPath" SET status = $1, "updatedAt" = now() WHERE id = $2', [path.status, path.id]);
+      }
+      if (readyFactIds.length > 0) {
+        await pool.query('DELETE FROM "StudyProfileFact" WHERE id = ANY($1::text[])', [readyFactIds]);
       }
       await pool.end();
     }

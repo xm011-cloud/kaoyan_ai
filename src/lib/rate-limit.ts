@@ -26,7 +26,9 @@ export function isRateLimited(
   request: NextRequest,
   opts: { max?: number; windowMs?: number; feature?: string } = {}
 ): boolean {
-  if (process.env.NODE_ENV !== "production") return false;
+  // E2E 以 next start 验证生产构建，但测试项目共用 localhost/IP；不能让同一
+  // 套件里的公开表单互相耗尽真实的限流桶。正式构建会把该标记编译为空字符串。
+  if (process.env.NODE_ENV !== "production" || process.env.E2E_TEST_MODE === "1") return false;
   const { max = DEFAULT_MAX, windowMs = DEFAULT_WINDOW_MS, feature = "global" } = opts;
   const ip = getClientIp(request);
   const key = `${feature}:${ip}`;

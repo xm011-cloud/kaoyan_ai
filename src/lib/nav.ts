@@ -12,6 +12,8 @@ export interface NavItem {
   label: string
   icon: string
   shortLabel: string
+  /** beta 仍可使用但应明确能力边界；paused 不进入普通导航。 */
+  status?: 'beta' | 'paused'
 }
 
 export interface NavGroup {
@@ -21,6 +23,8 @@ export interface NavGroup {
   items: NavItem[]
   /** 是否渲染为桌面 Header 顶部 tab（默认 true；如"设置"组用 ⚙️ 图标入口，不占 tab 位） */
   tab?: boolean
+  /** 是否作为手机底栏主入口；更多工具、设置只能从菜单进入，避免挤占学习主链。 */
+  mobile?: boolean
 }
 
 // ── 分组导航（Header tabs + MobileNav + slide-over 共用）──
@@ -33,7 +37,7 @@ export const defaultNavGroups: NavGroup[] = [
       { href: '/dashboard', label: '学习概览', icon: '🏠', shortLabel: '概览' },
       { href: '/checkin', label: '打卡', icon: '✅', shortLabel: '打卡' },
       { href: '/pomodoro', label: '番茄钟', icon: '🍅', shortLabel: '番茄' },
-      { href: '/leaderboard', label: '排行榜', icon: '🏆', shortLabel: '排行' },
+      { href: '/leaderboard', label: '排行榜', icon: '🏆', shortLabel: '排行', status: 'paused' },
     ],
   },
   {
@@ -56,7 +60,6 @@ export const defaultNavGroups: NavGroup[] = [
       { href: '/chat', label: 'AI 工作区', icon: '💬', shortLabel: 'AI' },
       { href: '/feedback', label: '周报', icon: '📊', shortLabel: '周报' },
       { href: '/study-path', label: '学习路径', icon: '🗺️', shortLabel: '路径' },
-      { href: '/skills', label: '技能', icon: '⚡', shortLabel: '技能' },
     ],
   },
   {
@@ -65,9 +68,21 @@ export const defaultNavGroups: NavGroup[] = [
     icon: '📚',
     items: [
       { href: '/courses', label: '我的课程', icon: '🎬', shortLabel: '课程' },
+    ],
+  },
+  {
+    id: 'tools',
+    label: '更多工具',
+    icon: '🧰',
+    tab: false,
+    mobile: false,
+    items: [
+      { href: '/tools', label: '更多工具', icon: '🧰', shortLabel: '工具' },
       { href: '/materials', label: '学习资料', icon: '📖', shortLabel: '资料' },
-      { href: '/knowledge-graph', label: '知识图谱', icon: '🧠', shortLabel: '图谱' },
-      { href: '/admission', label: '院校情报', icon: '🏫', shortLabel: '院校' },
+      { href: '/pomodoro', label: '番茄钟', icon: '🍅', shortLabel: '番茄' },
+      { href: '/skills', label: 'AI 技能', icon: '⚡', shortLabel: '技能', status: 'beta' },
+      { href: '/knowledge-graph', label: '知识图谱', icon: '🧠', shortLabel: '图谱', status: 'beta' },
+      { href: '/admission', label: '院校情报', icon: '🏫', shortLabel: '院校', status: 'beta' },
     ],
   },
   {
@@ -76,6 +91,7 @@ export const defaultNavGroups: NavGroup[] = [
     icon: '⚙️',
     // 设置入口用右上角 ⚙️ 图标，不占 Header tab 位（组本身仍保留在 slide-over 菜单里）
     tab: false,
+    mobile: false,
     items: [
       { href: '/settings', label: '设置', icon: '⚙️', shortLabel: '设置' },
       { href: '/profile', label: '个人资料', icon: '👤', shortLabel: '主页' },
@@ -95,7 +111,7 @@ export function getVisibleGroups(uiGroups: UiNavGroup[] | undefined): NavGroup[]
       if (ui && ui.visible === false) return null
       const items = dg.items.filter((item) => {
         const uiItem = ui?.items.find((i) => i.href === item.href)
-        return uiItem?.visible ?? true
+        return item.status !== 'paused' && (uiItem?.visible ?? true)
       })
       return items.length > 0 ? { ...dg, items } : null
     })

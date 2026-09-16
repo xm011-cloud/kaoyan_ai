@@ -167,13 +167,17 @@ ${material.content?.slice(0, 8000) || "该资料尚无可提取文本。请说�
 }
 
 async function buildPlanningProfileContext(userId: string) {
-  const [goal, facts] = await Promise.all([
+  const [goal, facts, activeStage] = await Promise.all([
     prisma.goal.findUnique({ where: { userId } }),
     prisma.studyProfileFact.findMany({
       where: { userId, status: "confirmed" },
       orderBy: { observedAt: "desc" },
       take: 20,
       select: { key: true, label: true, value: true, source: true, confidence: true },
+    }),
+    prisma.studyPathStage.findFirst({
+      where: { studyPath: { userId, status: "active" }, status: "active" },
+      select: { id: true },
     }),
   ]);
   const studyLoad = goal?.studyLoad && typeof goal.studyLoad === "object" && !Array.isArray(goal.studyLoad)
@@ -190,6 +194,7 @@ async function buildPlanningProfileContext(userId: string) {
   }, facts);
   return {
     readiness,
+    hasActiveRoute: Boolean(activeStage),
     prompt: `## 长期规划档案（只使用已确认事实）
 ${formatStudyProfileFactsForPrompt(facts)}
 路线草稿准备度：${readiness.readyForPathDraft ? "已满足" : `尚缺：${readiness.unresolvedFields.join("、")}`}
@@ -197,8 +202,9 @@ ${formatStudyProfileFactsForPrompt(facts)}
 当用户要求制定或大幅重做长期学习计划时：
 1. 若准备度未满足，先复述已知情况，只问 1-3 个最影响路线的未确认问题；不要创建任务、不要假定院校/日期/基础，也不要输出完整周计划。
 2. 用户可以回答“暂不确定”；此时说明会保留可逆分支，并引导其到 /goal#planning-intake 确认长期档案。
-3. 若准备度满足，先给“长期目标 → 当前阶段 → 本周方向 → 今天最小一步”的层级说明；批量任务仍必须走提案并等待确认。
-4. 不把用户自评说成测评结论，阶段退出必须以明确标准而非日期自动触发。`,
+3. 若准备度满足但尚无已确认路线，先引导用户到 /study-path 生成并确认“阶段目标、退出标准、里程碑”；不要输出完整周计划或创建任务。
+4. 只有已确认路线后，才给“长期目标 → 当前阶段 → 本周方向 → 今天最小一步”的层级说明；批量任务仍必须走提案并等待确认。
+5. 不把用户自评说成测评结论，阶段退出必须以明确标准而非日期自动触发。`,
   };
 }
 
@@ -444,6 +450,14 @@ export async function POST(request: NextRequest) {
 
     // ── Tool Calling 循环 ──
     const actions: ActionCard[] = [];
+    const isLongRangePlanning = !activeSkill && isLongRangePlanningRequest(lastMessage);
+    const planWriteBlockedReason = isLongRangePlanning
+      ? !planningProfile.readiness.readyForPathDraft
+        ? `请先确认：${planningProfile.readiness.unresolvedFields.join("、")}；确认前不会创建计划任务。`
+        : !planningProfile.hasActiveRoute
+          ? "请先生成并确认长期路线；确认前不会创建计划任务。"
+          : null
+      : null;
     if (routeContext.review) {
       actions.push({ type: "milestone_review", title: "可以复盘当前里程碑", detail: `“${routeContext.review.title}”已积累执行证据；请由你确认是否达成。`, href: `/study-path?review=${routeContext.review.id}` });
     }
@@ -457,7 +471,7 @@ export async function POST(request: NextRequest) {
           messages: apiMessages,
           temperature: 0.7,
           maxTokens: 4096,
-          tools: activeSkill ? getSkillRunTools() : getToolDefinitions(),
+          tools: activeSkill ? getSkillRunTools() : getToolDefinitions({ excludeTaskPlanning: Boolean(planWriteBlockedReason) }),
           tool_choice: "auto",
         });
       } catch (aiErr) {
@@ -511,6 +525,7 @@ export async function POST(request: NextRequest) {
         const toolResult = await executeTool(user!.id, tc.function.name, parsedArgs, {
           chatId: resolvedChatId,
           skillId: activeSkill?.id ?? null,
+          planWriteBlockedReason,
         });
 
         // 技能收尾：AI 调用 skill_control(finish) → 标记本次运行完成
@@ -568,13 +583,10 @@ export async function POST(request: NextRequest) {
 
     // 让“先讨论”在 UI 中有明确出口：即便模型表达不够稳定，用户也能
     // 一键进入可确认、可撤回的长期档案流程，而不是在聊天里丢失回答。
-    if (!activeSkill && isLongRangePlanningRequest(lastMessage) && !planningProfile.readiness.readyForPathDraft) {
-      actions.unshift({
-        type: "planning_intake",
-        title: "先确认长期规划输入",
-        detail: `还需要：${planningProfile.readiness.unresolvedFields.join("、")}`,
-        href: "/goal#planning-intake",
-      });
+    if (isLongRangePlanning && !planningProfile.readiness.readyForPathDraft) {
+      actions.unshift({ type: "planning_intake", title: "先确认长期规划输入", detail: `还需要：${planningProfile.readiness.unresolvedFields.join("、")}`, href: "/goal#planning-intake" });
+    } else if (isLongRangePlanning && !planningProfile.hasActiveRoute) {
+      actions.unshift({ type: "planning_intake", title: "先生成并确认长期路线", detail: "路线会明确当前阶段、退出标准和里程碑，再由它驱动周计划。", href: "/study-path" });
     }
 
     // AI 主动提议：普通对话（非技能运行）且用户消息命中技能关键词 → 返回建议芯片

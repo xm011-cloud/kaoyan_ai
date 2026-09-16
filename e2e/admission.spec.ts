@@ -31,10 +31,10 @@ test.describe("Admission", () => {
     }
   });
 
-  test("nav shows 院校 entry and navigates to it", async ({ page }) => {
+  test("nav shows Beta 院校 entry and navigates to it", async ({ page }) => {
     await page.goto("/dashboard");
     // 桌面工作台使用常驻左侧导航，不再依赖旧版 logo 抽屉。
-    const admissionLink = page.getByRole("link", { name: "院校情报", exact: true });
+    const admissionLink = page.getByRole("link", { name: /院校情报/ });
     await expect(admissionLink).toBeVisible({ timeout: 5000 });
     await admissionLink.click();
     await expect(page).toHaveURL(/\/admission/);

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import { FeatureStatusNotice } from '@/components/ui/feature-status-notice'
 import { toast } from '@/stores/toast-store'
 import { confirmDialog } from '@/stores/confirm-store'
 import { AiWaiting } from '@/components/ai-waiting'
@@ -118,6 +119,10 @@ export function ExamQuestionsTab({ subjects }: { subjects: string[] }) {
 
   return (
     <div className="space-y-4">
+      <FeatureStatusNotice title="联网真题导入需要人工核对">
+        网络结果可能不是原题、年份或答案也可能不完整。导入后请打开来源页核验，再把它作为练习依据。
+      </FeatureStatusNotice>
+
       {/* 导入区 */}
       <div className="rounded-2xl bg-card border border-border/50 shadow-sm p-5 space-y-3">
         <div className="flex items-center justify-between flex-wrap gap-2">
@@ -176,7 +181,7 @@ export function ExamQuestionsTab({ subjects }: { subjects: string[] }) {
           </Button>
         )}
         <p className="text-[11px] text-muted-foreground">
-          需要已配置 AI（设置 → AI 配置）；搜索并提取题目后自动入库，可到练习页用「真题练习」模式刷题。题目来源于网络，请核对准确性。
+          需要已配置 AI（设置 → AI 配置）；搜索并提取题目后自动入库，可到练习页用「真题练习」模式刷题。请以每道题显示的来源页为准。
         </p>
       </div>
 

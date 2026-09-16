@@ -213,6 +213,9 @@ test.describe("Study Path", () => {
     const firstStage = activated.body.stages.find((stage: { status: string }) => stage.status === "active");
     expect(firstStage?.key).toBe("foundation");
 
+    await page.goto("/study-path");
+    await expect(page.getByRole("link", { name: "查看并安排本周" })).toHaveAttribute("href", "/tasks");
+
     const blocked = await page.evaluate(async (stageId) => {
       const res = await fetch(`/api/study-path/stages/${stageId}`, {
         method: "PATCH",

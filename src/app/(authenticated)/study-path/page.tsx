@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { ModuleLinks } from "@/components/ui/module-links";
 import { AiWaiting } from "@/components/ai-waiting";
@@ -538,6 +538,9 @@ export default function StudyPathPage() {
 
   const phases = [...phaseGroups.entries()];
   const stats = data?.stats;
+  const activeStage = !data?.isDraft
+    ? data?.stages.find((stage) => stage.status === "active") ?? null
+    : null;
 
   if (loading) {
     return (
@@ -609,6 +612,18 @@ export default function StudyPathPage() {
               <Link href={reviewFollowUp.href} className="ml-2 underline font-medium">{reviewFollowUp.label}</Link>
             )}
           </div>
+        )}
+
+        {activeStage && (
+          <section className="rounded-2xl border border-brand/25 bg-brand/5 p-5" aria-labelledby="weekly-plan-handoff-title">
+            <p id="weekly-plan-handoff-title" className="text-sm font-semibold">路线已确认，接下来安排本周</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              当前阶段是“{activeStage.title}”。周计划会围绕它的目标和里程碑生成，并且仍会先以草稿形式让你确认。
+            </p>
+            <Link href="/tasks" className={cn(buttonVariants({ size: "sm" }), "mt-3")}>
+              查看并安排本周
+            </Link>
+          </section>
         )}
 
         {data.path.status === "active" && (unlinkedEvidenceLoading || unlinkedEvidenceError || unlinkedEvidence.length > 0) && (

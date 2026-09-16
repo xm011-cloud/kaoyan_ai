@@ -84,8 +84,8 @@ export const DEFAULT_NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/dashboard', visible: true },
       { href: '/checkin', visible: true },
-      { href: '/pomodoro', visible: true },
-      { href: '/leaderboard', visible: true },
+      { href: '/pomodoro', visible: false },
+      { href: '/leaderboard', visible: false },
     ],
   },
   {
@@ -109,16 +109,27 @@ export const DEFAULT_NAV_GROUPS: NavGroup[] = [
       { href: '/chat', visible: true },
       { href: '/feedback', visible: true },
       { href: '/study-path', visible: true },
-      { href: '/skills', visible: true },
     ],
   },
   {
     id: 'knowledge',
-    label: '知识',
+    label: '学习',
     icon: '📚',
     visible: true,
     items: [
+      { href: '/courses', visible: true },
+    ],
+  },
+  {
+    id: 'tools',
+    label: '更多工具',
+    icon: '🧰',
+    visible: true,
+    items: [
+      { href: '/tools', visible: true },
       { href: '/materials', visible: true },
+      { href: '/pomodoro', visible: true },
+      { href: '/skills', visible: true },
       { href: '/knowledge-graph', visible: true },
       { href: '/admission', visible: true },
     ],
@@ -219,7 +230,7 @@ export const useUIStore = create<UIState>()(
     }),
     {
       name: 'ui-store',
-      version: 9,
+      version: 10,
       // 保留老存储里已有的偏好，只补新字段，避免升级清空用户的自定义
       migrate: (persistedState) => {
         const p = (persistedState ?? {}) as Partial<UIState>
@@ -234,11 +245,12 @@ export const useUIStore = create<UIState>()(
             items: [...existing.items, ...dg.items.filter((di) => !hrefs.has(di.href))],
           }
         })
-        // v4：院校情报正式启用 —— 强制老用户导航里也显示（仅在本次迁移生效，之后用户仍可自行隐藏）
-        const knowledge = navGroups.find((g) => g.id === 'knowledge')
-        if (knowledge) {
-          knowledge.items = knowledge.items.map((i) =>
-            i.href === '/admission' ? { ...i, visible: true } : i
+        // v10：收紧到学习主闭环。旧的院校/图谱/技能入口移入“更多工具”，
+        // 排行榜暂停普通使用；只迁移导航偏好，不删除已有功能或用户数据。
+        const today = navGroups.find((g) => g.id === 'today')
+        if (today) {
+          today.items = today.items.map((item) =>
+            item.href === '/pomodoro' || item.href === '/leaderboard' ? { ...item, visible: false } : item
           )
         }
         // v7：计划总览曾是首页主链；v9 已收拢到顶部的 TodayCommandCenter，不再作为独立卡片。

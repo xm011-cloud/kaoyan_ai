@@ -45,7 +45,9 @@ export function WorkspaceSidebar() {
                     collapsed ? 'justify-center px-2' : 'gap-2.5 px-2.5',
                     active ? 'bg-brand-muted font-medium text-brand' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                   )}>
-                    <NavIcon href={item.href} className="h-[18px] w-[18px] shrink-0" />{!collapsed && item.label}
+                    <NavIcon href={item.href} className="h-[18px] w-[18px] shrink-0" />
+                    {!collapsed && <span className="min-w-0 truncate">{item.label}</span>}
+                    {!collapsed && item.status === 'beta' && <span className="ml-auto rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">Beta</span>}
                   </Link>
                 )
               })}
@@ -59,7 +61,9 @@ export function WorkspaceSidebar() {
           const active = pathname === item.href || pathname.startsWith(`${item.href}/`)
           return (
             <Link key={item.href} href={item.href} title={collapsed ? item.label : undefined} className={cn('flex rounded-lg py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground', collapsed ? 'justify-center px-2' : 'gap-2.5 px-2.5', active && 'bg-brand-muted font-medium text-brand')}>
-              <NavIcon href={item.href} className="h-[18px] w-[18px] shrink-0" />{!collapsed && item.label}
+              <NavIcon href={item.href} className="h-[18px] w-[18px] shrink-0" />
+              {!collapsed && <span className="min-w-0 truncate">{item.label}</span>}
+              {!collapsed && item.status === 'beta' && <span className="ml-auto rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">Beta</span>}
             </Link>
           )
         })}

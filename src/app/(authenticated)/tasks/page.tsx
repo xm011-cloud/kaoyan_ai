@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { confirmDialog } from "@/stores/confirm-store";
 import { PageHeader } from "@/components/ui/page-header";
 import { Modal } from "@/components/ui/modal";
@@ -104,6 +105,13 @@ interface MilestoneEvidenceSummary {
   prompt: string;
 }
 
+interface PlanningGate {
+  unresolvedFields: string[];
+  nextStep: string;
+  needsGoalSetup?: boolean;
+  needsStudyPath?: boolean;
+}
+
 export default function TasksPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -146,6 +154,7 @@ export default function TasksPage() {
   const [weeklyPlanDraft, setWeeklyPlanDraft] = useState<WeeklyPlanDraft | null>(null);
   const [weeklyPlanVersions, setWeeklyPlanVersions] = useState<WeeklyPlanVersion[]>([]);
   const [milestoneEvidence, setMilestoneEvidence] = useState<Record<string, MilestoneEvidenceSummary>>({});
+  const [planningGate, setPlanningGate] = useState<PlanningGate | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const autoAdjustmentRef = useRef(false);
@@ -281,11 +290,33 @@ export default function TasksPage() {
         signal: controller.signal,
       });
       if (res.ok) {
+        setPlanningGate(null);
         await loadWeekTasks();
         toast.success("周计划草稿已生成，确认后才会替换本周未完成任务");
       } else {
         // 失败不静默：把后端错误提示给用户
         const d = await res.json().catch(() => ({}));
+        if (res.status === 409 && d.needsIntake) {
+          const readiness = d.readiness as { unresolvedFields?: unknown; nextStep?: unknown } | undefined;
+          setPlanningGate({
+            unresolvedFields: Array.isArray(readiness?.unresolvedFields) ? readiness.unresolvedFields.filter((field): field is string => typeof field === "string") : [],
+            nextStep: typeof d.nextStep === "string" ? d.nextStep : "先确认学习依据，再生成周计划。",
+          });
+        }
+        if (res.status === 409 && d.needsGoalSetup) {
+          setPlanningGate({
+            unresolvedFields: ["考研目标"],
+            nextStep: typeof d.nextStep === "string" ? d.nextStep : "先建立考研目标，再继续规划。",
+            needsGoalSetup: true,
+          });
+        }
+        if (res.status === 409 && d.needsStudyPath) {
+          setPlanningGate({
+            unresolvedFields: ["长期路线", "当前阶段与里程碑"],
+            nextStep: typeof d.nextStep === "string" ? d.nextStep : "先确认长期路线，再继续生成周计划。",
+            needsStudyPath: true,
+          });
+        }
         toast.error(d.error || "生成计划失败，请稍后再试");
       }
     } catch {
@@ -385,7 +416,16 @@ export default function TasksPage() {
 
   const handleIntentConfirm = async (intent: PlanIntent) => {
     setIntentOpen(false);
-    await runGenerate({ planContext: { label: intent.summary, subjects: intent.subjects } });
+    if (intent.type === "kaoyan") {
+      setPlanningGate({
+        unresolvedFields: ["考研目标", "各科基础", "每周稳定学习容量"],
+        nextStep: "先保存考研目标；系统会继续和你确认基础、阶段退出标准与每周容量。",
+        needsGoalSetup: true,
+      });
+      toast.info("考研计划需要先确认目标和当前情况，不会直接套用周模板");
+      return;
+    }
+    await runGenerate({ planContext: { type: intent.type, label: intent.summary, subjects: intent.subjects } });
   };
 
   // ── ?generate=1 自动生成（周计划到期提醒跳转而来）──
@@ -786,6 +826,25 @@ export default function TasksPage() {
         {/* Zone 3: Weekly planner */}
         <div>
           <h2 className="font-bold mb-3">📅 本周计划</h2>
+          {planningGate && (
+            <section className="mb-4 rounded-2xl border border-warning/35 bg-warning/5 p-4" aria-labelledby="planning-gate-title">
+              <p id="planning-gate-title" className="text-sm font-semibold">先补齐计划依据，再安排任务</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                系统不会拿默认基础和默认学习时长替你做长期决定。{planningGate.nextStep}
+              </p>
+              {planningGate.unresolvedFields.length > 0 && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  待确认：{planningGate.unresolvedFields.join("、")}
+                </p>
+              )}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Link className={buttonVariants({ size: "sm" })} href={planningGate.needsGoalSetup ? "/goal" : planningGate.needsStudyPath ? "/study-path" : "/goal#planning-intake"}>
+                  {planningGate.needsGoalSetup ? "先设置考研目标" : planningGate.needsStudyPath ? "生成长期路线" : "补充学习档案"}
+                </Link>
+                <Link className={buttonVariants({ variant: "outline", size: "sm" })} href="/chat">和 AI 一起梳理</Link>
+              </div>
+            </section>
+          )}
           <WeeklyPlanner
             weekStart={weekStart} weekTasks={weekTasks} loading={loading}
             draftPlan={weeklyPlanDraft}

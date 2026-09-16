@@ -13,13 +13,16 @@ export function jsonNoStore(data: unknown, init?: ResponseInit) {
 }
 
 /**
- * 统一 API 错误返回。始终返回 { error: string } 格式和 500 状态码，
- * 在服务端 console.error 记录原始错误。
+ * 统一 API 错误返回。为每次异常生成可关联 Vercel 日志的编号，
+ * 客户端只收到安全的提示与编号，不能看到原始异常、堆栈或敏感上下文。
  */
 export function handleApiError(err: unknown, context: string): ReturnType<typeof NextResponse.json> {
-  console.error(`[API] ${context}:`, err instanceof Error ? err.message : String(err));
+  const errorId = crypto.randomUUID();
+  const errorName = err instanceof Error ? err.name : "UnknownError";
+  const message = err instanceof Error ? err.message : String(err);
+  console.error("[api_error]", { errorId, context, errorName, message });
   return NextResponse.json(
-    { error: `${context}失败，请稍后再试` },
-    { status: 500, headers: NO_STORE_HEADERS }
+    { error: `${context}失败，请稍后再试`, errorId },
+    { status: 500, headers: { ...NO_STORE_HEADERS, "X-C6-Error-Id": errorId } }
   );
 }

@@ -173,6 +173,7 @@ export function Header({ daysLeft, daysLabel }: { daysLeft: number; daysLabel?: 
                         >
                           <span className="text-base">{item.icon}</span>
                           <span>{item.label}</span>
+                          {item.status === 'beta' && <span className="ml-auto rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">Beta</span>}
                           {isActive && <span className="ml-auto w-1 h-4 rounded-full bg-brand" />}
                         </Link>
                       )

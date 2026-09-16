@@ -190,7 +190,7 @@ export default function MaterialsPage() {
             <div className="text-center py-12 text-muted-foreground">
               <div className="text-4xl mb-3">📚</div>
               <p>还没有上传资料</p>
-              <p className="text-sm">上传 PDF、Word、图片等资料，AI 可以帮你回答问题</p>
+              <p className="text-sm">可以上传 PDF、Word、图片等资料查看；只有可提取文字的资料才会供 AI 检索和引用。</p>
             </div>
           ) : (
             materials.map((material) => (

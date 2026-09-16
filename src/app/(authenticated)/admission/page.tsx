@@ -5,6 +5,7 @@ import { toast } from "@/stores/toast-store";
 import { confirmDialog } from "@/stores/confirm-store";
 import { Modal } from "@/components/ui/modal";
 import { PageHeader } from "@/components/ui/page-header";
+import { FeatureStatusNotice } from "@/components/ui/feature-status-notice";
 import { AiWaiting } from "@/components/ai-waiting";
 import { useAiTask } from "@/hooks/use-ai-task";
 import { AdmissionCompare } from "@/components/admission-compare";
@@ -517,13 +518,11 @@ export default function AdmissionPage() {
   // ── Render ──
   return (
     <div className="workspace-page max-w-4xl space-y-7">
-      <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 text-xs text-yellow-700 dark:text-yellow-400">
-        ⚠️ 数据来源于公开网络搜索，仅供参考。请以
-        <strong>中国研究生招生信息网（yz.chsi.com.cn）</strong>
-        和各校研究生院官网公布的信息为准。所有数据标注了来源和年份。
-      </div>
-
       <PageHeader title="🏫 院校情报" />
+
+      <FeatureStatusNotice title="院校信息仍需以官方招生文件为准">
+        搜索和社区资料只用于辅助比较，可能过期或存在提取误差。报考、科目和分数判断请核对研招网与各校研究生院当年的官方目录、简章和公告。
+      </FeatureStatusNotice>
 
       {/* Tabs */}
       <div className="flex border-b border-border/50">

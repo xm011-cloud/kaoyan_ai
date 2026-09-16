@@ -10,6 +10,7 @@ import { interpolateRgb } from "d3-interpolate";
 import type { SimulationNodeDatum, SimulationLinkDatum } from "d3-force";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
+import { FeatureStatusNotice } from "@/components/ui/feature-status-notice";
 
 interface KnowledgeNode {
   id: string;
@@ -326,6 +327,10 @@ export default function KnowledgeGraphClient() {
             </div>
           }
         />
+
+        <FeatureStatusNotice title="图谱只解释已积累的学习证据">
+          节点和关联不等于掌握程度。请优先完成计划、课程、练习和错题复习，再把图谱用于发现下一步需要补的知识点。
+        </FeatureStatusNotice>
 
         {message && (
           <div className="text-sm p-3 rounded-xl bg-brand/10 text-brand">

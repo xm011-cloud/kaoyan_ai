@@ -24,6 +24,8 @@ interface PlanTask {
 
 /** 探索期计划上下文（judge-plan-intent 确认后传入，无需落库 Goal） */
 interface PlanContext {
+  /** 探索期意图确认后的计划类型；考研计划必须先建立正式目标。 */
+  type?: "kaoyan" | "course" | "selfstudy";
   label?: string;
   subjects?: string[];
   examDate?: string;
@@ -215,21 +217,34 @@ export async function POST(request: NextRequest) {
         orderBy: { observedAt: "desc" },
       }),
     ]);
-    const studyLoad = (goal?.studyLoad as StudyLoad) || undefined;
+    const usesStandalonePlanContext = Boolean(planContext && planContext.type !== "kaoyan");
+    // 独立课程/自学计划不借用考研路线的阶段、里程碑或科目，避免两类计划互相污染。
+    const currentStage = usesStandalonePlanContext ? null : activeStage;
+    const studyLoad = usesStandalonePlanContext ? undefined : (goal?.studyLoad as StudyLoad) || undefined;
 
-    // ── 统一计划上下文：有 goal 用 goal，否则用 planContext（探索期）──
+    // 考研不是一份可直接套模板的周计划。探索期先把目标、基础和容量放进
+    // 正式目标/学习档案，避免 AI 用默认科目和时长替用户作决定。
+    if (!goal && planContext?.type === "kaoyan") {
+      return jsonNoStore({
+        error: "先建立考研目标，并确认当前基础与可用时间，再生成周计划。",
+        needsGoalSetup: true,
+        nextStep: "先保存考研目标；系统会继续和你确认基础、阶段退出标准与每周容量。",
+      }, { status: 409 });
+    }
+
+    // ── 统一计划上下文：正式考研目标优先；显式的课程/自学计划可独立于它。──
     let ctxLabel = "";
     let ctxExamDate: Date | null = null;
     let subjects: string[] = [];
     let targetScores: Record<string, number> = {};
 
-    if (goal) {
+    if (goal && !usesStandalonePlanContext) {
       ctxLabel = [goal.university, goal.major].filter(Boolean).join(" · ") || goal.direction || "当前学习目标";
       ctxExamDate = goal.examDate;
       subjects = (Array.isArray(goal.subjects) ? goal.subjects : [])
         .map(normalizeSubject).filter(Boolean);
-      if (subjects.length === 0 && activeStage?.studyPath.subjects.length) {
-        subjects = activeStage.studyPath.subjects.map(normalizeSubject).filter(Boolean);
+      if (subjects.length === 0 && currentStage?.studyPath.subjects.length) {
+        subjects = currentStage.studyPath.subjects.map(normalizeSubject).filter(Boolean);
       }
       targetScores = (goal.targetScores as Record<string, number>) || {};
     } else if (planContext) {
@@ -267,20 +282,46 @@ export async function POST(request: NextRequest) {
       weeklyHours,
     }, profileFacts);
 
+    // 首次从考研目标生成周计划前，必须先确认长期路线的最小依据。
+    // 已进入路线后的日内重排、周内调整、里程碑复盘和计划评估反馈都属于
+    // 已有计划的维护，不应因旧档案缺字段而把用户卡在半路。
+    const isInitialLongTermPlan = Boolean(goal)
+      && !usesStandalonePlanContext
+      && !currentStage
+      && !regenerateDay
+      && !judgeFeedback
+      && !adjustmentRequest
+      && !focusMilestoneId;
+    if (isInitialLongTermPlan && !planningReadiness.readyForPathDraft) {
+      return jsonNoStore({
+        error: `生成周计划前，请先确认：${planningReadiness.unresolvedFields.join("、")}`,
+        needsIntake: true,
+        readiness: planningReadiness,
+        nextStep: planningReadiness.nextStep,
+      }, { status: 409 });
+    }
+    if (isInitialLongTermPlan) {
+      return jsonNoStore({
+        error: "请先生成并确认长期路线，再让本周任务承接当前阶段和里程碑。",
+        needsStudyPath: true,
+        nextStep: "长期路线会先明确当前阶段、阶段退出标准和里程碑；确认后再生成本周任务。",
+      }, { status: 409 });
+    }
+
     // ── 阶段推导（0.3）──
     const stage = derivePrepStage({
       examDate: ctxExamDate,
-      hasGoal: !!goal,
+      hasGoal: !!goal && !usesStandalonePlanContext,
       subjects,
       subjectProgress: progress,
       weeklyHours,
     });
-    const phase = activeStage?.title ?? stageToPlanPhase(stage.id, daysRemaining);
-    const foundationMode = activeStage
-      ? activeStage.key === "foundation" || activeStage.key === "explore"
+    const phase = currentStage?.title ?? stageToPlanPhase(stage.id, daysRemaining);
+    const foundationMode = currentStage
+      ? currentStage.key === "foundation" || currentStage.key === "explore"
       : stage.id === "foundation" || stage.id === "explore";
     const focusMilestone = focusMilestoneId
-      ? activeStage?.milestones.find((milestone) => milestone.id === focusMilestoneId) ?? null
+      ? currentStage?.milestones.find((milestone) => milestone.id === focusMilestoneId) ?? null
       : null;
     if (focusMilestoneId && !focusMilestone) {
       return jsonNoStore({ error: "当前阶段中没有需要调整的这个里程碑" }, { status: 400 });
@@ -298,7 +339,7 @@ export async function POST(request: NextRequest) {
     let planTasks: PlanTask[];
     let planReasoning: string | undefined;
 
-    const keepProfileLocal = profileFacts.length > 0 && activeStage?.key === "explore";
+    const keepProfileLocal = profileFacts.length > 0 && currentStage?.key === "explore";
     if (aiConfig && generationMode !== "local" && !keepProfileLocal) {
       const scoreContext = Object.keys(targetScores).length > 0
         ? `\n- 目标分数：${Object.entries(targetScores).map(([k, v]) => `${k}: ${v}分`).join("、")}`
@@ -357,8 +398,8 @@ export async function POST(request: NextRequest) {
         ? `每天任务总时长控制在 ${Math.round(weeklyHours / 7)} 小时左右（不超 ${Math.round(weeklyHours / 7) + 1} 小时）`
         : "每天任务总时长控制在 3-6 小时";
 
-      const stageFocusContext = activeStage
-        ? `\n## 当前正式阶段\n${activeStage.title}。阶段目标：${activeStage.objective}。本周任务必须服务于这个阶段目标，任务 phase 统一用「${phase}」。\n本阶段尚未完成的里程碑：${activeStage.milestones.map((item) => `${item.subject}·${item.title}`).join("；") || "暂无，先围绕阶段退出标准安排"}。\n`
+      const stageFocusContext = currentStage
+        ? `\n## 当前正式阶段\n${currentStage.title}。阶段目标：${currentStage.objective}。本周任务必须服务于这个阶段目标，任务 phase 统一用「${phase}」。\n本阶段尚未完成的里程碑：${currentStage.milestones.map((item) => `${item.subject}·${item.title}`).join("；") || "暂无，先围绕阶段退出标准安排"}。\n`
         : `\n## 当前备考阶段\n${stage.label}（${stage.hint}）。本阶段焦点：${stage.focus}。本周计划跨度提示：${stage.planSpanHint}。任务 phase 统一用「${phase}」。\n`;
 
       const prompt = `你是一名资深的考研/学习辅导专家。请为用户的接下来一周（${weekStartStr} 至 ${weekEnd.toISOString().split("T")[0]}）生成详细的学习计划。
@@ -472,12 +513,12 @@ ${sprintContext}${regenerateContext}${pastSkipContext}
 
     // AI 只负责生成可执行任务；里程碑关联由服务端按当前活动阶段和科目确定，
     // 避免模型伪造 ID，也让本地兜底计划拥有同样的可追溯性。
-    if (activeStage?.milestones.length) {
+    if (currentStage?.milestones.length) {
       const nextIndexBySubject = new Map<string, number>();
       planTasks = planTasks.map((task) => {
         if (focusMilestone) return { ...task, milestoneId: focusMilestone.id, milestoneTitle: focusMilestone.title };
         if (task.milestoneId) return task;
-        const candidates = activeStage.milestones.filter((item) => item.subject === task.subject);
+        const candidates = currentStage.milestones.filter((item) => item.subject === task.subject);
         // 当前阶段没有同科目里程碑时保持未归属；跨科轮流塞入会制造看似完整、实则错误的路线证据。
         if (candidates.length === 0) return task;
         const index = nextIndexBySubject.get(task.subject) ?? 0;
@@ -491,11 +532,11 @@ ${sprintContext}${regenerateContext}${pastSkipContext}
       (total, task) => total + Math.min(Math.max(task.duration || 60, 15), 480),
       0,
     );
-    const objective = activeStage?.objective
+    const objective = currentStage?.objective
       ?? `围绕${phase}推进${subjects.slice(0, 3).join("、")}，形成可复盘的一周学习闭环。`;
     const profileBasis = keepProfileLocal ? `，并在本地参考 ${profileFacts.length} 条已确认学习档案` : "";
-    const rationale = activeStage
-      ? `本周计划来自长期路线「${activeStage.studyPath.title}」的当前阶段「${activeStage.title}」，并结合每周容量${weeklyHours ? ` ${weeklyHours} 小时` : "与当前科目进度"}${profileBasis}安排。`
+    const rationale = currentStage
+      ? `本周计划来自长期路线「${currentStage.studyPath.title}」的当前阶段「${currentStage.title}」，并结合每周容量${weeklyHours ? ` ${weeklyHours} 小时` : "与当前科目进度"}${profileBasis}安排。`
       : `当前还没有已确认的正式阶段，本草稿依据目标信息、科目进度和${weeklyHours ? `每周 ${weeklyHours} 小时容量` : "默认学习容量"}${profileBasis}生成。`;
     const fullRationale = adjustmentRequest
       ? `${rationale} 本次还应用了你的调整要求：「${adjustmentRequest}」。`
@@ -503,7 +544,7 @@ ${sprintContext}${regenerateContext}${pastSkipContext}
     const successCriteria = [
       `完成本周计划中的核心任务，计划总量约 ${Math.round(plannedMinutes / 60)} 小时`,
       "至少完成一次本周复盘，记录未完成原因与下周调整项",
-      activeStage ? `能够说明本周任务如何支持阶段目标：${activeStage.objective}` : `明确下一周在${phase}中的具体推进重点`,
+      currentStage ? `能够说明本周任务如何支持阶段目标：${currentStage.objective}` : `明确下一周在${phase}中的具体推进重点`,
     ];
     const linkedMilestones = Array.from(new Set(planTasks.map((task) => task.milestoneTitle).filter(Boolean)));
     if (linkedMilestones.length > 0) {
@@ -528,8 +569,8 @@ ${sprintContext}${regenerateContext}${pastSkipContext}
       return tx.weeklyPlan.create({
         data: {
           userId: user!.id,
-          studyPathId: activeStage?.studyPath.id ?? null,
-          stageId: activeStage?.id ?? null,
+          studyPathId: currentStage?.studyPath.id ?? null,
+          stageId: currentStage?.id ?? null,
           weekStart: new Date(weekStartStr),
           weekEnd: new Date(weekLastStr),
           version: (latest?.version ?? 0) + 1,

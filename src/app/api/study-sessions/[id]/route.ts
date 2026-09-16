@@ -24,8 +24,14 @@ export async function PATCH(
       },
     });
     if (!session) return jsonNoStore({ error: "学习会话不存在" }, { status: 404 });
-    // 离线队列会重放同一“结束会话”请求；相同终态可安全幂等返回，不能二次写证据。
-    if (session.status !== "in_progress" && session.status === body.status) {
+    // 离线队列会重放同一“结束会话”请求；只有终态和已记录的学习事实都相同
+    // 才可安全幂等返回。不同自评/时长不能被悄悄吞掉，否则用户无法发现冲突。
+    const isSameTerminalSubmission = session.status === body.status
+      && (body.selfAssessment === undefined || body.selfAssessment === session.selfAssessment)
+      && (body.actualMinutes === undefined || body.actualMinutes === session.actualMinutes)
+      && (body.blocker === undefined || body.blocker === session.blocker)
+      && (body.nextStep === undefined || body.nextStep === session.nextStep);
+    if (session.status !== "in_progress" && isSameTerminalSubmission) {
       return jsonNoStore({ session, alreadyCompleted: true });
     }
     if (session.status !== "in_progress") {

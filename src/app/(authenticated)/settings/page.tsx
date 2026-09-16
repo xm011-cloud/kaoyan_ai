@@ -443,15 +443,16 @@ export default function SettingsPage() {
                         {tmpl.items.map(item => {
                           const uiI = uiG?.items.find(i => i.href === item.href)
                           const iv = uiI?.visible ?? true
+                          const paused = item.status === 'paused'
                           return (
-                            <button key={item.href} onClick={() => {
+                            <button key={item.href} disabled={paused} onClick={() => {
                               setNavGroups(navGroups.map(g => {
                                 if (g.id !== tmpl.id) return g
                                 const ex = g.items.find(i => i.href === item.href)
                                 return { ...g, items: ex ? g.items.map(i => i.href === item.href ? { ...i, visible: !iv } : i) : [...g.items, { href: item.href, visible: !iv }] }
                               }))
-                            }} className={`text-xs px-2 py-1 rounded-full ${iv ? 'bg-brand-muted text-brand' : 'bg-muted text-muted-foreground line-through'}`}>
-                              {item.icon} {item.shortLabel}
+                            }} className={`text-xs px-2 py-1 rounded-full ${paused ? 'cursor-not-allowed bg-muted text-muted-foreground' : iv ? 'bg-brand-muted text-brand' : 'bg-muted text-muted-foreground line-through'}`}>
+                              {item.icon} {item.shortLabel}{paused ? ' · 暂停' : item.status === 'beta' ? ' · Beta' : ''}
                             </button>
                           )
                         })}

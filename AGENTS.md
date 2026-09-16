@@ -44,8 +44,8 @@ npx playwright test --ui                     # UI 模式
 1. **独立测试库**：`e2e/create-test-db.mjs` 把 `DATABASE_URL` 的库名追加 `_test`（如 `neondb` → `neondb_test`），不污染开发数据
 2. `prisma db push` 同步 schema 到测试库
 3. **独立端口 3100** 起 dev server（避开 :3000），注入测试库环境变量
-4. 认证态：`authenticated` project 复用 `e2e/.auth/user.json` 的登录会话（由 `e2e/global-setup.ts` 用 `E2E_TEST_USER`/`E2E_TEST_PASSWORD` 环境变量登录 UI 生成）；`unauthenticated` project 无登录态
-5. Playwright 不自动读 `.env.local`，`playwright.config.ts` 和 `global-setup.ts` 都手动加载它
+4. 认证态：`authenticated` project 依赖 `auth-setup` project，复用 `e2e/.auth/user.json` 的登录会话（由 `e2e/auth.setup.ts` 用 `E2E_TEST_USER`/`E2E_TEST_PASSWORD` 环境变量登录 UI 生成）；`unauthenticated` project 不依赖认证 setup，可独立运行
+5. Playwright 不自动读 `.env.local`，`playwright.config.ts` 和 `auth.setup.ts` 都手动加载它
 6. 全套用例共享认证账号与测试库，默认固定为单 worker，避免并发数据互扰；可信基线见 `docs/test-baseline.md`
 
 改 schema 后跑 E2E，测试库会自动重建；若加了新模块的 spec，记得把它登记到 `playwright.config.ts` 的 `authenticated` project 的 `testMatch` 列表。

@@ -4,6 +4,7 @@ import {
   CircleUserRound, Clock3, FileText, FolderOpen, GraduationCap, House,
   LibraryBig, Map, MessageSquareText, NotebookPen, Settings2, Sparkles,
   Target, Trophy, UploadCloud,
+  Wrench,
 } from 'lucide-react'
 
 const ICONS: Record<string, LucideIcon> = {
@@ -27,6 +28,7 @@ const ICONS: Record<string, LucideIcon> = {
   '/profile': CircleUserRound,
   '/changelog': FileText,
   '/suggestions': UploadCloud,
+  '/tools': Wrench,
 }
 
 export function NavIcon({ href, className }: { href: string; className?: string }) {

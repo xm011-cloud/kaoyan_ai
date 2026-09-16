@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { getServerAuthUser } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { WorkbenchGrid } from "@/components/workbench/workbench-grid"
@@ -57,8 +57,7 @@ export default async function DashboardPage({
   // ?tour=1：无条件重放新用户引导（测试 / 「重新查看引导」入口）
   const forceTour = sp.tour === "1"
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getServerAuthUser()
   if (!user) redirect("/login")
 
   const userId = user.id

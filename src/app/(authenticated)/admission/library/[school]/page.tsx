@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getServerAuthUser } from "@/lib/supabase/server";
 import { enrichRowsForUniversity, type AdmissionEntryView } from "@/lib/admission-server";
 import { SchoolDetailView } from "@/components/admission/school-detail";
 
@@ -23,8 +23,7 @@ export default async function SchoolLibraryPage({
   params: Promise<{ school: string }>;
   searchParams: Promise<{ major?: string; year?: string; category?: string }>;
 }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getServerAuthUser();
   if (!user) redirect("/login");
 
   const { school } = await params;

@@ -3,21 +3,19 @@ import { StudyReminder } from "@/components/study-reminder"
 import { PwaInstallPrompt } from "@/components/pwa-install"
 import { WeeklyPlanReminder } from "@/components/weekly-plan-reminder"
 import { AppProviders } from "@/components/app-providers"
-import { createClient } from "@/lib/supabase/server"
+import { getServerAuthUser } from "@/lib/supabase/server"
 import { prisma } from "@/lib/prisma"
 import { redirect } from "next/navigation"
 import { derivePrepStage } from "@/lib/prep-stage"
 import type { SubjectProgress } from "@/lib/completion"
 import { getDaysToGoal } from "@/lib/goal-model"
-import { getAuthUserWithRetry } from "@/lib/supabase/auth-retry"
 
 export default async function AuthenticatedLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const supabase = await createClient()
-  const { data: { user } } = await getAuthUserWithRetry(() => supabase.auth.getUser())
+  const user = await getServerAuthUser()
 
   if (!user) {
     redirect("/login")

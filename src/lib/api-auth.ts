@@ -37,6 +37,18 @@ export async function ensureLocalUser(userId: string, email?: string) {
 export async function getAuthUser(request?: NextRequest) {
   // 先尝试 cookie 方式（浏览器流程）
   const supabase = await createClient();
+  // E2E 已在 auth setup 取得真实 Supabase 会话。全套测试中每个私有 API 再请求一次
+  // Auth 服务会放大外部网络波动；只在显式测试环境读取 cookie 内的 session，生产仍走
+  // getUser() 的远程令牌校验，绝不把这个快捷路径带到真实请求。
+  if (process.env.E2E_TEST_MODE === "1") {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (session?.user) {
+      await ensureLocalUser(session.user.id, session.user.email);
+      return { user: session.user, error: null };
+    }
+  }
   const {
     data: { user: cookieUser },
   } = await getAuthUserWithRetry(() => supabase.auth.getUser());

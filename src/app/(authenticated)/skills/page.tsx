@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { PageHeader } from '@/components/ui/page-header'
+import { FeatureStatusNotice } from '@/components/ui/feature-status-notice'
 
 type SkillRow = {
   id: string
@@ -111,6 +112,10 @@ export default function SkillsPage() {
           </Link>
         }
       />
+
+      <FeatureStatusNotice title="技能是辅助流程，不替代学习判断">
+        运行结果可能有误或不完整。路线推进、里程碑完成和计划调整仍以你确认的学习证据为准。
+      </FeatureStatusNotice>
 
       {/* 引导条 */}
       <div className="rounded-2xl bg-gradient-to-r from-indigo-50 to-sky-50 dark:from-indigo-900/20 dark:to-sky-900/20 border border-indigo-200/50 dark:border-indigo-500/20 p-4">

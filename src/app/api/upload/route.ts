@@ -6,6 +6,31 @@ import { prisma } from "@/lib/prisma";
 import { extractText } from "@/lib/rag";
 import { isMaterialSearchable } from "@/lib/material-readiness";
 
+const STORAGE_UPLOAD_TIMEOUT_MS = 5_000;
+
+/**
+ * 附件存储只是资料上传的增强能力；资料元数据和可检索文本必须优先落库。
+ * 外部 Storage 冷启动或网络抖动时，不能让用户一直停在“上传中”。
+ */
+function withinStorageBudget<T>(promise: Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error("资料存储连接超时")),
+      STORAGE_UPLOAD_TIMEOUT_MS,
+    );
+    promise.then(
+      (value) => {
+        clearTimeout(timeout);
+        resolve(value);
+      },
+      (error: unknown) => {
+        clearTimeout(timeout);
+        reject(error);
+      },
+    );
+  });
+}
+
 export async function POST(request: NextRequest) {
   const { user, error } = await getAuthUser(request);
   if (error) return error;
@@ -35,7 +60,7 @@ export async function POST(request: NextRequest) {
     let storagePath = filePath;
     try {
       const supabase = createServiceClient();
-      const { data: buckets } = await supabase.storage.listBuckets();
+      const { data: buckets } = await withinStorageBudget(supabase.storage.listBuckets());
       const bucketName = "materials";
       if (!buckets?.find((b) => b.name === bucketName)) {
         await supabase.storage.createBucket(bucketName, {
@@ -44,12 +69,14 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      const { error: uploadError } = await supabase.storage
-        .from(bucketName)
-        .upload(filePath, buffer, {
-          contentType: file.type,
-          upsert: false,
-        });
+      const { error: uploadError } = await withinStorageBudget(
+        supabase.storage
+          .from(bucketName)
+          .upload(filePath, buffer, {
+            contentType: file.type,
+            upsert: false,
+          })
+      );
 
       if (uploadError) {
         console.warn("Storage upload failed, storing content only:", uploadError.message);

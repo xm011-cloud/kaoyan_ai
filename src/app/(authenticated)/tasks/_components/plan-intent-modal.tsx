@@ -16,7 +16,7 @@ const INTENT_LABELS: Record<PlanIntentType, string> = {
 interface Props {
   open: boolean;
   onClose: () => void;
-  /** 确认后生成计划（planContext 传给 generate-plan） */
+  /** 确认后继续：考研意图进入目标确认，其它类型生成探索期周计划。 */
   onConfirm: (intent: PlanIntent) => void;
 }
 
@@ -99,12 +99,14 @@ export function PlanIntentModal({ open, onClose, onConfirm }: Props) {
                 <p className="text-xs text-muted-foreground">科目：{intent.subjects.join("、")}</p>
               )}
               <p className="text-[11px] text-muted-foreground/80">
-                确认后按这个类型生成本周计划；科目/内容可在生成后调整。
+                {intent.type === "kaoyan"
+                  ? "确认后先建立目标并补齐基础、阶段标准和学习容量，不会直接套用周计划。"
+                  : "确认后按这个类型生成本周计划；科目/内容可在生成后调整。"}
               </p>
             </div>
             <div className="flex gap-2">
               <Button onClick={() => onConfirm(intent)} className="flex-1">
-                确认生成
+                {intent.type === "kaoyan" ? "确认并补充依据" : "确认生成"}
               </Button>
               <Button variant="outline" onClick={reset} className="flex-1">
                 重新描述

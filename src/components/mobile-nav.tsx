@@ -33,7 +33,7 @@ export function MobileNav() {
   const keyboardOpen = useKeyboardOpen()
   if (keyboardOpen) return null
 
-  const groups = getVisibleGroups(uiGroups).slice(0, 5)
+  const groups = getVisibleGroups(uiGroups).filter((group) => group.mobile !== false).slice(0, 5)
 
   // Pomodoro progress
   const total = pomodoro.totalSeconds || 1

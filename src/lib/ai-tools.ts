@@ -27,6 +27,8 @@ export interface ToolActionResult {
 export interface ToolContext {
   chatId?: string | null;
   skillId?: string | null;
+  /** 长期规划尚未具备依据或路线时，禁止 AI 绕过确认流程批量/逐条排任务。 */
+  planWriteBlockedReason?: string | null;
 }
 
 interface ToolEntry {
@@ -627,8 +629,12 @@ const TOOL_ENTRIES: ToolEntry[] = [
 // ── 公开 API ──
 
 /** 获取所有工具定义（传给 AI API 的 tools 参数）；技能内部工具 skill_control 不暴露给普通对话 */
-export function getToolDefinitions(): AiTool[] {
-  return TOOL_ENTRIES.filter((t) => t.definition.function.name !== "skill_control").map(
+export function getToolDefinitions(options?: { excludeTaskPlanning?: boolean }): AiTool[] {
+  return TOOL_ENTRIES.filter((t) => {
+    const name = t.definition.function.name;
+    if (name === "skill_control") return false;
+    return !options?.excludeTaskPlanning || (name !== "create_task" && name !== "propose_tasks");
+  }).map(
     (t) => t.definition
   );
 }
@@ -650,6 +656,12 @@ export async function executeTool(
   args: Record<string, unknown>,
   ctx?: ToolContext
 ): Promise<ToolActionResult> {
+  if (ctx?.planWriteBlockedReason && (name === "create_task" || name === "propose_tasks")) {
+    return {
+      writes: false,
+      result: JSON.stringify({ success: false, error: ctx.planWriteBlockedReason }),
+    };
+  }
   const tool = TOOL_ENTRIES.find((t) => t.definition.function.name === name);
   if (!tool) {
     return {

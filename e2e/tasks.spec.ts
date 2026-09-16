@@ -151,6 +151,8 @@ test.describe("Tasks", () => {
         weekStartLocal: weekStart,
         todayLocal: weekStart,
         generationMode: "local",
+        // 这条用例覆盖独立自学计划的草稿/版本语义；考研主线会先要求确认长期路线。
+        planContext: { type: "selfstudy", label: "E2E 独立自学计划", subjects: ["数学一"] },
       },
     });
     expect(generated.status()).toBe(200);
@@ -196,6 +198,7 @@ test.describe("Tasks", () => {
         todayLocal: weekStart,
         generationMode: "local",
         adjustmentRequest: "本周只有 5 小时，周三没空，数学一少一点，英语一重点加强",
+        planContext: { type: "selfstudy", label: "E2E 独立自学计划", subjects: ["数学一"] },
       },
     });
     expect(changedDraftResponse.status()).toBe(200);

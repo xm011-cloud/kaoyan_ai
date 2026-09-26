@@ -34,7 +34,7 @@ test.describe('Workspace shell', () => {
 
     const workspace = page.getByRole('complementary', { name: 'AI 工作区' })
     await expect(workspace).toBeVisible()
-    await expect(workspace.getByRole('heading', { name: 'AI 学习伙伴' })).toBeVisible()
+    await expect(workspace.getByRole('heading', { name: 'AI 学习管家' })).toBeVisible()
     await workspace.getByRole('button', { name: '历史' }).click()
     const history = workspace.getByText(historyTitle)
     await expect(history).toBeVisible()
@@ -53,7 +53,7 @@ test.describe('Workspace shell', () => {
     const workspace = page.getByRole('complementary', { name: 'AI 工作区' })
     await expect(workspace).toBeVisible()
     await expect(workspace).toHaveCSS('position', 'fixed')
-    await expect(workspace.getByRole('heading', { name: 'AI 学习伙伴' })).toBeVisible()
+    await expect(workspace.getByRole('heading', { name: 'AI 学习管家' })).toBeVisible()
   })
 
   test('手机端外壳把当前场景置于顶部，导航稳定停靠在底部', async ({ page }) => {

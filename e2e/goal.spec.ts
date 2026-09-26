@@ -33,6 +33,19 @@ test.describe("Goal", () => {
     await expect(page.locator("text=考试科目")).toBeVisible({ timeout: 10000 });
   });
 
+  test("goal form stays focused and reveals optional subject inputs on demand", async ({ page }) => {
+    // AI 工作区也有输入 form；只定位目标填写区，避免外壳变化使断言产生歧义。
+    const form = page.locator("form.workspace-surface");
+    await expect(form).toBeVisible({ timeout: 10000 });
+    const box = await form.boundingBox();
+    // Desktop 目标填写应保持阅读列宽，不随工作台画布无限拉伸。
+    expect(box?.width).toBeLessThanOrEqual(768);
+
+    await page.getByText("自主命题 / 其他科目", { exact: true }).click();
+    await expect(page.getByPlaceholder("院校名称")).toBeVisible();
+    await expect(page.getByPlaceholder("科目名称")).toBeVisible();
+  });
+
   test("can save an exploring direction without inventing a school or date", async ({ page }) => {
     test.setTimeout(120000);
     const pool = createTestDbPool();

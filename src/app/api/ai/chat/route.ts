@@ -258,9 +258,12 @@ async function buildRouteContext(userId: string, preferredMilestoneId: string | 
   const evidence = await getMilestoneEvidence(userId, milestone);
   const criteria = Array.isArray(stage.exitCriteria) ? stage.exitCriteria.slice(0, 5).map(String).join("；") : "暂无";
   const milestoneLabel = preferredMilestone ? "当前学习行为明确归属的里程碑" : "当前里程碑";
+  const curriculumSummary = evidence.curriculum.nodes.length
+    ? evidence.curriculum.nodes.map((node) => `${node.title}（任务 ${node.completedTasks}/${node.plannedTasks}${node.understandingNotes === 0 ? "，尚未留下理解" : `，${node.understandingNotes} 条理解` }）`).join("；")
+    : "当前关联任务尚未确认课程知识点归属";
   return {
     review: evidence.reviewReady ? { id: milestone.id, title: milestone.title } : null,
-    prompt: `## 当前路线现场（已由服务端校验）\n当前阶段：${stage.title}\n阶段目标：${stage.objective}\n退出标准：${criteria}\n${milestoneLabel}：${milestone.title}（${milestone.subject}，手动进度 ${Math.round(milestone.progress * 100)}%）${milestone.reviewOutcome ? `\n最近复盘结论：${milestone.reviewOutcome === "relearn" ? "需要重学" : milestone.reviewOutcome === "continue" ? "继续巩固" : "已达成"}${milestone.reviewNote ? `；用户备注：${milestone.reviewNote.slice(0, 500)}` : ""}` : ""}\n学习证据：关联任务 ${evidence.tasks.completed}/${evidence.tasks.total}；学习会话 ${evidence.learning.sessions} 次/${evidence.learning.minutes} 分钟；练习 ${evidence.practice.completed} 次；错题复习 ${evidence.wrongQuestions.reviewed} 道。\n${evidence.prompt}\n回答中必须区分“执行任务”“积累证据”“复盘确认掌握”；出现“继续巩固”或“需要重学”时，优先围绕同一里程碑提出可确认的周计划调整，不要静默改写长期路线。`,
+    prompt: `## 当前路线现场（已由服务端校验）\n当前阶段：${stage.title}\n阶段目标：${stage.objective}\n退出标准：${criteria}\n${milestoneLabel}：${milestone.title}（${milestone.subject}，手动进度 ${Math.round(milestone.progress * 100)}%）${milestone.reviewOutcome ? `\n最近复盘结论：${milestone.reviewOutcome === "relearn" ? "需要重学" : milestone.reviewOutcome === "continue" ? "继续巩固" : "已达成"}${milestone.reviewNote ? `；用户备注：${milestone.reviewNote.slice(0, 500)}` : ""}` : ""}\n学习证据：关联任务 ${evidence.tasks.completed}/${evidence.tasks.total}；学习会话 ${evidence.learning.sessions} 次/${evidence.learning.minutes} 分钟；练习 ${evidence.practice.completed} 次；错题复习 ${evidence.wrongQuestions.reviewed} 道。\n知识点关联：${curriculumSummary}。\n${evidence.prompt}\n回答中必须区分“执行任务”“积累证据”“复盘确认掌握”；出现“继续巩固”或“需要重学”时，优先围绕同一里程碑提出可确认的周计划调整，不要静默改写长期路线。`,
   };
 }
 
@@ -293,14 +296,22 @@ export async function POST(request: NextRequest) {
       return jsonNoStore({ error: "消息格式不正确" }, { status: 400 });
     }
 
-    // 对话→任务落地：沿用已有对话（提案挂到它的 pendingProposal）；无对话时先建一条
-    let resolvedChatId: string | null = typeof bodyChatId === "string" && bodyChatId ? bodyChatId : null;
+    // 对话→任务落地：只沿用当前用户自己的对话。不能让客户端传入的 chatId
+    // 成为跨用户读取技能或写入 pendingProposal 的入口；无效 ID 按无对话处理。
+    const requestedChatId = typeof bodyChatId === "string" && bodyChatId ? bodyChatId : null;
+    const ownedChat = requestedChatId
+      ? await prisma.chat.findFirst({
+          where: { id: requestedChatId, userId: user!.id },
+          select: { id: true, skillId: true },
+        })
+      : null;
+    let resolvedChatId: string | null = ownedChat?.id ?? null;
     let proposalData: Record<string, unknown> | null = null;
 
     const lastMessage = messages[messages.length - 1]?.content || "";
 
     // ── 技能模式：技能运行 = 带 skillId 的对话 ──
-    // 解析技能：优先 body.skillId；否则从已解析 chat 找回（技能已删则回落普通对话）
+    // 解析技能：优先 body.skillId；否则从已确认归属的 chat 找回（技能已删则回落普通对话）
     let activeSkill: {
       id: string;
       name: string;
@@ -312,12 +323,8 @@ export async function POST(request: NextRequest) {
 
     let skillId: string | null =
       typeof bodySkillId === "string" && bodySkillId ? bodySkillId : null;
-    if (!skillId && resolvedChatId) {
-      const chatWithSkill = await prisma.chat.findUnique({
-        where: { id: resolvedChatId },
-        select: { skillId: true },
-      });
-      skillId = chatWithSkill?.skillId ?? null;
+    if (!skillId && ownedChat) {
+      skillId = ownedChat.skillId;
     }
     if (skillId) {
       const skill = await prisma.skill.findFirst({ where: { id: skillId, userId: user!.id } });

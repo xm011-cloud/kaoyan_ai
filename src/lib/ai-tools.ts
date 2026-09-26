@@ -351,7 +351,7 @@ const TOOL_ENTRIES: ToolEntry[] = [
       type: "function",
       function: {
         name: "propose_tasks",
-        description: "为 3 个及以上任务生成一份提案，供用户逐项确认。当用户一次要求安排多个任务、或想批量调整任务时使用。提案不会直接创建任务，需用户在对话界面确认后才会加入任务清单。单个任务用 create_task。",
+        description: "为一个或多个任务生成一份可逐项确认的提案。当用户要求安排任务或调整任务时使用。提案不会直接创建任务，需用户在对话界面确认后才会加入任务清单。",
         parameters: {
           type: "object",
           properties: {
@@ -402,11 +402,12 @@ const TOOL_ENTRIES: ToolEntry[] = [
       const proposalId = `prop_${randomUUID()}`;
       const note = (args.note as string) || null;
 
-      // 草稿不落 Task；挂到对话的 pendingProposal（供确认/撤销）。无 chatId 时由路由先建对话再回写。
+      // 草稿不落 Task；只可挂到当前用户自己的对话（供确认/撤销）。
+      // 路由已校验 chatId，这里仍以 userId 作写入约束，防止其他调用方绕过路由。
       if (ctx?.chatId) {
         try {
-          await prisma.chat.update({
-            where: { id: ctx.chatId },
+          const updated = await prisma.chat.updateMany({
+            where: { id: ctx.chatId, userId },
             data: {
               pendingProposal: {
                 proposalId,
@@ -416,8 +417,17 @@ const TOOL_ENTRIES: ToolEntry[] = [
               },
             },
           });
+          if (updated.count === 0) {
+            return {
+              writes: false,
+              result: JSON.stringify({ success: false, error: "对话不存在或不属于当前用户" }),
+            };
+          }
         } catch {
-          // 对话不存在 → 忽略（路由层会兜底创建）
+          return {
+            writes: false,
+            result: JSON.stringify({ success: false, error: "保存任务草稿失败，请稍后重试" }),
+          };
         }
       }
 
@@ -632,7 +642,8 @@ const TOOL_ENTRIES: ToolEntry[] = [
 export function getToolDefinitions(options?: { excludeTaskPlanning?: boolean }): AiTool[] {
   return TOOL_ENTRIES.filter((t) => {
     const name = t.definition.function.name;
-    if (name === "skill_control") return false;
+    // 计划类写入统一走 proposal → 用户逐项采纳；保留旧 executor 只为兼容已有数据。
+    if (name === "skill_control" || name === "create_task") return false;
     return !options?.excludeTaskPlanning || (name !== "create_task" && name !== "propose_tasks");
   }).map(
     (t) => t.definition
@@ -641,7 +652,7 @@ export function getToolDefinitions(options?: { excludeTaskPlanning?: boolean }):
 
 /** 技能运行的 tools（基础工具 + skill_control） */
 export function getSkillRunTools(): AiTool[] {
-  return TOOL_ENTRIES.map((t) => t.definition);
+  return TOOL_ENTRIES.filter((t) => t.definition.function.name !== "create_task").map((t) => t.definition);
 }
 
 /** 判断是否为技能收尾调用（skill_control / action=finish） */

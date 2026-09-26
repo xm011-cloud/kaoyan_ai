@@ -61,10 +61,12 @@ test.describe("AI 配置引导", () => {
     const workspace = page.getByLabel("AI 工作区");
     await expect(workspace.getByText("AI 未启用").first()).toBeVisible({ timeout: 10000 });
     await expect(workspace.getByRole("link", { name: /去配置/ })).toBeVisible();
-    await expect(workspace.getByPlaceholder(/配置 AI 后开启对话/)).toBeDisabled();
+    await expect(workspace.getByPlaceholder(/配置 AI 后开启学习管家/)).toBeDisabled();
   });
 
   test("chat 收到 needConfig 响应后显示引导条", async ({ page }) => {
+    // 先模拟一个可发送的配置状态，再由对话接口返回 needConfig，覆盖 Key 失效场景。
+    await mockSettings(page, CONFIGURED);
     // 拦截 AI 对话：返回 needConfig（模拟未配置/Key 失效）
     await page.route("**/api/ai/chat", async (route) => {
       await route.fulfill({
@@ -76,7 +78,7 @@ test.describe("AI 配置引导", () => {
     });
     await page.goto("/chat");
     const workspace = page.getByLabel("AI 工作区");
-    const input = workspace.getByPlaceholder(/输入指令/);
+    const input = workspace.getByPlaceholder(/描述计划、复盘或调整需要/);
     await expect(input).toBeEnabled({ timeout: 10000 });
     await input.fill("你好");
     await workspace.getByRole("button", { name: "发送" }).click();

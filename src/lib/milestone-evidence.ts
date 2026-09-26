@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { getCurriculumNode } from "@/lib/curriculum-outlines";
 
 /**
  * 里程碑证据只用于帮助复盘，不会自动改写掌握度或完成状态。
@@ -22,6 +23,10 @@ export interface MilestoneEvidence {
   learning: { sessions: number; minutes: number; clear: number; needsPractice: number; blocked: number };
   practice: { completed: number; scored: number; averageRate: number | null };
   wrongQuestions: { reviewed: number };
+  curriculum: {
+    nodes: Array<{ id: string; title: string; plannedTasks: number; completedTasks: number; understandingNotes: number }>;
+    unlinkedTasks: number;
+  };
   items: MilestoneEvidenceItem[];
   reviewReady: boolean;
   prompt: string;
@@ -70,7 +75,7 @@ export async function getMilestoneEvidence(userId: string, milestone: MilestoneI
   const [tasks, evidenceRows] = await Promise.all([
     prisma.task.findMany({
       where: { userId, milestoneId: milestone.id },
-      select: { completed: true, duration: true },
+      select: { id: true, completed: true, duration: true, curriculumNodeIds: true },
     }),
     prisma.studyEvidence.findMany({
       where: { userId, milestoneId: milestone.id, status: "active" },
@@ -94,6 +99,23 @@ export async function getMilestoneEvidence(userId: string, milestone: MilestoneI
     ? Math.round(scored.reduce((sum, item) => sum + (item.score || 0) / (item.maxScore || 1), 0) / scored.length * 100)
     : null;
   const reviewedWrongIds = new Set(wrongRows.map((item) => metadataString(item.metadata, "wrongQuestionId") ?? item.sourceId.split(":")[0]));
+  const curriculumNodeIds = Array.from(new Set(tasks.flatMap((task) => task.curriculumNodeIds)));
+  const linkedNotes = curriculumNodeIds.length === 0 ? [] : await prisma.studyNote.findMany({
+    where: { userId, task: { milestoneId: milestone.id }, curriculumNodeIds: { hasSome: curriculumNodeIds } },
+    select: { curriculumNodeIds: true },
+  });
+  const curriculum = curriculumNodeIds.flatMap((id) => {
+    const systemNode = getCurriculumNode(id)?.node;
+    if (!systemNode) return [];
+    const nodeTasks = tasks.filter((task) => task.curriculumNodeIds.includes(id));
+    return [{
+      id,
+      title: systemNode.title,
+      plannedTasks: nodeTasks.length,
+      completedTasks: nodeTasks.filter((task) => task.completed).length,
+      understandingNotes: linkedNotes.filter((note) => note.curriculumNodeIds.includes(id)).length,
+    }];
+  });
   const taskRate = tasks.length ? completedTasks.length / tasks.length : 0;
   const reviewReady = !milestone.completedAt
     && tasks.length > 0
@@ -117,6 +139,7 @@ export async function getMilestoneEvidence(userId: string, milestone: MilestoneI
     learning: { sessions: learningRows.length, minutes: learningRows.reduce((sum, item) => sum + (item.durationMinutes || 0), 0), clear, needsPractice, blocked },
     practice: { completed: practiceRows.length, scored: scored.length, averageRate },
     wrongQuestions: { reviewed: reviewedWrongIds.size },
+    curriculum: { nodes: curriculum, unlinkedTasks: tasks.filter((task) => task.curriculumNodeIds.length === 0).length },
     items,
     reviewReady,
     prompt: reviewReady

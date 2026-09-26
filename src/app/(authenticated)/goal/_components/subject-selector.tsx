@@ -29,6 +29,8 @@ interface SubjectSelectorProps {
 export function SubjectSelector({ selected, onChange, majorValue, edited, onManualEdit }: SubjectSelectorProps) {
   const [customUni, setCustomUni] = useState("");
   const [customSubject, setCustomSubject] = useState("");
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const [customOpen, setCustomOpen] = useState(false);
 
   // 专业 → 科目推荐
   const recKey = majorValue ? normalizeMajor(majorValue) : null;
@@ -111,78 +113,95 @@ export function SubjectSelector({ selected, onChange, majorValue, edited, onManu
         </div>
       )}
 
-      {/* Preset checkboxes */}
-      {Array.from(byCategory.entries()).map(([category, subjects]) => (
-        <div key={category}>
-          <label className="block text-sm font-medium mb-2 text-gray-500">
-            {category}
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {subjects.map((s) => {
-              const checked = presetSelected.includes(s.value);
-              return (
-                <label
-                  key={s.value}
-                  className={`inline-flex min-h-11 min-w-[44px] items-center justify-center gap-1.5 px-3 py-1.5 rounded-full text-sm border cursor-pointer transition-colors ${
-                    checked
-                      ? "bg-blue-50 border-blue-300 text-blue-700 dark:bg-blue-900/30 dark:border-blue-600 dark:text-blue-300"
-                      : "bg-card border-border/50 text-muted-foreground hover:border-brand/40"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => togglePreset(s.value)}
-                    className="sr-only"
-                  />
-                  {checked && <span className="text-xs">✓</span>}
-                  {s.label}
-                </label>
-              );
-            })}
-          </div>
+      {/* 完整目录是低频配置：默认收起，避免目标页成为一堵科目标签墙。 */}
+      <details
+        open={catalogOpen}
+        onToggle={(event) => setCatalogOpen(event.currentTarget.open)}
+        className="rounded-xl border border-border/60 bg-muted/20 px-3 py-2.5"
+      >
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium marker:content-none">
+          <span>从统考科目目录中选择</span>
+          <span className="text-xs font-normal text-muted-foreground">{presetSelected.length > 0 ? `已选 ${presetSelected.length} 门` : "按需展开"}</span>
+        </summary>
+        <div className="mt-4 space-y-4 border-t border-border/50 pt-4">
+          {Array.from(byCategory.entries()).map(([category, subjects]) => (
+            <div key={category}>
+              <p className="mb-2 text-sm font-medium text-muted-foreground">{category}</p>
+              <div className="flex flex-wrap gap-2">
+                {subjects.map((s) => {
+                  const checked = presetSelected.includes(s.value);
+                  return (
+                    <label
+                      key={s.value}
+                      className={`inline-flex min-h-11 min-w-[44px] items-center justify-center gap-1.5 px-3 py-1.5 rounded-full text-sm border cursor-pointer transition-colors ${
+                        checked
+                          ? "bg-blue-50 border-blue-300 text-blue-700 dark:bg-blue-900/30 dark:border-blue-600 dark:text-blue-300"
+                          : "bg-card border-border/50 text-muted-foreground hover:border-brand/40"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => togglePreset(s.value)}
+                        className="sr-only"
+                      />
+                      {checked && <span className="text-xs">✓</span>}
+                      {s.label}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
-      ))}
+      </details>
 
-      {/* Custom subject input */}
-      <div>
-        <label className="block text-sm font-medium mb-2 text-gray-500">
-          自主命题科目
-        </label>
-        <div className="flex flex-wrap gap-2 items-end">
-          <input
-            type="text"
-            value={customUni}
-            onChange={(e) => setCustomUni(e.target.value)}
-            placeholder="院校名称"
-            className="h-11 px-3 text-sm rounded-xl border border-border/50 bg-muted/50 focus:outline-none focus:ring-2 focus:ring-brand/20 w-32"
-          />
-          <input
-            type="text"
-            value={customSubject}
-            onChange={(e) => setCustomSubject(e.target.value)}
-            placeholder="科目名称"
-            className="h-11 px-3 text-sm rounded-xl border border-border/50 bg-muted/50 focus:outline-none focus:ring-2 focus:ring-brand/20 flex-1 min-w-[120px]"
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                addCustom();
-              }
-            }}
-          />
-          <button
-            type="button"
-            onClick={addCustom}
-            disabled={!customUni.trim() || !customSubject.trim()}
-            className="min-h-11 px-4 text-sm bg-muted rounded-lg hover:bg-muted/80 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            添加
-          </button>
+      {/* 自主命题只对少数用户需要，保留完整能力但不默认占用首屏。 */}
+      <details
+        open={customOpen || customSelected.length > 0}
+        onToggle={(event) => setCustomOpen(event.currentTarget.open)}
+        className="rounded-xl border border-border/60 bg-muted/20 px-3 py-2.5"
+      >
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium marker:content-none">
+          <span>自主命题 / 其他科目</span>
+          <span className="text-xs font-normal text-muted-foreground">{customSelected.length > 0 ? `已添加 ${customSelected.length} 门` : "按需填写"}</span>
+        </summary>
+        <div className="mt-4 border-t border-border/50 pt-4">
+          <div className="grid gap-2 sm:grid-cols-[minmax(9rem,0.7fr)_minmax(0,1fr)_auto]">
+            <input
+              type="text"
+              value={customUni}
+              onChange={(e) => setCustomUni(e.target.value)}
+              placeholder="院校名称"
+              className="h-11 min-w-0 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
+            />
+            <input
+              type="text"
+              value={customSubject}
+              onChange={(e) => setCustomSubject(e.target.value)}
+              placeholder="科目名称"
+              className="h-11 min-w-0 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addCustom();
+                }
+              }}
+            />
+            <button
+              type="button"
+              onClick={addCustom}
+              disabled={!customUni.trim() || !customSubject.trim()}
+              className="min-h-11 rounded-lg bg-muted px-4 text-sm hover:bg-muted/80 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              添加
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            例如“北京大学 数据结构与算法”。
+          </p>
         </div>
-        <p className="text-xs text-gray-400 mt-1">
-          输入院校名称和科目名称，如“北京大学 数据结构与算法”
-        </p>
-      </div>
+      </details>
 
       {/* Selected subjects tags */}
       {(presetSelected.length > 0 || customSelected.length > 0 || legacySelected.length > 0) && (

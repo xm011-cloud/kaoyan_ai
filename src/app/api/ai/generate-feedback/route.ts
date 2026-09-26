@@ -7,6 +7,22 @@ import { startOfDay, getWeekStart, getWeekEnd } from "@/lib/date-utils";
 import { getDaysToGoal, getGoalLabel } from "@/lib/goal-model";
 import { getWeeklyPlanHealth } from "@/lib/weekly-plan-health";
 
+const FEEDBACK_AI_TIMEOUT = 8_000;
+
+async function callFeedbackAiWithTimeout<T>(work: () => Promise<T>): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      work(),
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error("周报 AI 生成超时")), FEEDBACK_AI_TIMEOUT);
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
 export async function POST(request: NextRequest) {
   const { user, error } = await getAuthUser(request);
   if (error) return error;
@@ -110,7 +126,7 @@ ${goal ? `- 学习目标：${getGoalLabel(goal)}${goal.examDate ? `，考试日�
 
     if (aiConfig) {
       try {
-        const result = await callAI(aiConfig, {
+        const result = await callFeedbackAiWithTimeout(() => callAI(aiConfig, {
           messages: [
             {
               role: "system",
@@ -123,7 +139,7 @@ ${goal ? `- 学习目标：${getGoalLabel(goal)}${goal.examDate ? `，考试日�
           ],
           temperature: 0.7,
           maxTokens: 2048,
-        });
+        }));
         const text = result.text || result.reasoningText || "";
         const parts = text.split("---");
         content = parts[0]?.trim() || text;

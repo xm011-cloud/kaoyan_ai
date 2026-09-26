@@ -11,7 +11,7 @@ import { OfflineBanner } from '@/components/offline-banner'
 import { SwUpdateNotice } from '@/components/sw-update-notice'
 import { WorkspaceSidebar } from '@/components/workspace-sidebar'
 import { useUIStore } from '@/stores/ui-store'
-import { Maximize2, Minimize2 } from 'lucide-react'
+import { Minimize2 } from 'lucide-react'
 
 /**
  * OS 外壳布局 — Apple HIG compliant
@@ -47,19 +47,21 @@ export function Shell({
         <div className="flex min-w-0 flex-1 flex-col">
           {/* 状态提示、页头、内容和移动端导航必须纵向排列；不能作为工作台横向列。 */}
           <OfflineBanner />
-          {!focusMode && <Header daysLeft={daysLeft} daysLabel={daysLabel} />}
+          {!focusMode && <Header daysLeft={daysLeft} daysLabel={daysLabel} focusMode={focusMode} onToggleFocus={toggleFocusMode} />}
           {/* AI 工作区是同一 flex 布局的一列，展开时主内容真实收缩而非被遮挡。 */}
           <div className="flex min-h-0 flex-1">
             <main className="min-w-0 flex-1 overflow-y-auto">
-              <button
-                type="button"
-                onClick={toggleFocusMode}
-                className="fixed right-4 top-4 z-40 hidden h-9 items-center gap-1.5 rounded-lg border border-border/70 bg-card/90 px-3 text-xs font-medium text-muted-foreground shadow-sm backdrop-blur transition-colors hover:text-foreground lg:flex"
-                aria-label={focusMode ? '退出专注视图' : '进入专注视图'}
-              >
-                {focusMode ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-                {focusMode ? '退出专注' : '专注视图'}
-              </button>
+              {focusMode && (
+                <button
+                  type="button"
+                  onClick={toggleFocusMode}
+                  className="fixed right-4 top-4 z-40 hidden h-9 items-center gap-1.5 rounded-lg border border-border/70 bg-card/90 px-3 text-xs font-medium text-muted-foreground shadow-sm backdrop-blur transition-colors hover:text-foreground lg:flex"
+                  aria-label="退出专注视图"
+                >
+                  <Minimize2 className="h-3.5 w-3.5" />
+                  退出专注
+                </button>
+              )}
               {children}
             </main>
             <AiWorkspace />

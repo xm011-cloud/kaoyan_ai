@@ -269,6 +269,8 @@ export async function POST(request: NextRequest) {
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const reviewCutoff = new Date(today);
+    reviewCutoff.setHours(23, 59, 59, 999);
     const daysRemaining = ctxExamDate
       ? Math.max(1, Math.ceil((ctxExamDate.getTime() - today.getTime()) / 86400000))
       : null;
@@ -334,6 +336,27 @@ export async function POST(request: NextRequest) {
     const todayLocalStr = (body.todayLocal as string) || toLocalDateString(today);
     const weekLastStr = addLocalDays(weekStartStr, 6); // 本周最后一天（周日槽位）
     const pastSkip = todayLocalStr > weekStartStr;
+
+    // 到期理解卡只作为草案的补强线索：模型可建议安排回顾/验证，但不得把它当成掌握结论或直接覆盖用户计划。
+    const dueUnderstandingNotes = await prisma.studyNote.findMany({
+      where: { userId: user!.id, nextReviewAt: { lte: reviewCutoff } },
+      orderBy: { nextReviewAt: "asc" },
+      take: 5,
+      select: {
+        content: true,
+        kind: true,
+        task: { select: { subject: true } },
+        wrongQuestion: { select: { subject: true } },
+        lesson: { select: { unit: { select: { course: { select: { subject: true } } } } } },
+      },
+    });
+    const understandingContext = dueUnderstandingNotes.length > 0
+      ? `\n## 待回顾的个人理解与方法\n${dueUnderstandingNotes.map((note) => {
+          const subject = note.task?.subject ?? note.wrongQuestion?.subject ?? note.lesson?.unit.course.subject ?? "未分类";
+          const label = note.kind === "method" ? "解题思路" : note.kind === "error" ? "易错点" : "个人理解";
+          return `- ${subject} · ${label}：${note.content.slice(0, 180)}`;
+        }).join("\n")}\n这些是用户主动记录且到期回顾的内容。仅在本周任务中建议一次简短的回顾、复述或验证；不要将其视为已掌握，也不要为每条记录机械生成任务。\n`
+      : "";
 
     const aiConfig = await getUserAiConfig(user!.id);
     let planTasks: PlanTask[];
@@ -406,7 +429,7 @@ export async function POST(request: NextRequest) {
 
 ## 用户目标
 ${goalBlock}
-${progressContext}${feedbackContext}${capacityContext}${stageFocusContext}${profileContext}${adjustmentContext}
+${progressContext}${feedbackContext}${capacityContext}${stageFocusContext}${profileContext}${understandingContext}${adjustmentContext}
 ## 要求
 1. 当前阶段判定：${stage.label}，任务 phase 统一用「${phase}」
 2. 每天安排 **3-5 个**具体可执行的学习任务，${durationGuidance}
@@ -535,9 +558,10 @@ ${sprintContext}${regenerateContext}${pastSkipContext}
     const objective = currentStage?.objective
       ?? `围绕${phase}推进${subjects.slice(0, 3).join("、")}，形成可复盘的一周学习闭环。`;
     const profileBasis = keepProfileLocal ? `，并在本地参考 ${profileFacts.length} 条已确认学习档案` : "";
+    const understandingBasis = dueUnderstandingNotes.length > 0 ? `，并参考 ${dueUnderstandingNotes.length} 条到期理解卡安排一次回顾或验证` : "";
     const rationale = currentStage
-      ? `本周计划来自长期路线「${currentStage.studyPath.title}」的当前阶段「${currentStage.title}」，并结合每周容量${weeklyHours ? ` ${weeklyHours} 小时` : "与当前科目进度"}${profileBasis}安排。`
-      : `当前还没有已确认的正式阶段，本草稿依据目标信息、科目进度和${weeklyHours ? `每周 ${weeklyHours} 小时容量` : "默认学习容量"}${profileBasis}生成。`;
+      ? `本周计划来自长期路线「${currentStage.studyPath.title}」的当前阶段「${currentStage.title}」，并结合每周容量${weeklyHours ? ` ${weeklyHours} 小时` : "与当前科目进度"}${profileBasis}${understandingBasis}安排。`
+      : `当前还没有已确认的正式阶段，本草稿依据目标信息、科目进度和${weeklyHours ? `每周 ${weeklyHours} 小时容量` : "默认学习容量"}${profileBasis}${understandingBasis}生成。`;
     const fullRationale = adjustmentRequest
       ? `${rationale} 本次还应用了你的调整要求：「${adjustmentRequest}」。`
       : rationale;

@@ -87,6 +87,7 @@ export default async function DashboardPage({
     allTasks,
     recentMaterials,
     dueWrongQuestions,
+    dueUnderstandingNotes,
     continueLessons,
     recentWrongQuestions,
   ] = await Promise.all([
@@ -160,6 +161,13 @@ export default async function DashboardPage({
       orderBy: { nextReviewDate: "asc" },
       take: 10,
       select: { id: true, question: true, subject: true, interval: true, nextReviewDate: true },
+    }), []),
+    // 理解卡回顾独立于错题间隔重复：只提示用户回看自己的理解与方法，不推断掌握度。
+    recoverDashboardQuery("到期理解卡", prisma.studyNote.findMany({
+      where: { userId, nextReviewAt: { lte: todayEnd } },
+      orderBy: { nextReviewAt: "asc" },
+      take: 10,
+      select: { id: true },
     }), []),
     // 课程工作台只取少量“下一节可行动”的课时，避免首页变成整套课程目录。
     recoverDashboardQuery("继续学习课时", prisma.courseLesson.findMany({
@@ -353,6 +361,7 @@ export default async function DashboardPage({
     subjects,
     todaySubjects,
     dueWrongCount,
+    dueUnderstandingCount: dueUnderstandingNotes.length,
     weekBars,
     materials: recentMaterials.map((m) => ({
       id: m.id,
@@ -395,6 +404,7 @@ export default async function DashboardPage({
         weeklyPlan={workbenchData.planning.weeklyPlan}
         today={{ completed: todayCompleted, total: todayTotal, nextTask: nextTodayTask ? { id: nextTodayTask.id, title: nextTodayTask.title, courseLessonId: nextTodayTask.courseLessonId } : null, minutes: todayMinutes }}
         dueWrongCount={dueWrongCount}
+        dueUnderstandingCount={dueUnderstandingNotes.length}
       />
 
       <WorkbenchGrid data={workbenchData} isExploration={!goal || goal.status === "exploring"} />

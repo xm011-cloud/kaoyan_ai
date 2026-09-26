@@ -21,6 +21,7 @@ interface WeekTask {
   milestoneId?: string | null;
   milestoneTitle?: string | null;
   courseLessonId?: string | null;
+  curriculumNodeIds?: string[];
 }
 
 interface JudgeResult {
@@ -85,11 +86,7 @@ interface WeeklyPlannerProps {
   weekTasks: WeekTask[];
   draftPlan: WeeklyPlanDraftView | null;
   planVersions: WeeklyPlanVersionView[];
-  loading: boolean;
   generating: boolean;
-  subjects: string[];
-  examDate: string;
-  daysRemaining: number;
   sprintMode?: boolean;
   onWeekChange: (dir: -1 | 1) => void;
   onGenerate: () => void;
@@ -116,6 +113,7 @@ interface WeeklyPlannerProps {
   initialAdjustment?: string;
   highlightTaskId?: string | null;
   milestoneEvidence: Record<string, MilestoneEvidenceSummary>;
+  curriculumNodeLabels?: Record<string, string>;
 }
 
 const DAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
@@ -125,14 +123,14 @@ function formatDate(d: Date): string {
 }
 
 export function WeeklyPlanner({
-  weekStart, weekTasks, draftPlan, planVersions, loading, generating, subjects, examDate, daysRemaining, sprintMode,
+  weekStart, weekTasks, draftPlan, planVersions, generating, sprintMode,
   onWeekChange, onGenerate, onRegenerateDay, onToggleComplete,
   onEditTask, onQuickAdjustTask, onDeleteTask, onAddTask, onJudge, onRegenerateWithFeedback,
   judgeResult, judging,
   generatingPhase, generatingEstimate, onCancelGenerate,
   judgingPhase, judgingEstimate, onCancelJudge,
   onConfirmDraft, onDiscardDraft, onRestoreVersion, onAdjust,
-  initialAdjustment = "", highlightTaskId = null, milestoneEvidence,
+  initialAdjustment = "", highlightTaskId = null, milestoneEvidence, curriculumNodeLabels = {},
 }: WeeklyPlannerProps) {
   const [showJudge, setShowJudge] = useState(false);
   // 调整建议只在打开周计划时作为输入预填；后续输入应由用户自己掌控。
@@ -159,8 +157,6 @@ export function WeeklyPlanner({
     return weekTasks.filter((t) => t.date.startsWith(ds));
   });
 
-  // Count tasks per day
-  const tasksPerDay = tasksByDay.map((arr) => arr.length);
   const totalTasks = weekTasks.length;
   const completedTasks = weekTasks.filter((t) => t.completed).length;
   const totalMinutes = weekTasks.reduce((s, t) => s + (t.duration || 0), 0);
@@ -168,6 +164,15 @@ export function WeeklyPlanner({
   const weekEnd = new Date(weekStart.getTime() + 6 * 86400000);
   const hasGenerated = totalTasks > 0;
   const contextualPlan = draftPlan ?? planVersions.find((plan) => plan.status === "active") ?? null;
+  const planItems = draftPlan?.items ?? weekTasks;
+  const milestoneTitles = Array.from(new Set(
+    planItems
+      .map((task) => task.milestoneTitle?.trim())
+      .filter((title): title is string => Boolean(title)),
+  ));
+  const coveredCurriculumNodeIds = Array.from(new Set(
+    weekTasks.flatMap((task) => task.curriculumNodeIds ?? []),
+  ));
 
   return (
     <div className="space-y-4">
@@ -195,7 +200,31 @@ export function WeeklyPlanner({
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
             {(Array.isArray(contextualPlan.stage.exitCriteria) ? contextualPlan.stage.exitCriteria : []).slice(0, 3).map((criterion) => <span key={criterion}>○ {criterion}</span>)}
           </div>
-          <p className="mt-3 text-xs text-muted-foreground">本周任务会服务路线里程碑；完成任务只累计证据，里程碑仍需复盘确认。</p>
+          <div className="mt-3 border-t border-brand/15 pt-3">
+            <p className="text-xs font-medium">本周正在推进</p>
+            {milestoneTitles.length > 0 ? (
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {milestoneTitles.slice(0, 3).map((title) => (
+                  <span key={title} className="rounded-full bg-card/80 px-2 py-1 text-[11px] text-brand">{title}</span>
+                ))}
+                {milestoneTitles.length > 3 && <span className="px-1 py-1 text-[11px] text-muted-foreground">另有 {milestoneTitles.length - 3} 项</span>}
+              </div>
+            ) : (
+              <p className="mt-1 text-xs text-muted-foreground">当前任务尚未归属里程碑；可在路线页确认归属后再生成周计划。</p>
+            )}
+          </div>
+          <div className="mt-3 border-t border-brand/15 pt-3">
+            <p className="text-xs font-medium">本周明确覆盖的知识点</p>
+            {coveredCurriculumNodeIds.length > 0 ? (
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {coveredCurriculumNodeIds.map((nodeId) => <Link key={nodeId} href={`/knowledge/nodes/${nodeId}`} className="rounded-full bg-violet-500/10 px-2 py-1 text-[11px] text-violet-700 hover:bg-violet-500/15 dark:text-violet-300">{curriculumNodeLabels[nodeId] ?? "已关联知识点"}</Link>)}
+              </div>
+            ) : <p className="mt-1 text-xs text-muted-foreground">本周任务还没有确认知识点归属；可编辑具体任务后补充，避免系统猜测。</p>}
+          </div>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+            <p>完成任务只累计证据，里程碑仍需复盘确认。</p>
+            <Link href="/study-path" className="font-medium text-brand hover:underline">查看阶段与证据 →</Link>
+          </div>
         </div>
       )}
 
@@ -415,7 +444,6 @@ export function WeeklyPlanner({
             const dayDate = new Date(weekStart.getTime() + i * 86400000);
             const ds = toLocalDateString(dayDate);
             const dayTasks = tasksByDay[i];
-            const dayCompleted = dayTasks.filter((t) => t.completed).length;
             const isToday = toLocalDateString(new Date()) === ds;
 
             return (
@@ -450,6 +478,11 @@ export function WeeklyPlanner({
                             {task.subject && <span className="text-[10px] bg-blue-100 text-blue-600 px-1 rounded truncate max-w-full">{task.subject}</span>}
                             {task.duration && <span className="text-[10px] text-muted-foreground">{task.duration}min</span>}
                             {task.milestoneTitle && <span className="text-[10px] bg-brand/10 text-brand px-1 rounded truncate max-w-full">{task.milestoneTitle}</span>}
+                            {task.curriculumNodeIds?.map((nodeId) => (
+                              <Link key={nodeId} href={`/knowledge/nodes/${nodeId}`} onClick={(event) => event.stopPropagation()} className="max-w-full truncate rounded bg-violet-500/10 px-1 text-[10px] text-violet-700 hover:bg-violet-500/15 dark:text-violet-300">
+                                {curriculumNodeLabels[nodeId] ?? "关联知识点"}
+                              </Link>
+                            ))}
                             {task.source === "manual" && <span className="text-[10px] text-muted-foreground">✍️</span>}
                           </div>
                           {task.milestoneId && milestoneEvidence[task.milestoneId] && (

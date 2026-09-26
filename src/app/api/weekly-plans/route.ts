@@ -215,6 +215,8 @@ export async function PATCH(request: NextRequest) {
             weekStartDate: plan.weekStart,
             source: "ai_confirmed",
             milestoneId: item.milestoneId && validMilestoneIds.has(item.milestoneId) ? item.milestoneId : null,
+            // AI 周计划草稿不擅自分配系统知识点；用户可在任务编辑中确认关联。
+            curriculumNodeIds: [],
           })),
         });
       }

@@ -13,7 +13,7 @@ test.describe("Navigation & Module Linking", () => {
     // 14 个模块中 /admission 在 ui-store 默认 visible:false（仍可通过 URL 访问），故断言其余 13 个
     const navLinks = [
       "/dashboard", "/goal", "/tasks", "/checkin", "/pomodoro",
-      "/materials", "/chat", "/wrong-questions",
+      "/materials", "/chat", "/wrong-questions", "/knowledge",
       "/practice", "/feedback", "/knowledge-graph", "/study-path", "/settings",
     ];
 
@@ -48,6 +48,7 @@ test.describe("Navigation & Module Linking", () => {
     const related = page.getByRole("heading", { name: "继续学习" });
     await expect(related).toBeVisible();
     await expect(related.locator("..").locator('a[href="/knowledge-graph"]')).toBeVisible();
+    await expect(related.locator("..").locator('a[href="/knowledge"]')).toBeVisible();
   });
 
   test("feedback related links exist", async ({ page }) => {

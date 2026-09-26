@@ -3,6 +3,15 @@ import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, jsonNoStore } from "@/lib/api-utils";
 import { resolveEvidenceLink } from "@/lib/study-evidence";
+import { CURRICULUM_OUTLINES } from "@/lib/curriculum-outlines";
+
+function parseCurriculumNodeIds(value: unknown): string[] | null | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) return [];
+  const ids = Array.from(new Set(value.filter((id): id is string => typeof id === "string").slice(0, 8)));
+  const known = new Set(CURRICULUM_OUTLINES.flatMap((outline) => outline.nodes.map((node) => node.id)));
+  return ids.every((id) => known.has(id)) ? ids : null;
+}
 
 // GET: 获取任务列表（支持 ?date= / ?subject= / ?weekStart= 筛选）
 export async function GET(request: NextRequest) {
@@ -60,10 +69,12 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { title, description, date, duration, phase, subject, weekStartDate, source, courseLessonId, milestoneId } = body;
+    const curriculumNodeIds = parseCurriculumNodeIds(body.curriculumNodeIds);
 
     if (!title || !date) {
       return jsonNoStore({ error: "标题和日期为必填项" }, { status: 400 });
     }
+    if (curriculumNodeIds === null) return jsonNoStore({ error: "关联课程知识点不存在" }, { status: 400 });
 
     if (courseLessonId) {
       const lesson = await prisma.courseLesson.findFirst({
@@ -88,6 +99,7 @@ export async function POST(request: NextRequest) {
         source: source || null,
         courseLessonId: courseLessonId || null,
         milestoneId: resolved.link?.milestoneId ?? null,
+        curriculumNodeIds: curriculumNodeIds ?? [],
       },
     });
 

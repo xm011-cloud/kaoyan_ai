@@ -36,6 +36,21 @@ test.describe("Tasks", () => {
     }
   });
 
+  test("计划页优先展示本周执行，学科自评按需展开", async ({ page }) => {
+    const goalResponse = await page.request.get("/api/goal");
+    expect(goalResponse.ok()).toBeTruthy();
+    const goal = (await goalResponse.json()).goal as { subjects?: string[] } | null;
+    test.skip(!goal?.subjects?.length, "测试账号没有科目，无法验证学科自评折叠态");
+
+    await page.goto("/tasks");
+    const progress = page.locator("details").filter({ hasText: "学习基础与掌握度" });
+    await expect(progress).toBeVisible({ timeout: 10000 });
+    await expect(progress).not.toHaveAttribute("open", "");
+    await progress.getByText("学习基础与掌握度", { exact: true }).click();
+    await expect(progress).toHaveAttribute("open", "");
+    await expect(progress.getByRole("button", { name: /保存进度/ })).toBeVisible();
+  });
+
   test("手机端周计划按日横向浏览，日操作保持足够触控尺寸", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/tasks");
@@ -117,8 +132,11 @@ test.describe("Tasks", () => {
       const saved = await page.request.put("/api/goal", { data: { progress } });
       expect(saved.ok()).toBeTruthy();
       await page.goto("/tasks");
-      await expect(page.getByText("建议复盘")).toBeVisible({ timeout: 10000 });
-      await expect(page.getByText("已确认")).toBeVisible();
+      const progressPanel = page.locator("details").filter({ hasText: "学习基础与掌握度" });
+      await expect(progressPanel).toBeVisible({ timeout: 10000 });
+      await progressPanel.getByText("学习基础与掌握度", { exact: true }).click();
+      await expect(progressPanel.getByText("建议复盘")).toBeVisible();
+      await expect(progressPanel.getByText("已确认")).toBeVisible();
     } finally {
       await page.request.put("/api/goal", { data: { progress: originalProgress } });
     }

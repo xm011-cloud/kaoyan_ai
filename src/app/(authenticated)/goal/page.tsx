@@ -95,10 +95,10 @@ export default function GoalPage() {
 
   return (
     <div className="workspace-page flex flex-1 flex-col">
-      <div className="mx-auto w-full max-w-4xl space-y-7">
+      <div className="mx-auto w-full max-w-3xl space-y-6">
         <PageHeader title="考研方向" subtitle="不必一次确定院校和日期，先保存方向，后续再逐步完善" />
 
-        <form onSubmit={handleSubmit} className="workspace-surface space-y-4 p-6">
+        <form onSubmit={handleSubmit} className="workspace-surface space-y-5 p-5 sm:p-7">
           <div className="rounded-xl bg-brand/5 border border-brand/15 p-4">
             <p className="text-sm font-medium">
               {goalStatus === 'confirmed' ? '目标已确认' : goalStatus === 'tentative' ? '目标暂定中' : goalStatus === 'paused' ? '目标已暂停' : '目标探索中'}
@@ -160,12 +160,12 @@ export default function GoalPage() {
 
           <div>
             <label htmlFor="goal-weekly-hours" className="block text-sm font-medium mb-1">⏰ 每周可投入时间（可选）</label>
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-start gap-3">
               <input id="goal-weekly-hours" type="number" min={0} max={80} value={weeklyHours ?? ''}
                 onChange={(e) => setWeeklyHours(e.target.value === '' ? null : Math.max(0, parseInt(e.target.value) || 0))}
                 placeholder="如 12"
-                className="w-24 h-11 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20" />
-              <span className="text-xs text-muted-foreground">小时 / 周 —— 还在上课或有其他安排就填小一点，计划会按这个容量排任务，不会硬塞</span>
+                className="h-11 w-24 shrink-0 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20" />
+              <p className="pt-1 text-xs leading-5 text-muted-foreground">小时 / 周。还在上课或有其他安排就填小一点，计划会按这个容量排任务，不会硬塞。</p>
             </div>
           </div>
 

@@ -10,7 +10,7 @@ import { useUIStore } from '@/stores/ui-store'
 import { cn } from '@/lib/utils'
 import { clearClientStateOnLogout } from '@/lib/clear-client-state'
 import { useAiWorkspace } from '@/components/ai-workspace-context'
-import { Bot, CalendarDays, Menu, Settings2 } from 'lucide-react'
+import { Bot, CalendarDays, Maximize2, Menu, Settings2 } from 'lucide-react'
 
 /**
  * 统一头部 — 合并了旧 TopBar + WorkbenchTabs
@@ -19,7 +19,17 @@ import { Bot, CalendarDays, Menu, Settings2 } from 'lucide-react'
  * └─ 桌面端：logo + tabs + 活动状态 + 设置
  *    移动端：logo + 活动 + 设置（tabs 通过底部 MobileNav 访问）
  */
-export function Header({ daysLeft, daysLabel }: { daysLeft: number; daysLabel?: string }) {
+export function Header({
+  daysLeft,
+  daysLabel,
+  focusMode,
+  onToggleFocus,
+}: {
+  daysLeft: number;
+  daysLabel?: string;
+  focusMode: boolean;
+  onToggleFocus: () => void;
+}) {
   const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
   const [now, setNow] = useState(new Date())
@@ -118,6 +128,17 @@ export function Header({ daysLeft, daysLabel }: { daysLeft: number; daysLabel?: 
           )}
 
         </div>
+
+        <button
+          type="button"
+          onClick={onToggleFocus}
+          className="hidden h-8 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:flex"
+          aria-label={focusMode ? '退出专注视图' : '进入专注视图'}
+          title="隐藏导航与 AI 工作区，专注当前学习内容"
+        >
+          <Maximize2 className="h-3.5 w-3.5" aria-hidden />
+          <span>专注视图</span>
+        </button>
 
         {/* 桌面端 AI 是右侧工作区，不再以悬浮按钮盖住页面内容。 */}
         <button

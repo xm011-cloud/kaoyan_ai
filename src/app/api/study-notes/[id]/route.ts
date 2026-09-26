@@ -3,7 +3,7 @@ import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, jsonNoStore } from "@/lib/api-utils";
 
-const NOTE_KINDS = new Set(["note", "question", "key_point", "error"]);
+const NOTE_KINDS = new Set(["note", "question", "key_point", "error", "method"]);
 
 type Context = { params: Promise<{ id: string }> };
 

@@ -68,6 +68,7 @@ export const defaultNavGroups: NavGroup[] = [
     icon: '📚',
     items: [
       { href: '/courses', label: '我的课程', icon: '🎬', shortLabel: '课程' },
+      { href: '/knowledge', label: '理解与方法', icon: '🧠', shortLabel: '理解' },
     ],
   },
   {

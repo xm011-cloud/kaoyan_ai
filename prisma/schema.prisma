@@ -131,6 +131,7 @@ model Task {
   chatId        String? // 来源对话 ID
   weeklyPlanId  String? // 所属周计划版本；手动任务可为空
   milestoneId   String? // 服务的长期路线里程碑；手动任务可为空
+  curriculumNodeIds String[] @default([]) // 用户确认的系统知识骨架节点 ID；不由任务标题或 AI 自动推断
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -291,6 +292,10 @@ model StudyNote {
   taskId          String?
   materialId      String?
   wrongQuestionId String?
+  reviewCount     Int      @default(0)
+  lastReviewedAt  DateTime?
+  nextReviewAt    DateTime?
+  curriculumNodeIds String[] @default([]) // 用户确认关联的系统知识骨架节点 ID（代码版本化、非数据库外键）
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -300,6 +305,7 @@ model StudyNote {
   task          Task?          @relation(fields: [taskId], references: [id], onDelete: SetNull)
   material      Material?      @relation(fields: [materialId], references: [id], onDelete: SetNull)
   wrongQuestion WrongQuestion? @relation(fields: [wrongQuestionId], references: [id], onDelete: SetNull)
+  knowledgeLinks StudyNoteKnowledgeNode[]
 
   @@index([userId, createdAt])
   @@index([courseLessonId])
@@ -307,6 +313,19 @@ model StudyNote {
   @@index([taskId])
   @@index([materialId])
   @@index([wrongQuestionId])
+}
+
+// 个人理解记录与知识点的显式归属。只允许用户确认后的关联，避免用科目或文本猜测归属。
+model StudyNoteKnowledgeNode {
+  noteId    String
+  nodeId    String
+  createdAt DateTime @default(now())
+
+  note StudyNote     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  node KnowledgeNode @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  @@id([noteId, nodeId])
+  @@index([nodeId])
 }
 
 // AI 对话记录
@@ -555,6 +574,7 @@ model KnowledgeNode {
   user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   fromEdges KnowledgeEdge[] @relation("from")
   toEdges   KnowledgeEdge[] @relation("to")
+  noteLinks StudyNoteKnowledgeNode[]
 
   @@unique([userId, name, subject])
   @@index([userId])

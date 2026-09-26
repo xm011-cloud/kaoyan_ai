@@ -40,6 +40,16 @@ interface Task {
   milestoneId?: string | null;
   milestoneTitle?: string | null;
   courseLessonId?: string | null;
+  curriculumNodeIds?: string[];
+}
+
+interface CurriculumOutlineOption {
+  id: string;
+  subject: string;
+  version: string;
+  label: string;
+  nodeCount?: number;
+  nodes?: Array<{ id: string; title: string }>;
 }
 
 interface WeeklyPlanDraft {
@@ -155,7 +165,6 @@ export default function TasksPage() {
   const [weeklyPlanVersions, setWeeklyPlanVersions] = useState<WeeklyPlanVersion[]>([]);
   const [milestoneEvidence, setMilestoneEvidence] = useState<Record<string, MilestoneEvidenceSummary>>({});
   const [planningGate, setPlanningGate] = useState<PlanningGate | null>(null);
-  const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const autoAdjustmentRef = useRef(false);
   const { phase: genPhase, estimate: genEstimate, start: genStart, stop: genStop, cancel: genCancel } = useAiTask();
@@ -181,6 +190,15 @@ export default function TasksPage() {
   const [editPhase, setEditPhase] = useState("");
   const [editDate, setEditDate] = useState("");
   const [saving, setSaving] = useState(false);
+  const [taskReflection, setTaskReflection] = useState("");
+  const [taskReflectionKind, setTaskReflectionKind] = useState<"error" | "method">("method");
+  const [savingTaskReflection, setSavingTaskReflection] = useState(false);
+  const [editCurriculumNodeIds, setEditCurriculumNodeIds] = useState<string[]>([]);
+  const [curriculumOutlines, setCurriculumOutlines] = useState<CurriculumOutlineOption[]>([]);
+  const [activeCurriculumOutline, setActiveCurriculumOutline] = useState<CurriculumOutlineOption | null>(null);
+  const [loadingCurriculum, setLoadingCurriculum] = useState(false);
+
+  const currentWeekPlan = weeklyPlanDraft ?? weeklyPlanVersions.find((plan) => plan.status === "active") ?? null;
 
   // Add task modal
   const [addDate, setAddDate] = useState("");
@@ -212,18 +230,52 @@ export default function TasksPage() {
   const loadWeekTasks = useCallback(async () => {
     const ws = toLocalDateString(weekStart); // 本地周一日期串（与 generate-plan 存 weekStartDate 口径一致）
     try {
-      const [taskRes, planRes] = await Promise.all([
+      const [taskRes, planRes, curriculumRes] = await Promise.all([
         fetch(`/api/tasks?weekStart=${ws}`),
         fetch(`/api/weekly-plans?weekStart=${ws}`),
+        fetch("/api/curriculum", { cache: "no-store" }),
       ]);
-      const [taskData, planData] = await Promise.all([taskRes.json(), planRes.json()]);
+      const [taskData, planData, curriculumData] = await Promise.all([taskRes.json(), planRes.json(), curriculumRes.json().catch(() => ({}))]);
       const tasks = taskData.tasks || [];
       setWeekTasks(tasks);
       setWeeklyPlanDraft(planData.draft || null);
       setWeeklyPlanVersions(planData.versions || []);
+      const outlines = curriculumRes.ok && Array.isArray(curriculumData.outlines) ? curriculumData.outlines as CurriculumOutlineOption[] : [];
+      setCurriculumOutlines(outlines);
+      const taskSubjects = new Set(tasks.map((task: Task) => task.subject).filter(Boolean));
+      const selectedOutline = outlines.find((outline) => taskSubjects.has(outline.subject)) ?? outlines[0];
+      if (selectedOutline) {
+        const outlineResponse = await fetch(`/api/curriculum?subject=${encodeURIComponent(selectedOutline.subject)}`, { cache: "no-store" });
+        const outlineData = await outlineResponse.json().catch(() => ({}));
+        if (outlineResponse.ok && outlineData.outline) setActiveCurriculumOutline(outlineData.outline);
+      }
       await loadMilestoneEvidence(tasks.map((task: Task) => task.milestoneId || ""));
-    } catch { /* ignore */ } finally { setLoading(false); }
-  }, [weekStart, loadMilestoneEvidence, setWeekTasks, setWeeklyPlanDraft, setWeeklyPlanVersions]);
+    } catch { /* ignore */ }
+  }, [weekStart, loadMilestoneEvidence, setWeekTasks, setWeeklyPlanDraft, setWeeklyPlanVersions, setCurriculumOutlines, setActiveCurriculumOutline]);
+
+  const loadCurriculumForTask = async (preferredSubject?: string | null) => {
+    setLoadingCurriculum(true);
+    try {
+      let summaries = curriculumOutlines;
+      if (summaries.length === 0) {
+        const response = await fetch("/api/curriculum", { cache: "no-store" });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "加载课程知识路径失败");
+        summaries = Array.isArray(data.outlines) ? data.outlines : [];
+        setCurriculumOutlines(summaries);
+      }
+      const selected = summaries.find((outline) => outline.subject === preferredSubject) ?? summaries[0];
+      if (!selected) { setActiveCurriculumOutline(null); return; }
+      const response = await fetch(`/api/curriculum?subject=${encodeURIComponent(selected.subject)}`, { cache: "no-store" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.outline) throw new Error(data.error || "加载课程知识路径失败");
+      setActiveCurriculumOutline(data.outline);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "加载课程知识路径失败");
+    } finally {
+      setLoadingCurriculum(false);
+    }
+  };
 
   useEffect(() => { loadWeekTasks(); }, [loadWeekTasks]);
 
@@ -268,7 +320,6 @@ export default function TasksPage() {
   const handleWeekChange = (dir: -1 | 1) => {
     const d = new Date(weekStart.getTime() + dir * 7 * 86400000);
     setWeekStart(d);
-    setLoading(true);
     setJudgeResult(null);
     router.replace(`${pathname}?week=${toLocalDateString(d)}`, { scroll: false });
   };
@@ -584,6 +635,30 @@ export default function TasksPage() {
     setEditSubject(task.subject || "");
     setEditPhase(task.phase || "");
     setEditDate(task.date.split("T")[0]);
+    setTaskReflection("");
+    setTaskReflectionKind("method");
+    setEditCurriculumNodeIds(task.curriculumNodeIds ?? []);
+    void loadCurriculumForTask(task.subject);
+  };
+
+  const saveTaskReflection = async () => {
+    if (!editTask || !taskReflection.trim()) return;
+    setSavingTaskReflection(true);
+    try {
+      const response = await fetch("/api/study-notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskId: editTask.id, kind: taskReflectionKind, content: taskReflection.trim(), curriculumNodeIds: editCurriculumNodeIds }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "保存理解失败");
+      setTaskReflection("");
+      toast.success("已保存到我的理解与方法");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "保存理解失败");
+    } finally {
+      setSavingTaskReflection(false);
+    }
   };
 
   const saveEdit = async (e: React.FormEvent) => {
@@ -591,18 +666,24 @@ export default function TasksPage() {
     if (!editTask || !editTitle.trim()) return;
     setSaving(true);
     try {
-      await fetch(`/api/tasks/${editTask.id}`, {
+      const response = await fetch(`/api/tasks/${editTask.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: editTitle, description: editDesc || null,
           duration: editDuration ? parseInt(editDuration) : null,
           subject: editSubject || null, phase: editPhase || null, date: editDate,
+          curriculumNodeIds: editCurriculumNodeIds,
         }),
       });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "保存任务失败");
       setEditTask(null);
       await loadWeekTasks();
-    } catch { /* ignore */ } finally { setSaving(false); }
+      toast.success("任务与知识点关联已保存");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "保存任务失败");
+    } finally { setSaving(false); }
   };
 
   const handleAddTask = (dateStr: string) => {
@@ -704,8 +785,8 @@ export default function TasksPage() {
           </div>
         )}
 
-        {/* 阶段摘要：这里只展示统一阶段建议；正式阶段目标与退出标准由长期路线维护。 */}
-        <section className="workspace-surface border-brand/20 bg-brand/5 p-5">
+        {/* 没有已关联路线的周计划时，才展示推导阶段作为下一步建议；已有路线一律以周计划中的正式阶段为准。 */}
+        {!currentWeekPlan?.stage && <section className="workspace-surface border-brand/20 bg-brand/5 p-5">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <span className="font-bold text-sm">{stage.label}</span>
               <span className="text-[10px] rounded-full bg-brand/10 px-2 py-0.5 text-brand font-medium">
@@ -725,7 +806,7 @@ export default function TasksPage() {
                 还没设考研目标——可以先生成一份自定义学习计划（点「生成本周计划」），或去「目标」页设置。
               </p>
             )}
-        </section>
+        </section>}
 
         <section className="grid gap-2 sm:grid-cols-3 sm:gap-3" aria-label="调整学习安排">
           <div className="rounded-xl border border-border/60 bg-card px-4 py-3"><p className="text-sm font-medium">今天临时有变化</p><p className="mt-1 hidden text-xs leading-5 text-muted-foreground sm:block">在今天的任务上直接缩短时长或移到明天，只影响这一项。</p><p className="mt-1 text-xs text-muted-foreground sm:hidden">直接调整对应任务即可</p></div>
@@ -733,10 +814,17 @@ export default function TasksPage() {
           <button type="button" onClick={() => router.push("/study-path#stage-adjustment")} className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-card px-4 py-3 text-left transition-colors hover:border-brand/35 hover:bg-brand/5"><div><p className="text-sm font-medium">长期目标需要调整</p><p className="mt-1 hidden text-xs leading-5 text-muted-foreground sm:block">保留已完成证据，只重新计算后续阶段与未完成任务。</p><p className="mt-1 text-xs text-muted-foreground sm:hidden">保留证据，重算后续计划</p></div><span className="text-brand sm:hidden">›</span></button>
         </section>
 
-        {/* Zone 2: Subject progress */}
+        {/* 学科自评是计划依据，但不是用户打开计划页的第一件事；默认收起以让本周执行保持主线。 */}
         {subjects.length > 0 && (
-          <section className="workspace-surface space-y-3 p-5">
-            <h2 className="font-bold">📝 各科学习进度</h2>
+          <details className="workspace-surface p-5">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 marker:content-none">
+              <div>
+                <p className="font-bold">学习基础与掌握度</p>
+                <p className="mt-1 text-xs text-muted-foreground">按需更新自评，计划生成会以此校准任务难度。</p>
+              </div>
+              <span className="shrink-0 text-xs font-medium text-brand">按需展开</span>
+            </summary>
+            <div className="mt-4 space-y-3 border-t border-border/50 pt-4">
             <p className="text-xs text-gray-500">点选各科学习档位（自评），AI 生成计划时会根据你的实际水平调整。升到「学习中」以上会标 ⚪待确认——系统对你的自评持保守态度，计划生成前可对话确认掌握度</p>
             {subjects.map((subj) => {
               const ep = editProgress[subj] || { percent: 0, note: "" };
@@ -820,7 +908,8 @@ export default function TasksPage() {
             <Button variant="outline" size="sm" className="min-h-11" onClick={handleSaveProgress} disabled={savingProgress}>
               {savingProgress ? "保存中..." : "💾 保存进度"}
             </Button>
-          </section>
+            </div>
+          </details>
         )}
 
         {/* Zone 3: Weekly planner */}
@@ -846,14 +935,14 @@ export default function TasksPage() {
             </section>
           )}
           <WeeklyPlanner
-            weekStart={weekStart} weekTasks={weekTasks} loading={loading}
+            weekStart={weekStart} weekTasks={weekTasks}
             draftPlan={weeklyPlanDraft}
-            planVersions={weeklyPlanVersions}
-            generating={generating} subjects={subjects} examDate={examDate}
-            daysRemaining={daysRemaining} sprintMode={sprintMode} onWeekChange={handleWeekChange}
+            planVersions={weeklyPlanVersions} generating={generating}
+            sprintMode={sprintMode} onWeekChange={handleWeekChange}
             onGenerate={handleGenerate} onRegenerateDay={handleRegenerateDay}
             onToggleComplete={handleToggleComplete} onEditTask={openEdit} onQuickAdjustTask={handleQuickAdjustTask}
             milestoneEvidence={milestoneEvidence}
+            curriculumNodeLabels={Object.fromEntries((activeCurriculumOutline?.nodes ?? []).map((node) => [node.id, node.title]))}
             onDeleteTask={handleDeleteTask} onAddTask={handleAddTask}
             onJudge={handleJudge}
             onRegenerateWithFeedback={handleRegenerateWithFeedback}
@@ -871,6 +960,7 @@ export default function TasksPage() {
         {/* 模块联动 */}
         <ModuleLinks
           links={[
+            { href: "/knowledge", icon: "🧩", label: "我的理解与方法" },
             { href: "/knowledge-graph", icon: "🧠", label: "知识图谱" },
             { href: "/wrong-questions", icon: "📕", label: "错题本" },
             { href: "/study-path", icon: "🗺️", label: "学习路径" },
@@ -916,6 +1006,63 @@ export default function TasksPage() {
                     <label htmlFor="task-edit-subject" className="block text-xs font-medium mb-1">科目</label>
                     <input id="task-edit-subject" type="text" value={editSubject} onChange={(e) => setEditSubject(e.target.value)}
                       className="w-full h-10 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20" />
+                  </div>
+                </div>
+                <details className="border-t border-border/60 pt-4">
+                  <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-brand">关联课程知识点（可选）</summary>
+                  <div className="mt-3 space-y-2">
+                    <p className="text-xs leading-5 text-muted-foreground">只有你选择并保存后，这项任务才会出现在对应知识点的学习证据中。系统不会根据任务标题猜测归属。</p>
+                    {loadingCurriculum ? <p className="text-xs text-muted-foreground">正在加载审核知识路径…</p> : activeCurriculumOutline ? <>
+                      {curriculumOutlines.length > 1 && <select aria-label="选择课程知识路径" value={activeCurriculumOutline.subject} onChange={(event) => void loadCurriculumForTask(event.target.value)} className="h-10 w-full rounded-lg border border-border/60 bg-background px-2 text-xs">
+                        {curriculumOutlines.map((outline) => <option key={outline.id} value={outline.subject}>{outline.label}</option>)}
+                      </select>}
+                      <select
+                        aria-label="为任务关联课程知识点"
+                        defaultValue=""
+                        onChange={(event) => {
+                          const nodeId = event.target.value;
+                          if (nodeId) setEditCurriculumNodeIds((ids) => ids.includes(nodeId) ? ids : [...ids, nodeId]);
+                          event.currentTarget.value = "";
+                        }}
+                        className="h-10 w-full rounded-lg border border-border/60 bg-background px-2 text-xs"
+                      >
+                        <option value="">选择 {activeCurriculumOutline.label} 中的知识点</option>
+                        {(activeCurriculumOutline.nodes ?? []).filter((node) => !editCurriculumNodeIds.includes(node.id)).map((node) => <option key={node.id} value={node.id}>{node.title}</option>)}
+                      </select>
+                      {editCurriculumNodeIds.length > 0 && <div className="flex flex-wrap gap-2">{editCurriculumNodeIds.map((nodeId) => {
+                        const node = activeCurriculumOutline.nodes?.find((item) => item.id === nodeId);
+                        return <button key={nodeId} type="button" onClick={() => setEditCurriculumNodeIds((ids) => ids.filter((id) => id !== nodeId))} className="rounded-full bg-brand/10 px-2 py-1 text-xs text-brand hover:bg-brand/20">{node?.title ?? nodeId} ×</button>;
+                      })}</div>}
+                    </> : <p className="text-xs text-muted-foreground">当前还没有可用的审核课程知识路径。</p>}
+                  </div>
+                </details>
+                <div className="border-t border-border/60 pt-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium">留下你的理解与方法</p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">记录这项学习中的易错点，或下次遇到相似任务时的切入思路。</p>
+                    </div>
+                    <select
+                      aria-label="任务理解记录类型"
+                      value={taskReflectionKind}
+                      onChange={(event) => setTaskReflectionKind(event.target.value as "error" | "method")}
+                      className="h-10 rounded-lg border border-border/60 bg-background px-2 text-xs"
+                    >
+                      <option value="method">解题思路</option>
+                      <option value="error">易错点</option>
+                    </select>
+                  </div>
+                  <textarea
+                    value={taskReflection}
+                    onChange={(event) => setTaskReflection(event.target.value)}
+                    rows={3}
+                    placeholder={taskReflectionKind === "method" ? "例如：遇到这类题先判断条件，再从定义或关键约束推导……" : "例如：我曾把……混淆，下次先检查……"}
+                    className="mt-3 w-full rounded-xl border border-border/50 bg-muted/30 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
+                  />
+                  <div className="mt-2 flex justify-end">
+                    <Button type="button" size="sm" variant="outline" onClick={saveTaskReflection} disabled={savingTaskReflection || !taskReflection.trim()}>
+                      {savingTaskReflection ? "保存中…" : "保存理解"}
+                    </Button>
                   </div>
                 </div>
               </form>

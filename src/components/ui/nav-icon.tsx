@@ -21,6 +21,7 @@ const ICONS: Record<string, LucideIcon> = {
   '/study-path': Map,
   '/skills': Sparkles,
   '/courses': GraduationCap,
+  '/knowledge': BrainCircuit,
   '/materials': FolderOpen,
   '/knowledge-graph': BrainCircuit,
   '/admission': LibraryBig,

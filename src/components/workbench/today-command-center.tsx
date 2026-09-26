@@ -21,6 +21,7 @@ interface TodayCommandCenterProps {
   }
   today: { completed: number; total: number; nextTask: { id: string; title: string; courseLessonId?: string | null } | null; minutes: number }
   dueWrongCount: number
+  dueUnderstandingCount: number
 }
 
 const planStatusCopy = {
@@ -42,6 +43,7 @@ export function TodayCommandCenter({
   weeklyPlan,
   today,
   dueWrongCount,
+  dueUnderstandingCount,
 }: TodayCommandCenterProps) {
   const aiWorkspace = useAiWorkspace()
   const hasTasks = today.total > 0
@@ -94,6 +96,11 @@ export function TodayCommandCenter({
               {dueWrongCount > 0 && (
                 <Link href="/wrong-questions?dueToday=true" className="inline-flex min-h-10 items-center rounded-xl px-3 text-sm text-amber-700 transition-colors hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/30">
                   {dueWrongCount} 道错题待复习
+                </Link>
+              )}
+              {dueUnderstandingCount > 0 && (
+                <Link href="/knowledge" className="inline-flex min-h-10 items-center rounded-xl px-3 text-sm text-brand transition-colors hover:bg-brand-muted/50">
+                  {dueUnderstandingCount} 条理解待回顾
                 </Link>
               )}
             </div>

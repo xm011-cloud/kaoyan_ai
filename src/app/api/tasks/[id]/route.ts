@@ -3,6 +3,14 @@ import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, jsonNoStore } from "@/lib/api-utils";
 import { resolveEvidenceLink, retractStudyEvidence, upsertStudyEvidence } from "@/lib/study-evidence";
+import { CURRICULUM_OUTLINES } from "@/lib/curriculum-outlines";
+
+function parseCurriculumNodeIds(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null;
+  const ids = Array.from(new Set(value.filter((id): id is string => typeof id === "string").slice(0, 8)));
+  const known = new Set(CURRICULUM_OUTLINES.flatMap((outline) => outline.nodes.map((node) => node.id)));
+  return ids.every((id) => known.has(id)) ? ids : null;
+}
 
 // PATCH: 更新任务（切换完成状态等）
 export async function PATCH(
@@ -15,6 +23,8 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await request.json();
+    const curriculumNodeIds = body.curriculumNodeIds === undefined ? undefined : parseCurriculumNodeIds(body.curriculumNodeIds);
+    if (curriculumNodeIds === null) return jsonNoStore({ error: "关联课程知识点不存在" }, { status: 400 });
 
     const task = await prisma.task.findFirst({
       where: { id, userId: user!.id },
@@ -65,6 +75,7 @@ export async function PATCH(
           ...(body.date && { date: new Date(body.date) }),
           ...(body.courseLessonId !== undefined && { courseLessonId: body.courseLessonId || null }),
           ...(body.milestoneId !== undefined && { milestoneId }),
+          ...(curriculumNodeIds !== undefined && { curriculumNodeIds }),
         },
       });
       if (next.completed) {

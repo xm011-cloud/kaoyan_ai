@@ -102,6 +102,7 @@ export function AiWorkspace() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [externalPromptStatus, setExternalPromptStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
   const [mounted, setMounted] = useState(false)
   const [histories, setHistories] = useState<ChatHistory[]>([])
   const [showHistory, setShowHistory] = useState(false)
@@ -306,6 +307,9 @@ export function AiWorkspace() {
         proposal: data.proposal,
         suggestedSkill: data.suggestedSkill,
       }
+      // proposal 的确认卡本次渲染就需要 chatId；不能等异步保存历史完成后才写 ref，
+      // 否则用户会看到草案却无法采纳。
+      if (data.chatId) savedChatIdRef.current = data.chatId
       if (data.skillRun?.completed) {
         setRunningSkill((current) => current ? { ...current, completed: true } : current)
       }
@@ -357,6 +361,17 @@ export function AiWorkspace() {
     const query = next.toString()
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
     inputRef.current?.focus()
+  }
+
+  const copyExternalAiPrompt = async () => {
+    const context = studyContext ? `\n当前学习现场：${studyContext.title}；${studyContext.detail}` : ''
+    const template = `我在准备考研，想请你帮助我理解下面的问题。请先给提示和检查路径，再在我明确需要时给完整讲解；若信息不足，请先指出缺少什么。${context}\n\n我的问题：${input.trim() || '（请在此粘贴题目或问题）'}`
+    try {
+      await navigator.clipboard.writeText(template)
+      setExternalPromptStatus('copied')
+    } catch {
+      setExternalPromptStatus('failed')
+    }
   }
 
   const loadChat = (history: ChatHistory) => {
@@ -588,8 +603,8 @@ export function AiWorkspace() {
         {/* 头部 */}
         <div className="shrink-0 flex min-w-0 items-center justify-between gap-2 border-b border-border/50 px-4 py-3 lg:min-w-[400px]">
           <div>
-            <h2 className="text-sm font-semibold">AI 学习伙伴</h2>
-            <p className="text-[10px] text-muted-foreground">理解当前学习现场，帮你走下一步</p>
+            <h2 className="text-sm font-semibold">AI 学习管家</h2>
+            <p className="text-[10px] text-muted-foreground">规划、复盘与调整；帮你明确下一步</p>
           </div>
           <div className="flex items-center gap-1">
             {runningSkill && (
@@ -681,11 +696,11 @@ export function AiWorkspace() {
               <p className="mt-1 text-xs">试试这些：</p>
               <div className="grid grid-cols-1 gap-1.5 mt-3 w-full max-w-[280px]">
                 {[
-                  '帮我先梳理考研目标与当前基础，不要直接排任务',
-                  '我今天有什么任务？',
-                  '帮我创建一个复习任务',
+                  '先检查我的长期目标、阶段退出标准和本周容量；缺什么只问必要问题。',
+                  '我今天应该先做什么？请给一个最小可执行步骤。',
+                  '根据本周真实完成情况，帮我做一次复盘；不要直接改计划。',
+                  '这周容量变了，请先说明保留、移动和取消的影响，再给我草案。',
                   '本周学了多久？',
-                  '帮我打卡，今天状态不错',
                 ].map((q) => (
                   <button
                     key={q}
@@ -810,9 +825,10 @@ export function AiWorkspace() {
               onChange={(e) => {
                 const value = e.target.value
                 setInput(value)
+                setExternalPromptStatus('idle')
                 setShowSkillMenu(value.startsWith('/') && userSkills.length > 0)
               }}
-              placeholder={aiConfigured ? "输入指令，AI 帮你执行..." : "配置 AI 后开启对话..."}
+              placeholder={aiConfigured ? "描述计划、复盘或调整需要…" : "配置 AI 后开启学习管家…"}
               className="min-h-11 flex-1 rounded-xl border border-border bg-muted/50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
               disabled={loading || !aiConfigured}
             />
@@ -824,6 +840,12 @@ export function AiWorkspace() {
               发送
             </button>
           </div>
+          {looksLikeProblemQuestion(input) && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-muted/45 px-2.5 py-2 text-[11px] text-muted-foreground">
+              <span>复杂题解可使用你熟悉的 AI；C6 会保留当前学习上下文。</span>
+              <button type="button" onClick={() => void copyExternalAiPrompt()} className="font-medium text-brand hover:underline">{externalPromptStatus === 'copied' ? '已复制提问模板' : externalPromptStatus === 'failed' ? '复制失败，请重试' : '复制提问模板'}</button>
+            </div>
+          )}
           {showSkillMenu && (
             <div role="menu" aria-label="运行技能" className="mt-2 max-h-36 space-y-1 overflow-y-auto rounded-lg border border-border/50 bg-card p-2 shadow-lg">
               {userSkills.map((skill) => (

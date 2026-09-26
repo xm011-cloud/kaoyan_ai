@@ -33,6 +33,10 @@ interface MilestoneEvidence {
   learning: { sessions: number; minutes: number; clear: number; needsPractice: number; blocked: number };
   practice: { completed: number; scored: number; averageRate: number | null };
   wrongQuestions: { reviewed: number };
+  curriculum: {
+    nodes: Array<{ id: string; title: string; plannedTasks: number; completedTasks: number; understandingNotes: number }>;
+    unlinkedTasks: number;
+  };
   items: Array<{
     id: string;
     kind: string;
@@ -978,9 +982,11 @@ export default function StudyPathPage() {
                               </div>
                             )}
                             {evidenceByMilestone[m.id] && (
-                              <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                                证据：关联任务 {evidenceByMilestone[m.id].tasks.completed}/{evidenceByMilestone[m.id].tasks.total} · 学习 {evidenceByMilestone[m.id].learning.minutes} 分钟 · 练习 {evidenceByMilestone[m.id].practice.completed} 次 · 错题复习 {evidenceByMilestone[m.id].wrongQuestions.reviewed} 道
-                              </p>
+                              <div className="mt-2 space-y-1.5 text-xs leading-5 text-muted-foreground">
+                                <p>证据：关联任务 {evidenceByMilestone[m.id].tasks.completed}/{evidenceByMilestone[m.id].tasks.total} · 学习 {evidenceByMilestone[m.id].learning.minutes} 分钟 · 练习 {evidenceByMilestone[m.id].practice.completed} 次 · 错题复习 {evidenceByMilestone[m.id].wrongQuestions.reviewed} 道</p>
+                                {evidenceByMilestone[m.id].curriculum.nodes.length > 0 && <div className="flex flex-wrap gap-1.5">{evidenceByMilestone[m.id].curriculum.nodes.map((node) => <Link key={node.id} href={`/knowledge/nodes/${node.id}`} className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] text-violet-700 hover:bg-violet-500/15 dark:text-violet-300">{node.title} · 任务 {node.completedTasks}/{node.plannedTasks}{node.understandingNotes === 0 ? " · 待留下理解" : ` · ${node.understandingNotes} 条理解`}</Link>)}</div>}
+                                {evidenceByMilestone[m.id].curriculum.unlinkedTasks > 0 && <p>另有 {evidenceByMilestone[m.id].curriculum.unlinkedTasks} 项关联任务尚未确认知识点归属。</p>}
+                              </div>
                             )}
                           </div>
                         </div>

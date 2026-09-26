@@ -28,10 +28,11 @@ type Course = {
 };
 
 const NOTE_TYPES = [
-  { value: "note", label: "笔记" },
+  { value: "note", label: "我的理解" },
   { value: "key_point", label: "重点" },
   { value: "question", label: "疑问" },
   { value: "error", label: "易错点" },
+  { value: "method", label: "解题思路" },
 ];
 
 function sourceLabel(lesson: Lesson) {
@@ -408,10 +409,10 @@ export default function CoursesPage() {
           <section className="workspace-surface min-w-0 p-5 lg:p-7">
             <div className="mb-6 flex items-start justify-between gap-4 border-b border-border/60 pb-5"><div><p className="text-xs font-medium text-brand">正在学习</p><h1 className="mt-1 text-2xl font-semibold tracking-tight">{activeSession.lesson.title}</h1><p className="mt-1 text-sm text-muted-foreground">学习、记录和复盘都留在这个现场。</p></div><Button variant="outline" size="sm" className="min-h-11 shrink-0" onClick={() => setActiveSession(null)}>返回课程</Button></div>
         <div className="space-y-5">
-          <div className="rounded-xl border border-brand/20 bg-brand/5 p-3 text-sm"><p className="font-medium">本次学习会话已开始</p><p className="mt-1 text-muted-foreground">先学习，再留下重点、疑问或易错点；结束时再判断这节课是否需要练习。</p>{draftRestored && <p className="mt-2 text-xs font-medium text-brand">已恢复上次未提交的本地草稿。</p>}{activeSession.session.taskId && <p className="mt-2 text-xs font-medium text-brand">已关联本周计划任务，结束后会沉淀为路线证据。</p>}{activeSession.lesson.sourceUrl && <a href={activeSession.lesson.sourceUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex min-h-11 items-center text-sm font-medium text-brand hover:underline">打开课程来源 ↗</a>}<Button variant="outline" size="sm" className="mt-3 min-h-11 w-full lg:hidden" onClick={() => aiWorkspace.requestHelp(`我正在学习「${activeSession.lesson.title}」。请先根据当前课时帮我明确这次学习的最小目标。`)}>让 AI 协助本课</Button></div>
+          <div className="rounded-xl border border-brand/20 bg-brand/5 p-3 text-sm"><p className="font-medium">本次学习会话已开始</p><p className="mt-1 text-muted-foreground">先学习，再留下自己的理解、易错点或解题思路；结束时再判断这节课是否需要练习。</p>{draftRestored && <p className="mt-2 text-xs font-medium text-brand">已恢复上次未提交的本地草稿。</p>}{activeSession.session.taskId && <p className="mt-2 text-xs font-medium text-brand">已关联本周计划任务，结束后会沉淀为路线证据。</p>}{activeSession.lesson.sourceUrl && <a href={activeSession.lesson.sourceUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex min-h-11 items-center text-sm font-medium text-brand hover:underline">打开课程来源 ↗</a>}<Button variant="outline" size="sm" className="mt-3 min-h-11 w-full lg:hidden" onClick={() => aiWorkspace.requestHelp(`我正在学习「${activeSession.lesson.title}」。请先根据当前课时帮我明确这次学习的最小目标。`)}>让 AI 协助本课</Button></div>
           <div>
-            <div className="mb-2 flex items-center justify-between"><h3 className="text-sm font-medium">学习记录</h3><select value={noteKind} onChange={(e) => setNoteKind(e.target.value)} className="h-11 rounded-lg border bg-background px-2 text-xs">{NOTE_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></div>
-            <textarea value={noteContent} onChange={(e) => setNoteContent(e.target.value)} rows={4} placeholder="写下自己的理解、疑问或易错点…" className="w-full rounded-xl border bg-muted/40 p-3 text-sm" />
+            <div className="mb-2 flex items-center justify-between"><div><h3 className="text-sm font-medium">我的理解与方法</h3><p className="mt-0.5 text-xs text-muted-foreground">记录你怎么理解、容易错什么，以及下次遇到这类题如何切入。</p></div><select value={noteKind} onChange={(e) => setNoteKind(e.target.value)} className="h-11 rounded-lg border bg-background px-2 text-xs">{NOTE_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></div>
+            <textarea value={noteContent} onChange={(e) => setNoteContent(e.target.value)} rows={4} placeholder="用自己的话写下理解、易错点，或遇到这类题时的切入思路…" className="w-full rounded-xl border bg-muted/40 p-3 text-sm" />
             <div className="mt-2 text-right"><Button size="sm" className="min-h-11 w-full sm:w-auto" onClick={saveNote} disabled={saving || !noteContent.trim()}>保存记录</Button></div>
             {notes.length > 0 && <div className="mt-4 border-t border-border/50 pt-3">
               <div className="mb-2 flex flex-wrap items-center gap-1.5">

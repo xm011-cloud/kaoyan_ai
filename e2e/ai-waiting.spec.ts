@@ -5,6 +5,13 @@ import { test, expect } from "@playwright/test";
 // 首访断言放宽到 20s：fresh 测试库首次触库（Neon 冷启动）可能偏慢
 
 test("chat shows wait-soothing bubble with phases, estimate and cancel", async ({ page }) => {
+  await page.route("**/api/user/settings", async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({ json: { hasKey: true, aiConfigured: true, aiUrl: "https://example.com/v1", aiModel: "e2e", drivingMode: "assisted" } });
+    } else {
+      await route.continue();
+    }
+  });
   // 拦截 /api/ai/chat：延迟 6s 响应，期间观察等待气泡的阶段轮播
   await page.route("**/api/ai/chat", async (route) => {
     await new Promise((r) => setTimeout(r, 6000));
@@ -21,12 +28,10 @@ test("chat shows wait-soothing bubble with phases, estimate and cancel", async (
 
   await page.goto("/chat");
   const workspace = page.getByLabel("AI 工作区");
-  await expect(workspace.getByRole("heading", { name: "AI 学习伙伴" })).toBeVisible({ timeout: 20000 });
+  await expect(workspace.getByRole("heading", { name: "AI 学习管家" })).toBeVisible({ timeout: 20000 });
 
-  // 注意：页面右下角有浮动 AI 组件（自带输入框/发送按钮），用占位符精确锁定主对话输入框。
-  // 主输入框占位符随「是否有资料」变化（输入你的问题 / 输入问题，AI 自动检索 / 针对选中资料提问），
-  // 全部匹配；浮动组件是「输入指令/配置 AI」——不复用，排除掉。
-  const chatInput = workspace.getByPlaceholder(/输入指令/);
+  // 用当前学习管家的主输入框占位符精确锁定，避免误选其他页面的输入控件。
+  const chatInput = workspace.getByPlaceholder(/描述计划、复盘或调整需要/);
   await expect(chatInput).toBeVisible({ timeout: 20000 });
   const sendBtn = workspace.getByRole("button", { name: "发送" });
 

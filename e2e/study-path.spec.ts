@@ -214,6 +214,8 @@ test.describe("Study Path", () => {
     expect(firstStage?.key).toBe("foundation");
 
     await page.goto("/study-path");
+    // 路线页先读取服务端数据；确认加载完活跃路线后再断言交接入口。
+    await expect(page.getByRole("heading", { name: "🗺️ 学习路径" })).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole("link", { name: "查看并安排本周" })).toHaveAttribute("href", "/tasks");
 
     const blocked = await page.evaluate(async (stageId) => {

@@ -32,6 +32,106 @@ async function patchWithTransientRetry(page: Page, url: string, data: unknown): 
 }
 
 test.describe("Courses", () => {
+  test("课程入口支持 B 站短链，并在学习开始前后都能打开", async ({ page }) => {
+    const suffix = Date.now();
+    const created = await page.request.post("/api/courses", {
+      data: {
+        title: `E2E B站课程${suffix}`,
+        subject: "408",
+        sourceType: "external",
+        sourceUrl: "b23.tv/c6-course-entry",
+        firstLessonTitle: "第一节：网络概述",
+      },
+    });
+    expect(created.status()).toBe(201);
+    const course = (await created.json()).course;
+    const lesson = course.units[0].lessons[0];
+    const expectedUrl = "https://b23.tv/c6-course-entry";
+    expect(course.sourceUrl).toBe(expectedUrl);
+    expect(lesson.sourceUrl).toBe(expectedUrl);
+
+    await page.goto(`/courses?lesson=${lesson.id}`);
+    await expect(page.getByRole("button", { name: course.title })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("link", { name: "打开课程入口 ↗" })).toHaveAttribute("href", expectedUrl);
+    await page.getByRole("button", { name: "开始" }).click();
+    await expect(page.getByRole("link", { name: "打开课程来源 ↗" }).first()).toHaveAttribute("href", expectedUrl);
+  });
+
+  test("数据结构骨架按版本读取，并保留审核来源", async ({ page }) => {
+    const response = await page.request.get("/api/curriculum?outlineId=408-data-structures-v1");
+    expect(response.status()).toBe(200);
+    const { outline } = await response.json();
+    expect(outline).toMatchObject({
+      id: "408-data-structures-v1",
+      subject: "408计算机",
+      label: "408 · 数据结构主干",
+      source: expect.objectContaining({ url: expect.stringContaining("yankao.neea.edu.cn") }),
+    });
+    expect(outline.nodes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "ds-linear-list", title: "线性表" }),
+      expect.objectContaining({ id: "ds-tree", title: "树与二叉树" }),
+      expect.objectContaining({ id: "ds-sort", title: "内部排序" }),
+    ]));
+  });
+
+  test("操作系统骨架按版本读取，并保留核心前置关系", async ({ page }) => {
+    const response = await page.request.get("/api/curriculum?outlineId=408-operating-system-v1");
+    expect(response.status()).toBe(200);
+    const { outline } = await response.json();
+    expect(outline).toMatchObject({
+      id: "408-operating-system-v1",
+      label: "408 · 操作系统主干",
+      source: expect.objectContaining({ url: expect.stringContaining("yankao.neea.edu.cn") }),
+    });
+    expect(outline.nodes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "os-process-thread", title: "进程与线程" }),
+      expect.objectContaining({ id: "os-deadlock", prerequisites: ["os-synchronization"] }),
+      expect.objectContaining({ id: "os-virtual-memory", prerequisites: ["os-memory"] }),
+    ]));
+  });
+
+  test("计算机组成原理骨架按版本读取，并保留核心前置关系", async ({ page }) => {
+    const response = await page.request.get("/api/curriculum?outlineId=408-computer-organization-v1");
+    expect(response.status()).toBe(200);
+    const { outline } = await response.json();
+    expect(outline).toMatchObject({
+      id: "408-computer-organization-v1",
+      label: "408 · 计算机组成原理主干",
+      source: expect.objectContaining({ url: expect.stringContaining("yankao.neea.edu.cn") }),
+    });
+    expect(outline.nodes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "co-cache", prerequisites: ["co-memory"] }),
+      expect.objectContaining({ id: "co-cpu", prerequisites: ["co-instruction", "co-arithmetic-unit"] }),
+      expect.objectContaining({ id: "co-io", prerequisites: ["co-bus", "co-memory"] }),
+    ]));
+  });
+
+  test("理解卡无需重新展开目录也会显示已确认的课程知识点", async ({ page }) => {
+    const course = await page.request.post("/api/courses", {
+      data: {
+        title: `E2E 理解卡来源 ${Date.now()}`,
+        subject: "408",
+        firstLessonTitle: "树的基本概念",
+      },
+    });
+    expect(course.status()).toBe(201);
+    const lessonId = (await course.json()).course.units[0].lessons[0].id;
+    const noteContent = `E2E 数据结构关联 ${Date.now()}`;
+    const created = await page.request.post("/api/study-notes", {
+      data: {
+        kind: "method",
+        content: noteContent,
+        courseLessonId: lessonId,
+        curriculumNodeIds: ["ds-tree"],
+      },
+    });
+    expect(created.status()).toBe(201);
+
+    await page.goto("/knowledge");
+    const noteCard = page.locator("article").filter({ hasText: noteContent });
+    await expect(noteCard.getByRole("link", { name: "408 · 数据结构主干 · 树与二叉树" })).toBeVisible({ timeout: 30_000 });
+  });
+
   test("课程、学习会话、笔记和自评构成可追溯闭环", async ({ page }) => {
     // 该用例覆盖创建、笔记幂等、会话幂等及页面上下文；Neon 冷连接下单次链路可超过一分钟。
     // 放宽的是这一条完整证据链的时限，不掩盖任何业务断言。

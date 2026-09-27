@@ -29,8 +29,10 @@ interface KnowledgeNodeOption {
   category: string;
 }
 
-interface CurriculumOutlineSummary { id: string; subject: string; version: string; label: string; nodeCount: number }
+interface CurriculumSource { label: string; url: string; reviewedAt: string }
+interface CurriculumOutlineSummary { id: string; subject: string; version: string; label: string; source: CurriculumSource; nodeCount: number }
 interface CurriculumOutline extends CurriculumOutlineSummary { nodes: Array<{ id: string; title: string; parentId: string | null; prerequisites: string[] }> }
+interface CurriculumNodeReference { id: string; title: string; outlineLabel: string }
 
 const NOTE_KIND_META: Record<NoteKind, { label: string; tone: string }> = {
   note: { label: "我的理解", tone: "bg-brand/10 text-brand" },
@@ -51,6 +53,7 @@ export default function KnowledgePage() {
   const [notes, setNotes] = useState<UnderstandingNote[]>([]);
   const [nodes, setNodes] = useState<KnowledgeNodeOption[]>([]);
   const [outlines, setOutlines] = useState<CurriculumOutlineSummary[]>([]);
+  const [curriculumNodes, setCurriculumNodes] = useState<CurriculumNodeReference[]>([]);
   const [activeOutline, setActiveOutline] = useState<CurriculumOutline | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeKind, setActiveKind] = useState<"all" | NoteKind>("all");
@@ -76,7 +79,20 @@ export default function KnowledgePage() {
       if (!notesResponse.ok) throw new Error(noteData.error || "加载理解记录失败");
       setNotes(Array.isArray(noteData.notes) ? noteData.notes : []);
       setNodes(nodesResponse.ok && Array.isArray(nodeData.nodes) ? nodeData.nodes : []);
-      setOutlines(outlinesResponse.ok && Array.isArray(outlineData.outlines) ? outlineData.outlines : []);
+      const nextOutlines: CurriculumOutlineSummary[] = outlinesResponse.ok && Array.isArray(outlineData.outlines) ? outlineData.outlines : [];
+      setOutlines(nextOutlines);
+      // 卡片上的已确认关联必须始终可见，不依赖用户刚好展开了对应的课程目录。
+      const details = await Promise.all(nextOutlines.map(async (outline: CurriculumOutlineSummary) => {
+        try {
+          const response = await fetch(`/api/curriculum?outlineId=${encodeURIComponent(outline.id)}`, { cache: "no-store" });
+          const detail = await response.json().catch(() => ({}));
+          return response.ok && detail.outline ? detail.outline as CurriculumOutline : null;
+        } catch {
+          // 目录映射用于增强卡片可读性；单个目录暂不可读时仍应保留用户自己的理解记录。
+          return null;
+        }
+      }));
+      setCurriculumNodes(details.flatMap((outline) => outline ? outline.nodes.map((node) => ({ id: node.id, title: node.title, outlineLabel: outline.label })) : []));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "加载理解记录失败");
     } finally {
@@ -94,9 +110,9 @@ export default function KnowledgePage() {
     [activeKind, notes],
   );
 
-  const curriculumNodesById = useMemo(
-    () => new Map(activeOutline?.nodes.map((node) => [node.id, node]) ?? []),
-    [activeOutline],
+  const linkedCurriculumNodesById = useMemo(
+    () => new Map(curriculumNodes.map((node) => [node.id, node])),
+    [curriculumNodes],
   );
 
   const linkKnowledgeNode = async (note: UnderstandingNote, nodeId: string) => {
@@ -162,7 +178,7 @@ export default function KnowledgePage() {
 
   const openOutline = async (outline: CurriculumOutlineSummary) => {
     try {
-      const response = await fetch(`/api/curriculum?subject=${encodeURIComponent(outline.subject)}`, { cache: "no-store" });
+      const response = await fetch(`/api/curriculum?outlineId=${encodeURIComponent(outline.id)}`, { cache: "no-store" });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.outline) throw new Error(data.error || "加载课程知识路径失败");
       setActiveOutline(data.outline);
@@ -190,7 +206,7 @@ export default function KnowledgePage() {
             </div>
             {activeOutline && (
               <div id="curriculum-outline" className="mt-4 border-t border-border/55 pt-4">
-                <div className="flex items-center justify-between gap-3"><p className="text-sm font-medium">{activeOutline.label}</p><span className="text-xs text-muted-foreground">{activeOutline.version}</span></div>
+                <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-medium">{activeOutline.label}</p><a href={activeOutline.source.url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex text-xs text-brand hover:underline">参考来源：{activeOutline.source.label} ↗</a></div><span className="text-xs text-muted-foreground">{activeOutline.version} · 核对于 {activeOutline.source.reviewedAt}</span></div>
                 <ol className="mt-3 space-y-2">
                   {activeOutline.nodes.map((node) => <li key={node.id} id={`curriculum-${node.id}`} className="scroll-mt-5 rounded-lg bg-muted/40 px-3 py-2 text-sm"><Link href={`/knowledge/nodes/${node.id}`} className="font-medium hover:text-brand hover:underline">{node.title}</Link>{node.prerequisites.length > 0 && <p className="mt-1 text-xs text-muted-foreground">前置：{node.prerequisites.map((id) => activeOutline.nodes.find((item) => item.id === id)?.title ?? id).join("、")}</p>}</li>)}
                 </ol>
@@ -261,11 +277,11 @@ export default function KnowledgePage() {
                       ))}
                     </div>
                   )}
-                  {note.curriculumNodeIds?.some((id) => curriculumNodesById.has(id)) && (
+                  {note.curriculumNodeIds?.some((id) => linkedCurriculumNodesById.has(id)) && (
                     <div className="mt-3 flex flex-wrap gap-1.5" aria-label="关联课程知识点">
-                      {note.curriculumNodeIds.filter((id) => curriculumNodesById.has(id)).map((id) => (
+                      {note.curriculumNodeIds.filter((id) => linkedCurriculumNodesById.has(id)).map((id) => (
                         <Link key={id} href={`/knowledge/nodes/${id}`} className="rounded-full bg-brand/10 px-2 py-1 text-xs text-brand transition-colors hover:bg-brand/20">
-                          课程骨架 · {curriculumNodesById.get(id)?.title}
+                          {linkedCurriculumNodesById.get(id)?.outlineLabel} · {linkedCurriculumNodesById.get(id)?.title}
                         </Link>
                       ))}
                     </div>

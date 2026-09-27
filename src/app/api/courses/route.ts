@@ -2,22 +2,12 @@ import { NextRequest } from "next/server";
 import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, jsonNoStore } from "@/lib/api-utils";
+import { normalizeExternalUrl } from "@/lib/external-url";
 
 const SOURCE_TYPES = new Set(["manual", "external", "material"]);
 
 function readText(value: unknown, limit: number) {
   return typeof value === "string" ? value.trim().slice(0, limit) : "";
-}
-
-function readUrl(value: unknown) {
-  const url = readText(value, 2000);
-  if (!url) return null;
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.toString() : null;
-  } catch {
-    return null;
-  }
 }
 
 // 课程列表只返回轻量概览；课时和笔记由课程详情按需读取。
@@ -65,7 +55,7 @@ export async function POST(request: NextRequest) {
     const firstLessonTitle = readText(body.firstLessonTitle, 120);
     const requestedType = readText(body.sourceType, 20) || "manual";
     const sourceType = SOURCE_TYPES.has(requestedType) ? requestedType : "manual";
-    const sourceUrl = readUrl(body.sourceUrl);
+    const sourceUrl = normalizeExternalUrl(body.sourceUrl);
 
     if (!title) return jsonNoStore({ error: "请填写课程名称" }, { status: 400 });
     if (body.sourceUrl && !sourceUrl) return jsonNoStore({ error: "课程链接格式不正确" }, { status: 400 });

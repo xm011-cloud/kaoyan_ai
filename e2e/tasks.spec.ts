@@ -95,6 +95,42 @@ test.describe("Tasks", () => {
     await page.request.delete(`/api/tasks/${task.id}`);
   });
 
+  test("编辑任务时会按已关联节点打开正确的课程知识路径", async ({ page }) => {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const localDate = (dt: Date) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+    const day = new Date();
+    day.setHours(0, 0, 0, 0);
+    const weekStart = new Date(day);
+    weekStart.setDate(day.getDate() + (day.getDay() === 0 ? -6 : 1 - day.getDay()));
+    const title = `E2E 数据结构关联任务 ${Date.now()}`;
+    const created = await page.request.post("/api/tasks", {
+      data: {
+        title,
+        date: localDate(day),
+        weekStartDate: localDate(weekStart),
+        subject: "408计算机",
+        curriculumNodeIds: ["ds-tree"],
+      },
+    });
+    expect(created.status()).toBe(200);
+    const { task } = await created.json();
+
+    try {
+      await page.goto(`/tasks?week=${localDate(weekStart)}`);
+      const row = page.locator(`#task-${task.id}`);
+      await expect(row).toBeVisible({ timeout: 30_000 });
+      // 行内有“开始练习”链接；点击标题触发行编辑，避免 Playwright 落在该链接上发生页面跳转。
+      await row.getByText(title, { exact: true }).click();
+
+      await page.getByText("关联课程知识点（可选）", { exact: true }).click();
+      const outlineSelect = page.getByLabel("选择课程知识路径");
+      await expect(outlineSelect).toHaveValue("408-data-structures-v1", { timeout: 30_000 });
+      await expect(page.getByRole("button", { name: "408 · 数据结构主干 · 树与二叉树 ×" })).toBeVisible();
+    } finally {
+      await page.request.delete(`/api/tasks/${task.id}`);
+    }
+  });
+
   test("add task modal opens", async ({ page }) => {
     const addBtn = page.locator("button").filter({ hasText: /添加|\+/ }).first();
     if (await addBtn.isVisible({ timeout: 5000 }).catch(() => false)) {

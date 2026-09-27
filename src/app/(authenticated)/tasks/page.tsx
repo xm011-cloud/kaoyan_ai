@@ -52,6 +52,13 @@ interface CurriculumOutlineOption {
   nodes?: Array<{ id: string; title: string }>;
 }
 
+interface CurriculumNodeOption {
+  id: string;
+  title: string;
+  outlineId: string;
+  outlineLabel: string;
+}
+
 interface WeeklyPlanDraft {
   id: string;
   version: number;
@@ -195,6 +202,7 @@ export default function TasksPage() {
   const [savingTaskReflection, setSavingTaskReflection] = useState(false);
   const [editCurriculumNodeIds, setEditCurriculumNodeIds] = useState<string[]>([]);
   const [curriculumOutlines, setCurriculumOutlines] = useState<CurriculumOutlineOption[]>([]);
+  const [curriculumNodes, setCurriculumNodes] = useState<CurriculumNodeOption[]>([]);
   const [activeCurriculumOutline, setActiveCurriculumOutline] = useState<CurriculumOutlineOption | null>(null);
   const [loadingCurriculum, setLoadingCurriculum] = useState(false);
 
@@ -227,6 +235,23 @@ export default function TasksPage() {
     setMilestoneEvidence((data.evidence || {}) as Record<string, MilestoneEvidenceSummary>);
   }, [setMilestoneEvidence]);
 
+  const hydrateCurriculumOutlines = useCallback(async (summaries: CurriculumOutlineOption[]) => {
+    const details = await Promise.all(summaries.map(async (outline) => {
+      try {
+        const response = await fetch(`/api/curriculum?outlineId=${encodeURIComponent(outline.id)}`, { cache: "no-store" });
+        const data = await response.json().catch(() => ({}));
+        return response.ok && data.outline ? data.outline as CurriculumOutlineOption : null;
+      } catch {
+        return null;
+      }
+    }));
+    const available = details.filter((outline): outline is CurriculumOutlineOption => outline !== null);
+    setCurriculumNodes(available.flatMap((outline) => (outline.nodes ?? []).map((node) => ({
+      ...node, outlineId: outline.id, outlineLabel: outline.label,
+    }))));
+    return available;
+  }, [setCurriculumNodes]);
+
   const loadWeekTasks = useCallback(async () => {
     const ws = toLocalDateString(weekStart); // 本地周一日期串（与 generate-plan 存 weekStartDate 口径一致）
     try {
@@ -242,18 +267,22 @@ export default function TasksPage() {
       setWeeklyPlanVersions(planData.versions || []);
       const outlines = curriculumRes.ok && Array.isArray(curriculumData.outlines) ? curriculumData.outlines as CurriculumOutlineOption[] : [];
       setCurriculumOutlines(outlines);
+      const detailedOutlines = await hydrateCurriculumOutlines(outlines);
+      const taskNodeIds = new Set(tasks.flatMap((task: Task) => task.curriculumNodeIds ?? []));
       const taskSubjects = new Set(tasks.map((task: Task) => task.subject).filter(Boolean));
-      const selectedOutline = outlines.find((outline) => taskSubjects.has(outline.subject)) ?? outlines[0];
+      const selectedOutline = detailedOutlines.find((outline) => outline.nodes?.some((node) => taskNodeIds.has(node.id)))
+        ?? detailedOutlines.find((outline) => taskSubjects.has(outline.subject))
+        ?? detailedOutlines[0];
       if (selectedOutline) {
-        const outlineResponse = await fetch(`/api/curriculum?subject=${encodeURIComponent(selectedOutline.subject)}`, { cache: "no-store" });
-        const outlineData = await outlineResponse.json().catch(() => ({}));
-        if (outlineResponse.ok && outlineData.outline) setActiveCurriculumOutline(outlineData.outline);
+        setActiveCurriculumOutline(selectedOutline);
+      } else {
+        setActiveCurriculumOutline(null);
       }
       await loadMilestoneEvidence(tasks.map((task: Task) => task.milestoneId || ""));
     } catch { /* ignore */ }
-  }, [weekStart, loadMilestoneEvidence, setWeekTasks, setWeeklyPlanDraft, setWeeklyPlanVersions, setCurriculumOutlines, setActiveCurriculumOutline]);
+  }, [weekStart, hydrateCurriculumOutlines, loadMilestoneEvidence, setWeekTasks, setWeeklyPlanDraft, setWeeklyPlanVersions, setCurriculumOutlines, setActiveCurriculumOutline]);
 
-  const loadCurriculumForTask = async (preferredSubject?: string | null) => {
+  const loadCurriculumForTask = async (preferredOutlineId?: string | null, preferredSubject?: string | null, preferredNodeIds: string[] = []) => {
     setLoadingCurriculum(true);
     try {
       let summaries = curriculumOutlines;
@@ -264,12 +293,12 @@ export default function TasksPage() {
         summaries = Array.isArray(data.outlines) ? data.outlines : [];
         setCurriculumOutlines(summaries);
       }
-      const selected = summaries.find((outline) => outline.subject === preferredSubject) ?? summaries[0];
-      if (!selected) { setActiveCurriculumOutline(null); return; }
-      const response = await fetch(`/api/curriculum?subject=${encodeURIComponent(selected.subject)}`, { cache: "no-store" });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data.outline) throw new Error(data.error || "加载课程知识路径失败");
-      setActiveCurriculumOutline(data.outline);
+      const detailedOutlines = await hydrateCurriculumOutlines(summaries);
+      const selected = detailedOutlines.find((outline) => outline.id === preferredOutlineId)
+        ?? detailedOutlines.find((outline) => outline.nodes?.some((node) => preferredNodeIds.includes(node.id)))
+        ?? detailedOutlines.find((outline) => outline.subject === preferredSubject)
+        ?? detailedOutlines[0];
+      setActiveCurriculumOutline(selected ?? null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "加载课程知识路径失败");
     } finally {
@@ -638,7 +667,7 @@ export default function TasksPage() {
     setTaskReflection("");
     setTaskReflectionKind("method");
     setEditCurriculumNodeIds(task.curriculumNodeIds ?? []);
-    void loadCurriculumForTask(task.subject);
+    void loadCurriculumForTask(null, task.subject, task.curriculumNodeIds ?? []);
   };
 
   const saveTaskReflection = async () => {
@@ -942,7 +971,7 @@ export default function TasksPage() {
             onGenerate={handleGenerate} onRegenerateDay={handleRegenerateDay}
             onToggleComplete={handleToggleComplete} onEditTask={openEdit} onQuickAdjustTask={handleQuickAdjustTask}
             milestoneEvidence={milestoneEvidence}
-            curriculumNodeLabels={Object.fromEntries((activeCurriculumOutline?.nodes ?? []).map((node) => [node.id, node.title]))}
+            curriculumNodeLabels={Object.fromEntries(curriculumNodes.map((node) => [node.id, `${node.outlineLabel} · ${node.title}`]))}
             onDeleteTask={handleDeleteTask} onAddTask={handleAddTask}
             onJudge={handleJudge}
             onRegenerateWithFeedback={handleRegenerateWithFeedback}
@@ -1013,8 +1042,8 @@ export default function TasksPage() {
                   <div className="mt-3 space-y-2">
                     <p className="text-xs leading-5 text-muted-foreground">只有你选择并保存后，这项任务才会出现在对应知识点的学习证据中。系统不会根据任务标题猜测归属。</p>
                     {loadingCurriculum ? <p className="text-xs text-muted-foreground">正在加载审核知识路径…</p> : activeCurriculumOutline ? <>
-                      {curriculumOutlines.length > 1 && <select aria-label="选择课程知识路径" value={activeCurriculumOutline.subject} onChange={(event) => void loadCurriculumForTask(event.target.value)} className="h-10 w-full rounded-lg border border-border/60 bg-background px-2 text-xs">
-                        {curriculumOutlines.map((outline) => <option key={outline.id} value={outline.subject}>{outline.label}</option>)}
+                      {curriculumOutlines.length > 1 && <select aria-label="选择课程知识路径" value={activeCurriculumOutline.id} onChange={(event) => void loadCurriculumForTask(event.target.value)} className="h-10 w-full rounded-lg border border-border/60 bg-background px-2 text-xs">
+                        {curriculumOutlines.map((outline) => <option key={outline.id} value={outline.id}>{outline.label}</option>)}
                       </select>}
                       <select
                         aria-label="为任务关联课程知识点"
@@ -1030,8 +1059,8 @@ export default function TasksPage() {
                         {(activeCurriculumOutline.nodes ?? []).filter((node) => !editCurriculumNodeIds.includes(node.id)).map((node) => <option key={node.id} value={node.id}>{node.title}</option>)}
                       </select>
                       {editCurriculumNodeIds.length > 0 && <div className="flex flex-wrap gap-2">{editCurriculumNodeIds.map((nodeId) => {
-                        const node = activeCurriculumOutline.nodes?.find((item) => item.id === nodeId);
-                        return <button key={nodeId} type="button" onClick={() => setEditCurriculumNodeIds((ids) => ids.filter((id) => id !== nodeId))} className="rounded-full bg-brand/10 px-2 py-1 text-xs text-brand hover:bg-brand/20">{node?.title ?? nodeId} ×</button>;
+                        const node = curriculumNodes.find((item) => item.id === nodeId);
+                        return <button key={nodeId} type="button" onClick={() => setEditCurriculumNodeIds((ids) => ids.filter((id) => id !== nodeId))} className="rounded-full bg-brand/10 px-2 py-1 text-xs text-brand hover:bg-brand/20">{node ? `${node.outlineLabel} · ${node.title}` : nodeId} ×</button>;
                       })}</div>}
                     </> : <p className="text-xs text-muted-foreground">当前还没有可用的审核课程知识路径。</p>}
                   </div>

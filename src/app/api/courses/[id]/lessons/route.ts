@@ -2,22 +2,12 @@ import { NextRequest } from "next/server";
 import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, jsonNoStore } from "@/lib/api-utils";
+import { normalizeExternalUrl } from "@/lib/external-url";
 
 const SOURCE_TYPES = new Set(["manual", "external", "material"]);
 
 function text(value: unknown, limit: number) {
   return typeof value === "string" ? value.trim().slice(0, limit) : "";
-}
-
-function optionalUrl(value: unknown) {
-  const raw = text(value, 2000);
-  if (!raw) return null;
-  try {
-    const parsed = new URL(raw);
-    return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.toString() : null;
-  } catch {
-    return null;
-  }
 }
 
 export async function POST(
@@ -35,7 +25,7 @@ export async function POST(
     const unitId = text(body.unitId, 80);
     const requestedType = text(body.sourceType, 20) || "manual";
     const sourceType = SOURCE_TYPES.has(requestedType) ? requestedType : "manual";
-    const sourceUrl = optionalUrl(body.sourceUrl);
+    const sourceUrl = normalizeExternalUrl(body.sourceUrl);
     const materialId = text(body.materialId, 80) || null;
     const plannedMinutes = Number.isInteger(body.plannedMinutes) && body.plannedMinutes > 0 && body.plannedMinutes <= 600
       ? body.plannedMinutes

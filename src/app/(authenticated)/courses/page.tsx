@@ -51,6 +51,7 @@ export default function CoursesPage() {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [addLessonOpen, setAddLessonOpen] = useState(false);
   const [activeSession, setActiveSession] = useState<{ session: Session; lesson: Lesson } | null>(null);
@@ -236,12 +237,12 @@ export default function CoursesPage() {
     const id = crypto.randomUUID();
     const payload = { id, content: noteContent.trim(), kind: noteKind, studySessionId: activeSession.session.id };
     const init = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) };
-    setSaving(true);
+    setSaving(true); setError(""); setNotice("");
     try {
       if (!online) {
         await enqueueWrite("/api/study-notes", init, { dedupeKey: `study-note:${id}` });
         setNotes((current) => [...current, { id, content: payload.content, kind: payload.kind, createdAt: new Date().toISOString() }]);
-        setNoteContent(""); setError("笔记已暂存，联网后会自动同步。");
+        setNoteContent(""); setNotice("记录已暂存，联网后会自动同步；同步成功后会进入明日回顾。");
         return;
       }
       const res = await fetch("/api/study-notes", init);
@@ -251,18 +252,18 @@ export default function CoursesPage() {
         if (res.status >= 500) {
           await enqueueWrite("/api/study-notes", init, { dedupeKey: `study-note:${id}` });
           setNotes((current) => [...current, { id, content: payload.content, kind: payload.kind, createdAt: new Date().toISOString() }]);
-          setNoteContent(""); setError("服务暂时不可用，笔记已暂存，联网后会自动同步。");
+          setNoteContent(""); setNotice("服务暂时不可用，记录已暂存；联网后会自动同步并进入明日回顾。");
           return;
         }
         setError(data.error || "保存笔记失败");
         return;
       }
       setNotes((current) => [...current, data.note]);
-      setNoteContent(""); setDraftRestored(false);
+      setNoteContent(""); setDraftRestored(false); setNotice("已保存到理解库，明天会提醒你回看自己的表述。");
     } catch {
       await enqueueWrite("/api/study-notes", init, { dedupeKey: `study-note:${id}` });
       setNotes((current) => [...current, { id, content: payload.content, kind: payload.kind, createdAt: new Date().toISOString() }]);
-      setNoteContent(""); setError("网络异常，笔记已暂存，联网后会自动同步。");
+      setNoteContent(""); setNotice("网络异常，记录已暂存；联网后会自动同步并进入明日回顾。");
     }
     finally { setSaving(false); }
   };
@@ -416,6 +417,7 @@ export default function CoursesPage() {
             <div className="mb-2 flex items-center justify-between"><div><h3 className="text-sm font-medium">我的理解与方法</h3><p className="mt-0.5 text-xs text-muted-foreground">记录你怎么理解、容易错什么，以及下次遇到这类题如何切入。</p></div><select value={noteKind} onChange={(e) => setNoteKind(e.target.value)} className="h-11 rounded-lg border bg-background px-2 text-xs">{NOTE_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></div>
             <textarea value={noteContent} onChange={(e) => setNoteContent(e.target.value)} rows={4} placeholder="用自己的话写下理解、易错点，或遇到这类题时的切入思路…" className="w-full rounded-xl border bg-muted/40 p-3 text-sm" />
             <div className="mt-2 text-right"><Button size="sm" className="min-h-11 w-full sm:w-auto" onClick={saveNote} disabled={saving || !noteContent.trim()}>保存记录</Button></div>
+            {notice && <p role="status" className="mt-2 rounded-lg border border-success/25 bg-success/5 px-3 py-2 text-xs leading-5 text-success">{notice}</p>}
             {notes.length > 0 && <div className="mt-4 border-t border-border/50 pt-3">
               <div className="mb-2 flex flex-wrap items-center gap-1.5">
                 {[{ value: "all", label: `全部 ${notes.length}` }, ...NOTE_TYPES.map((type) => ({ value: type.value, label: `${type.label} ${notes.filter((note) => note.kind === type.value).length}` }))].map((filter) => <button key={filter.value} type="button" onClick={() => setNoteFilter(filter.value)} className={`rounded-full px-2 py-1 text-[11px] ${noteFilter === filter.value ? "bg-brand/10 text-brand" : "text-muted-foreground hover:bg-muted"}`}>{filter.label}</button>)}

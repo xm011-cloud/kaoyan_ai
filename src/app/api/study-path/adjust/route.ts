@@ -72,6 +72,8 @@ export async function POST(request: NextRequest) {
       requiresConfirmation: true,
     };
 
+    // 路线草稿会克隆阶段与全部里程碑。远程 PostgreSQL 在连接恢复或冷启动时，
+    // 默认 5 秒的交互事务窗口不足以完成这组连续写入，导致已经开始的调整偶发 500。
     const created = await prisma.$transaction(async (tx) => {
       await tx.studyPath.updateMany({
         where: { userId: user!.id, status: "draft" },
@@ -166,7 +168,7 @@ export async function POST(request: NextRequest) {
           milestones: { orderBy: { order: "asc" } },
         },
       });
-    });
+    }, { maxWait: 10_000, timeout: 20_000 });
 
     const overallProgress = created.milestones.length > 0
       ? created.milestones.reduce((sum, milestone) => sum + milestone.progress, 0) / created.milestones.length

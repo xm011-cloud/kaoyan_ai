@@ -3,6 +3,7 @@ import { jsonNoStore } from "@/lib/api-utils";
 import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { resolveEvidenceLink, upsertStudyEvidence } from "@/lib/study-evidence";
+import { addStudyDays, studyDateToUtc, toStudyDateString } from "@/lib/date-utils";
 
 export async function GET(
   request: NextRequest,
@@ -82,9 +83,9 @@ export async function PATCH(
           newInterval = Math.round(oldInterval * newEase);
         }
 
-        const nextDate = new Date();
-        nextDate.setDate(nextDate.getDate() + newInterval);
-        nextDate.setHours(0, 0, 0, 0);
+        // nextReviewDate 是学习日标签，固定以中国学习日的 UTC 午夜保存，
+        // 不随部署区或用户在凌晨操作而漂移到相邻日。
+        const nextDate = studyDateToUtc(addStudyDays(toStudyDateString(), newInterval));
 
         data.reviewCount = (existing.reviewCount || 0) + 1;
         data.lastReviewDate = new Date();

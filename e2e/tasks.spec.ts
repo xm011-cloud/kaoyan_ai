@@ -95,6 +95,76 @@ test.describe("Tasks", () => {
     await page.request.delete(`/api/tasks/${task.id}`);
   });
 
+  test("无课时关联的计划任务会带着任务上下文进入练习", async ({ page }) => {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const localDate = (dt: Date) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() + (today.getDay() === 0 ? -6 : 1 - today.getDay()));
+    const week = localDate(weekStart);
+    const title = `E2E 练习任务 ${Date.now()}`;
+    const created = await page.request.post("/api/tasks", {
+      data: { title, date: localDate(today), weekStartDate: week, subject: "数学一" },
+    });
+    expect(created.status()).toBe(200);
+    const { task } = await created.json();
+
+    try {
+      await page.goto(`/tasks?week=${week}&task=${task.id}`);
+      const row = page.locator(`#task-${task.id}`);
+      await expect(row).toBeVisible({ timeout: 30_000 });
+      const focusedEntry = page.getByTestId("focused-task-entry");
+      await expect(focusedEntry).toContainText(title);
+      await expect(focusedEntry.getByRole("link", { name: "开始练习" })).toHaveAttribute(
+        "href",
+        `/practice?task=${task.id}&subject=${encodeURIComponent("数学一")}`,
+      );
+      await expect(row.getByRole("link", { name: "开始练习 →" })).toHaveAttribute(
+        "href",
+        `/practice?task=${task.id}&subject=${encodeURIComponent("数学一")}`
+      );
+      await focusedEntry.getByRole("link", { name: "开始练习" }).click();
+      await expect(page.getByText(`正在为「${title}」练习`)).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByRole("link", { name: "返回这项任务 →" })).toHaveAttribute(
+        "href",
+        `/tasks?week=${week}&task=${task.id}`,
+      );
+      await expect(page.locator("select").first()).toHaveValue("数学一");
+    } finally {
+      await page.request.delete(`/api/tasks/${task.id}`);
+    }
+  });
+
+  test("理解库回看任务记录时会回到任务所属周", async ({ page }) => {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const localDate = (dt: Date) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+    const date = new Date();
+    // 选一个非本周日期，避免默认本周刚好掩盖缺失 week 参数的问题。
+    date.setDate(date.getDate() - 14);
+    const weekStart = new Date(date);
+    weekStart.setDate(date.getDate() + (date.getDay() === 0 ? -6 : 1 - date.getDay()));
+    const week = localDate(weekStart);
+    const title = `E2E 理解回溯任务 ${Date.now()}`;
+    const createdTask = await page.request.post("/api/tasks", {
+      data: { title, date: localDate(date), weekStartDate: week, subject: "数学一" },
+    });
+    expect(createdTask.status()).toBe(200);
+    const task = (await createdTask.json()).task;
+    const createdNote = await page.request.post("/api/study-notes", {
+      data: { taskId: task.id, kind: "method", content: `E2E 任务回溯方法 ${Date.now()}` },
+    });
+    expect(createdNote.status()).toBe(201);
+
+    try {
+      await page.goto("/knowledge");
+      const source = page.getByRole("link", { name: `任务 · ${title}` });
+      await expect(source).toHaveAttribute("href", `/tasks?week=${week}&task=${task.id}`, { timeout: 30_000 });
+    } finally {
+      await page.request.delete(`/api/tasks/${task.id}`);
+    }
+  });
+
   test("编辑任务时会按已关联节点打开正确的课程知识路径", async ({ page }) => {
     const pad = (n: number) => String(n).padStart(2, "0");
     const localDate = (dt: Date) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
@@ -326,6 +396,10 @@ test.describe("Tasks", () => {
 
     // 勾选不应误触发编辑弹窗
     await expect(page.locator("text=编辑任务")).not.toBeVisible({ timeout: 2000 });
+    // 完成后的理解记录是可选动作；跳过后任务完成态仍需独立持久化。
+    const completionReflection = page.getByRole("dialog", { name: "任务已完成，留下一句给未来的自己" });
+    await expect(completionReflection).toBeVisible();
+    await completionReflection.getByRole("button", { name: "暂不记录" }).click();
     // checkbox 应保持勾选
     await expect(checkbox).toBeChecked();
 
@@ -357,6 +431,64 @@ test.describe("Tasks", () => {
 
     // 清理
     await page.request.delete(`/api/tasks/${task.id}`);
+  });
+
+  test("完成任务后可在同一现场保存易错点或解题思路", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const localDate = (dt: Date) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() + (today.getDay() === 0 ? -6 : 1 - today.getDay()));
+    const week = localDate(weekStart);
+    const title = `E2E 完成后理解 ${Date.now()}`;
+    const content = `E2E 完成后方法 ${Date.now()}`;
+    const created = await page.request.post("/api/tasks", {
+      data: {
+        title,
+        date: localDate(today),
+        weekStartDate: week,
+        subject: "408计算机",
+        curriculumNodeIds: ["ds-tree"],
+      },
+    });
+    expect(created.status()).toBe(200);
+    const { task } = await created.json();
+
+    try {
+      await page.goto(`/tasks?week=${week}`);
+      const row = page.locator(`#task-${task.id}`);
+      await expect(row).toBeVisible({ timeout: 30_000 });
+      await row.locator('input[type="checkbox"]').click();
+
+      const dialog = page.getByRole("dialog", { name: "任务已完成，留下一句给未来的自己" });
+      await expect(dialog).toBeVisible();
+      await dialog.getByLabel("完成任务后的理解记录", { exact: true }).fill(content);
+      const saveButton = dialog.getByRole("button", { name: "保存理解" });
+      const saveBox = await saveButton.boundingBox();
+      expect(saveBox?.y ?? Infinity).toBeLessThan(844);
+       expect((saveBox?.y ?? 0) + (saveBox?.height ?? 0)).toBeLessThanOrEqual(844);
+       await saveButton.click();
+       const savedDialog = page.getByRole("dialog", { name: "理解已保存" });
+       await expect(savedDialog).toBeVisible();
+       const viewReflection = savedDialog.getByRole("link", { name: "查看这条理解" });
+       await expect(viewReflection).toHaveAttribute("href", `/knowledge?taskId=${task.id}`);
+       await viewReflection.click();
+       await expect(page.getByText("当前只显示这项任务留下的理解")).toBeVisible();
+       await expect(page.getByText(content)).toBeVisible();
+
+      const notesResponse = await page.request.get(`/api/study-notes?taskId=${task.id}`);
+      expect(notesResponse.status()).toBe(200);
+      const notes = (await notesResponse.json()).notes as Array<{ id: string; content: string; kind: string; curriculumNodeIds: string[] }>;
+      const note = notes.find((item) => item.content === content);
+      expect(note).toBeTruthy();
+      expect(note?.kind).toBe("method");
+      expect(note?.curriculumNodeIds).toContain("ds-tree");
+      await page.request.delete(`/api/study-notes/${note!.id}`);
+    } finally {
+      await page.request.delete(`/api/tasks/${task.id}`);
+    }
   });
 
   test("failed completion PATCH rolls back optimistic state (no UI/DB fork)", async ({ page }) => {

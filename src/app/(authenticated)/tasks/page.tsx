@@ -200,6 +200,13 @@ export default function TasksPage() {
   const [taskReflection, setTaskReflection] = useState("");
   const [taskReflectionKind, setTaskReflectionKind] = useState<"error" | "method">("method");
   const [savingTaskReflection, setSavingTaskReflection] = useState(false);
+  // 任务完成后仍停留在同一学习现场：可选地留下一个易错点或方法，
+  // 不强迫用户写复盘，也不把“写了笔记”误作掌握结论。
+  const [completedTaskForReflection, setCompletedTaskForReflection] = useState<Task | null>(null);
+  const [completionReflection, setCompletionReflection] = useState("");
+  const [completionReflectionKind, setCompletionReflectionKind] = useState<"error" | "method">("method");
+  const [savingCompletionReflection, setSavingCompletionReflection] = useState(false);
+  const [completionReflectionSaved, setCompletionReflectionSaved] = useState(false);
   const [editCurriculumNodeIds, setEditCurriculumNodeIds] = useState<string[]>([]);
   const [curriculumOutlines, setCurriculumOutlines] = useState<CurriculumOutlineOption[]>([]);
   const [curriculumNodes, setCurriculumNodes] = useState<CurriculumNodeOption[]>([]);
@@ -602,6 +609,13 @@ export default function TasksPage() {
     // 离线 → 入队（联网后补传），保留乐观状态
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       await enqueueWrite(`/api/tasks/${task.id}`, init(), { dedupeKey: `task:${task.id}` });
+      if (next) {
+        setCompletionReflection("");
+        setCompletionReflectionKind("method");
+        setCompletionReflectionSaved(false);
+        setCompletedTaskForReflection(task);
+        toast.success("任务完成状态已暂存；也可以顺手留下一句理解");
+      }
       return;
     }
     try {
@@ -611,9 +625,13 @@ export default function TasksPage() {
         rollback();
         const data = await res.json().catch(() => null);
         toast.error(data?.error || "任务状态更新失败，请重试");
-      } else if (next && task.milestoneId) {
-        await loadMilestoneEvidence([task.milestoneId]);
-        toast.success("任务已完成；路线证据已更新");
+      } else if (next) {
+        if (task.milestoneId) await loadMilestoneEvidence([task.milestoneId]);
+        setCompletionReflection("");
+        setCompletionReflectionKind("method");
+        setCompletionReflectionSaved(false);
+        setCompletedTaskForReflection(task);
+        toast.success(task.milestoneId ? "任务已完成；路线证据已更新" : "任务已完成");
       }
     } catch {
       // 网络错误 → 入队，联网补传（保留乐观状态，队列补传成功后两端一致）
@@ -640,6 +658,11 @@ export default function TasksPage() {
       setWeekTasks((tasks) => tasks.map((item) => item.id === task.id ? previous : item));
       toast.error(err instanceof Error ? err.message : "调整任务失败，请重试");
     }
+  };
+
+  const closeCompletionReflection = () => {
+    setCompletedTaskForReflection(null);
+    setCompletionReflectionSaved(false);
   };
 
   const handleDeleteTask = async (id: string) => {
@@ -687,6 +710,60 @@ export default function TasksPage() {
       toast.error(error instanceof Error ? error.message : "保存理解失败");
     } finally {
       setSavingTaskReflection(false);
+    }
+  };
+
+  const saveCompletionReflection = async () => {
+    const task = completedTaskForReflection;
+    const content = completionReflection.trim();
+    if (!task || !content) return;
+
+    const id = crypto.randomUUID();
+    const init: RequestInit = {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id,
+        taskId: task.id,
+        kind: completionReflectionKind,
+        content,
+        curriculumNodeIds: task.curriculumNodeIds ?? [],
+      }),
+    };
+    const queueReflection = async (message: string) => {
+      await enqueueWrite("/api/study-notes", init, { dedupeKey: `study-note:${id}` });
+      closeCompletionReflection();
+      toast.success(message);
+    };
+
+    setSavingCompletionReflection(true);
+    try {
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        await queueReflection("理解记录已暂存，联网后会自动同步并安排回顾");
+        return;
+      }
+      const response = await fetch("/api/study-notes", init);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (response.status >= 500) {
+          await queueReflection("服务暂时不可用，理解记录已暂存，稍后会自动同步");
+          return;
+        }
+        // 校验、权限和归属错误重放不会成功，保留输入让用户修正。
+        toast.error(data.error || "保存理解失败");
+        return;
+      }
+      setCompletionReflectionSaved(true);
+      toast.success("已保存到我的理解与方法，明天会提醒你回看自己的表述");
+    } catch (error) {
+      // 网络层异常没有可靠的 HTTP 状态，同样可以安全重放这条带 UUID 的创建请求。
+      try {
+        await queueReflection("网络异常，理解记录已暂存，联网后会自动同步");
+      } catch {
+        toast.error(error instanceof Error ? error.message : "保存理解失败");
+      }
+    } finally {
+      setSavingCompletionReflection(false);
     }
   };
 
@@ -1095,6 +1172,67 @@ export default function TasksPage() {
                   </div>
                 </div>
               </form>
+          </Modal>
+        )}
+
+        {completedTaskForReflection && (
+          <Modal
+            open
+            onClose={closeCompletionReflection}
+            title={completionReflectionSaved ? "理解已保存" : "任务已完成，留下一句给未来的自己"}
+            description={completionReflectionSaved
+              ? "这条表述已经进入你的理解库，并会在下一个学习日提醒你回看。"
+              : "可选：记录刚刚的易错点或下次遇到类似任务的切入方式。跳过不会影响任务完成或路线证据。"}
+            size="sm"
+            footer={
+              completionReflectionSaved ? (
+                <>
+                  <Button type="button" variant="outline" onClick={closeCompletionReflection}>继续本周计划</Button>
+                  <Link href={`/knowledge?taskId=${completedTaskForReflection.id}`} onClick={closeCompletionReflection} className={buttonVariants({ size: "default" })}>查看这条理解</Link>
+                </>
+              ) : (
+                <>
+                  <Button type="button" variant="outline" onClick={closeCompletionReflection} disabled={savingCompletionReflection}>暂不记录</Button>
+                  <Button type="button" onClick={saveCompletionReflection} disabled={savingCompletionReflection || !completionReflection.trim()}>
+                    {savingCompletionReflection ? "保存中…" : "保存理解"}
+                  </Button>
+                </>
+              )
+            }
+          >
+            {completionReflectionSaved ? (
+              <div className="rounded-xl bg-success/10 p-3 text-sm leading-6 text-success">
+                已保留来源任务{(completedTaskForReflection.curriculumNodeIds?.length ?? 0) > 0 ? "和已确认的课程知识点" : ""}，以后可以从理解库或原任务回看。
+              </div>
+            ) : (
+              <>
+                <p className="text-sm font-medium">{completedTaskForReflection.title}</p>
+                <div className="mt-4 flex items-center justify-between gap-3">
+                  <label htmlFor="completion-reflection-kind" className="text-sm text-muted-foreground">这条记录属于</label>
+                  <select
+                    id="completion-reflection-kind"
+                    aria-label="完成任务后的记录类型"
+                    value={completionReflectionKind}
+                    onChange={(event) => setCompletionReflectionKind(event.target.value as "error" | "method")}
+                    className="h-11 rounded-lg border border-border/60 bg-background px-2 text-sm"
+                  >
+                    <option value="method">解题思路</option>
+                    <option value="error">易错点</option>
+                  </select>
+                </div>
+                <textarea
+                  aria-label="完成任务后的理解记录"
+                  value={completionReflection}
+                  onChange={(event) => setCompletionReflection(event.target.value)}
+                  rows={4}
+                  placeholder={completionReflectionKind === "method" ? "例如：遇到这类题先判断条件，再从定义或关键约束推导……" : "例如：我曾把……混淆，下次先检查……"}
+                  className="mt-3 w-full rounded-xl border border-border/60 bg-muted/30 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
+                />
+                {(completedTaskForReflection.curriculumNodeIds?.length ?? 0) > 0 && (
+                  <p className="mt-2 text-xs leading-5 text-muted-foreground">会同时关联到这项任务已确认的课程知识点，方便以后从知识点回看。</p>
+                )}
+              </>
+            )}
           </Modal>
         )}
 

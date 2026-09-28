@@ -22,7 +22,7 @@ export async function GET(_request: NextRequest, { params }: Context) {
         where: { userId: user!.id, curriculumNodeIds: { has: nodeId } },
         include: {
           lesson: { select: { id: true, title: true, unit: { select: { course: { select: { title: true } } } } } },
-          task: { select: { id: true, title: true, subject: true, completed: true } },
+          task: { select: { id: true, title: true, subject: true, completed: true, date: true } },
           wrongQuestion: { select: { id: true, subject: true, question: true, reviewed: true } },
         },
         orderBy: { updatedAt: "desc" },

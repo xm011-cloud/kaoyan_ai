@@ -44,6 +44,7 @@ function sourceLabel(s: string) { return SOURCE_LABELS[s] || s; }
 
 export default function WrongQuestionsPage() {
   const searchParams = useSearchParams();
+  const requestedTab = searchParams.get("tab");
   const requestedQuestionId = searchParams.get("question");
   const requestedTaskId = searchParams.get("task") || undefined;
   const requestedMilestoneId = searchParams.get("milestone") || undefined;
@@ -52,7 +53,12 @@ export default function WrongQuestionsPage() {
   const { setContext } = useStudyContext();
 
   const [tab, setTab] = useState<"all" | "unreviewed" | "reviewed" | "due" | "exam">(
-    () => (searchParams.get("tab") as "all" | "unreviewed" | "reviewed" | "due" | "exam") || "all"
+    // `dueToday` 是早期首页入口使用过的参数；保留兼容，让旧书签或缓存中的
+    // 链接仍能直接进入到期复习队列。新入口统一使用可读的 `tab=due`；一旦
+    // 用户明确切换了 tab，则它必须优先于遗留参数，刷新时也不应跳回到期页。
+    () => requestedTab === "all" || requestedTab === "unreviewed" || requestedTab === "reviewed" || requestedTab === "due" || requestedTab === "exam"
+      ? requestedTab
+      : searchParams.get("dueToday") === "true" ? "due" : "all"
   );
   const [subjectFilter, setSubjectFilter] = useState(
     () => searchParams.get("subject") || ""
@@ -100,7 +106,7 @@ export default function WrongQuestionsPage() {
     subject: subjectFilter || undefined,
     reviewed: tab === "unreviewed" ? "false" : tab === "reviewed" ? "true" : undefined,
     search: searchTerm || undefined,
-    ...(tab === "due" ? { reviewed: "false" as const, dueToday: true as const } : {}),
+    ...(tab === "due" ? { dueToday: true as const } : {}),
     limit: 50,
   }), [tab, subjectFilter, searchTerm]);
 
@@ -158,7 +164,7 @@ export default function WrongQuestionsPage() {
     const toExport = questions.filter((q) => {
       if (tab === "unreviewed") return !q.reviewed;
       if (tab === "reviewed") return q.reviewed;
-      if (tab === "due") return !q.reviewed;
+      if (tab === "due") return isDue(q);
       return true;
     });
     if (toExport.length === 0) { toast.info("没有可导出的错题"); return; }
@@ -197,13 +203,13 @@ export default function WrongQuestionsPage() {
   const unreviewedCount = questions.filter((q) => !q.reviewed).length;
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const dueTodayCount = questions.filter((q) => {
-    if (q.reviewed || !q.nextReviewDate) return false;
+    if (!q.nextReviewDate) return false;
     const review = new Date(q.nextReviewDate); review.setHours(0, 0, 0, 0);
     return review <= today;
   }).length;
 
   const isDue = (q: WrongQuestion) => {
-    if (q.reviewed || !q.nextReviewDate) return false;
+    if (!q.nextReviewDate) return false;
     const review = new Date(q.nextReviewDate); review.setHours(0, 0, 0, 0);
     return review <= today;
   };
@@ -245,7 +251,7 @@ export default function WrongQuestionsPage() {
           ].map(([k, label]) => (
             <button
               key={k}
-              onClick={() => { setTab(k as typeof tab); syncUrl({ tab: k === "all" ? "" : k }); }}
+              onClick={() => { setTab(k as typeof tab); syncUrl({ tab: k === "all" ? "" : k, dueToday: "" }); }}
               className={`min-h-11 shrink-0 rounded-xl px-3 py-1.5 text-sm transition-all ${
                 tab === k ? "bg-card shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"
               }`}
@@ -319,7 +325,7 @@ export default function WrongQuestionsPage() {
                       ) : (
                         <span className="text-xs bg-success/10 text-success px-1.5 py-0.5 rounded">已复习 ×{q.reviewCount}</span>
                       )}
-                      {q.nextReviewDate && !q.reviewed && (
+                      {q.nextReviewDate && (
                         <span className="text-xs text-muted-foreground">下次复习：{new Date(q.nextReviewDate).toLocaleDateString("zh-CN")}</span>
                       )}
                       {q.interval > 0 && (
@@ -379,7 +385,7 @@ export default function WrongQuestionsPage() {
       {reviewing && (
         <ReviewModal
           question={reviewing}
-          unreviewedList={questions.filter((q) => !q.reviewed)}
+          unreviewedList={tab === "due" ? questions.filter(isDue) : questions.filter((q) => !q.reviewed)}
           onClose={() => setReviewing(null)}
           onReviewed={handleReviewed}
         />

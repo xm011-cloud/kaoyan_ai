@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { AiWaiting } from "@/components/ai-waiting";
@@ -48,6 +49,7 @@ export function DetailModal({ question, onClose, onDelete }: DetailModalProps) {
   const [reflection, setReflection] = useState("");
   const [savingReflection, setSavingReflection] = useState(false);
   const [reflectionMessage, setReflectionMessage] = useState("");
+  const [reflectionSaved, setReflectionSaved] = useState(false);
   const { phase: waitPhase, estimate: waitEstimate, start: waitStart, stop: waitStop, cancel: waitCancel } = useAiTask();
 
   const handleGenerateSimilar = async () => {
@@ -76,6 +78,7 @@ export function DetailModal({ question, onClose, onDelete }: DetailModalProps) {
     if (!content) return;
     setSavingReflection(true);
     setReflectionMessage("");
+    setReflectionSaved(false);
     try {
       const response = await fetch("/api/study-notes", {
         method: "POST",
@@ -85,6 +88,7 @@ export function DetailModal({ question, onClose, onDelete }: DetailModalProps) {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "保存失败");
       setReflection("");
+      setReflectionSaved(true);
       setReflectionMessage("已保存到我的理解与方法，可在后续知识卡中继续关联和复习。");
     } catch (error) {
       setReflectionMessage(error instanceof Error ? error.message : "保存失败，请稍后重试。");
@@ -160,13 +164,16 @@ export function DetailModal({ question, onClose, onDelete }: DetailModalProps) {
             </div>
             <textarea
               value={reflection}
-              onChange={(event) => setReflection(event.target.value)}
+              onChange={(event) => { setReflection(event.target.value); setReflectionSaved(false); }}
               rows={3}
               placeholder={reflectionKind === "method" ? "例如：先判断题目考察的条件，再从定义或关键约束逐步推导……" : "例如：我把……和……混淆了，下次先检查……"}
               className="mt-3 w-full rounded-lg border border-border/60 bg-background p-2.5 text-sm"
             />
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-              <p className={`text-xs ${reflectionMessage.includes("已保存") ? "text-success" : "text-destructive"}`}>{reflectionMessage}</p>
+              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                {reflectionMessage && <p className={`text-xs ${reflectionSaved ? "text-success" : "text-destructive"}`}>{reflectionMessage}</p>}
+                {reflectionSaved && <Link href={`/knowledge?wrongQuestionId=${question.id}`} className="text-xs font-medium text-brand hover:underline">查看这条理解 →</Link>}
+              </div>
               <Button size="sm" onClick={saveReflection} disabled={savingReflection || !reflection.trim()}>
                 {savingReflection ? "保存中…" : "保存理解"}
               </Button>

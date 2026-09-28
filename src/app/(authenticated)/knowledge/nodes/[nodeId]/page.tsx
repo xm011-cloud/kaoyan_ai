@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
+import { getWeekStart, toLocalDateString } from "@/lib/date-utils";
 
 type SourceNote = {
   id: string;
@@ -12,7 +13,7 @@ type SourceNote = {
   updatedAt: string;
   nextReviewAt: string | null;
   lesson?: { id: string; title: string; unit: { course: { title: string } } } | null;
-  task?: { id: string; title: string; subject: string | null; completed: boolean } | null;
+  task?: { id: string; title: string; subject: string | null; completed: boolean; date: string } | null;
   wrongQuestion?: { id: string; subject: string; question: string; reviewed: boolean } | null;
 };
 
@@ -72,7 +73,12 @@ async function fetchNodeDetail(nodeId: string): Promise<NodeDetail> {
 }
 
 function sourceFor(note: SourceNote): { label: string; href: string } | null {
-  if (note.task) return { label: `任务 · ${note.task.title}`, href: `/tasks?task=${note.task.id}` };
+  if (note.task) {
+    // 周计划只显示当前选择周。来源任务必须同时带回它的所属周，
+    // 否则从知识点回溯历史/未来任务会落在空白的“本周”画布里。
+    const week = toLocalDateString(getWeekStart(new Date(note.task.date)));
+    return { label: `任务 · ${note.task.title}`, href: `/tasks?week=${week}&task=${note.task.id}` };
+  }
   if (note.wrongQuestion) return { label: `错题 · ${note.wrongQuestion.subject}`, href: `/wrong-questions?question=${note.wrongQuestion.id}` };
   if (note.lesson) return { label: `课程 · ${note.lesson.unit.course.title} / ${note.lesson.title}`, href: `/courses?lesson=${note.lesson.id}` };
   return null;
@@ -142,7 +148,10 @@ export default function CurriculumNodePage() {
           <div><h2 className="text-base font-semibold">计划中的任务</h2><p className="mt-1 text-sm text-muted-foreground">这些任务由你在编辑时确认关联到这个节点；完成任务只增加路线证据，不等于已经掌握。</p></div>
           {detail.tasks.length === 0 ? (
             <div className="workspace-surface border-dashed p-5 text-sm text-muted-foreground">还没有任务直接关联到这里。可在计划页编辑任务后选择这个课程知识点。</div>
-          ) : <div className="space-y-2">{detail.tasks.map((task) => <Link key={task.id} href={`/tasks?task=${task.id}`} className="workspace-surface flex flex-wrap items-center justify-between gap-3 p-3 transition-colors hover:border-brand/30 hover:bg-brand/5"><div><p className={task.completed ? "text-sm line-through text-muted-foreground" : "text-sm font-medium"}>{task.title}</p><p className="mt-1 text-xs text-muted-foreground">{new Date(task.date).toLocaleDateString("zh-CN")}{task.duration ? ` · ${task.duration} 分钟` : ""}{task.milestoneTitle ? ` · ${task.milestoneTitle}` : ""}</p></div><span className={task.completed ? "text-xs text-success" : "text-xs text-brand"}>{task.completed ? "已完成" : "去执行 →"}</span></Link>)}</div>}
+          ) : <div className="space-y-2">{detail.tasks.map((task) => {
+            const week = toLocalDateString(getWeekStart(new Date(task.date)));
+            return <Link key={task.id} href={`/tasks?week=${week}&task=${task.id}`} className="workspace-surface flex flex-wrap items-center justify-between gap-3 p-3 transition-colors hover:border-brand/30 hover:bg-brand/5"><div><p className={task.completed ? "text-sm line-through text-muted-foreground" : "text-sm font-medium"}>{task.title}</p><p className="mt-1 text-xs text-muted-foreground">{new Date(task.date).toLocaleDateString("zh-CN")}{task.duration ? ` · ${task.duration} 分钟` : ""}{task.milestoneTitle ? ` · ${task.milestoneTitle}` : ""}</p></div><span className={task.completed ? "text-xs text-success" : "text-xs text-brand"}>{task.completed ? "已完成" : "去执行 →"}</span></Link>;
+          })}</div>}
         </section>
 
         <section className="space-y-3">

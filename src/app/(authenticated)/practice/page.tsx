@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import Link from "next/link";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useGoal } from "@/hooks/use-goal";
 import { usePracticeTimer } from "@/hooks/use-practice-timer";
@@ -51,6 +52,17 @@ export default function PracticePage() {
   const [view, setView] = useState<"main" | "active" | "result">("main");
   const { data: goal } = useGoal();
   const subjects = goal?.subjects ?? [];
+  const [linkedTask, setLinkedTask] = useState<{
+    id: string;
+    title: string;
+    description: string | null;
+    subject: string | null;
+    weekStartDate: string | null;
+    milestone: { title: string } | null;
+  } | null>(null);
+  // 路由变化时可能暂时保留上一项异步读取结果；只有 ID 相同才让它影响表单。
+  const activeLinkedTask = linkedTask?.id === requestedTaskId ? linkedTask : null;
+  const availableSubjects = Array.from(new Set([...subjects, requestedSubject, activeLinkedTask?.subject ?? ""].filter(Boolean)));
 
   // ── React Query data ──
   const { data: sessions = [], isLoading: loadingSessions } = usePracticeSessions();
@@ -128,6 +140,7 @@ export default function PracticePage() {
   const [resultSession, setResultSession] = useState<PracticeSession | null>(null);
   const [addingWrongId, setAddingWrongId] = useState<string | null>(null);
   const [addedWrongIds, setAddedWrongIds] = useState<Set<string>>(new Set());
+  const [addedWrongQuestionIds, setAddedWrongQuestionIds] = useState<Record<string, string>>({});
 
   // Advanced options
   const [materials, setMaterials] = useState<{ id: string; name: string }[]>([]);
@@ -185,14 +198,31 @@ export default function PracticePage() {
       .catch(() => {});
   }, []);
 
+  // 从计划进入时，把抽象的 taskId 还原为用户看得懂的任务标题和返回路径。
+  useEffect(() => {
+    if (!requestedTaskId) {
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/tasks/${requestedTaskId}`)
+      .then(async (response) => response.ok ? response.json() : null)
+      .then((data) => {
+        if (!cancelled) setLinkedTask(data?.task ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setLinkedTask(null);
+      });
+    return () => { cancelled = true; };
+  }, [requestedTaskId]);
+
   // ── Pre-fill from user defaults ──
   const uiDefaults = useUIStore((s) => s.practiceDefaults);
   const defaultsLoaded = useRef(false);
   useEffect(() => {
     if (defaultsLoaded.current) return;
-    if (subjects.length > 0) {
+    if (availableSubjects.length > 0) {
       defaultsLoaded.current = true;
-      setCreateSubject(requestedSubject && subjects.includes(requestedSubject) ? requestedSubject : subjects[0]);
+      setCreateSubject(requestedSubject && availableSubjects.includes(requestedSubject) ? requestedSubject : availableSubjects[0]);
       setCreateMode(uiDefaults.mode);
       setCreateCount(uiDefaults.count);
       setCreateDifficulty(uiDefaults.difficulty);
@@ -200,13 +230,13 @@ export default function PracticePage() {
       if (uiDefaults.mode === "mock_exam") setCreateType("mock");
       else setCreateType("daily");
     }
-  }, [subjects, uiDefaults, requestedSubject]);
+  }, [availableSubjects, uiDefaults, requestedSubject]);
 
   useEffect(() => {
-    if (subjects.length > 0 && !createSubject) {
-      setCreateSubject(subjects[0]);
+    if (availableSubjects.length > 0 && !createSubject) {
+      setCreateSubject(availableSubjects[0]);
     }
-  }, [subjects, createSubject]);
+  }, [availableSubjects, createSubject]);
 
   // Persist answers to sessionStorage whenever they change
   useEffect(() => {
@@ -317,7 +347,7 @@ export default function PracticePage() {
     }
   };
 
-  const handleAddToWrongBook = async (q: PracticeQuestion) => {
+  const handleAddToWrongBook = async (q: PracticeQuestion): Promise<string | null> => {
     setAddingWrongId(q.id);
     try {
       const res = await fetch("/api/wrong-questions", {
@@ -333,13 +363,21 @@ export default function PracticePage() {
         }),
       });
       if (res.ok) {
+        const data = await res.json().catch(() => ({}));
         setAddedWrongIds((prev) => new Set(prev).add(q.id));
+        const wrongQuestionId = typeof data.question?.id === "string" ? data.question.id : null;
+        if (wrongQuestionId) {
+          setAddedWrongQuestionIds((current) => ({ ...current, [q.id]: wrongQuestionId }));
+        }
+        return wrongQuestionId;
       }
     } catch {
-      /* ignore */
+      // 收录失败时保持当前结果现场，用户可以重试，不伪造“已收录”状态。
+      return null;
     } finally {
       setAddingWrongId(null);
     }
+    return null;
   };
 
   // ── Render ──
@@ -351,14 +389,23 @@ export default function PracticePage() {
           <PageHeader title="练习" subtitle="从一次短练开始，完成后把不稳的知识点带进错题复习。" />
           {(requestedTaskId || requestedMilestoneId) && (
             <div className="rounded-xl border border-brand/25 bg-brand/5 px-4 py-3 text-sm">
-              <p className="font-medium text-brand">这次练习已连接到当前计划</p>
+              <p className="font-medium text-brand">{activeLinkedTask ? `正在为「${activeLinkedTask.title}」练习` : "这次练习已连接到当前计划"}</p>
+              {activeLinkedTask?.description && <p className="mt-1 text-xs leading-5 text-muted-foreground">任务说明：{activeLinkedTask.description}</p>}
               <p className="mt-1 text-xs text-muted-foreground">提交后会形成一条可追溯证据；不会因为得分自动宣告里程碑已掌握。</p>
+              {activeLinkedTask && (
+                <Link
+                  href={`/tasks?week=${encodeURIComponent(activeLinkedTask.weekStartDate ? activeLinkedTask.weekStartDate.slice(0, 10) : "")}&task=${encodeURIComponent(activeLinkedTask.id)}`}
+                  className="mt-2 inline-flex min-h-11 items-center text-xs font-medium text-brand hover:underline"
+                >
+                  返回这项任务 →
+                </Link>
+              )}
             </div>
           )}
 
           <SessionCreator
-            subjects={subjects}
-            todaySubjects={subjects.slice(0, 2)}
+            subjects={availableSubjects}
+            todaySubjects={availableSubjects.slice(0, 2)}
             dueWrongCount={0}
             mode={createMode}
             subject={createSubject}
@@ -529,6 +576,7 @@ export default function PracticePage() {
         addingWrongId={addingWrongId}
         wrongCount={addedWrongIds.size}
         addedWrongIds={addedWrongIds}
+        addedWrongQuestionIds={addedWrongQuestionIds}
         onAddToWrongBook={handleAddToWrongBook}
         onBack={() => {
           setView("main");

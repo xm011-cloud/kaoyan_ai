@@ -56,6 +56,18 @@ test.describe('Workspace shell', () => {
     await expect(workspace.getByRole('heading', { name: 'AI 学习管家' })).toBeVisible()
   })
 
+  test('桌面端从 /chat 打开工作区时，新手引导不会遮挡输入与取消操作', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/chat')
+
+    const workspace = page.getByRole('complementary', { name: 'AI 工作区' })
+    await expect(workspace).toBeVisible()
+    await expect(workspace.getByPlaceholder(/描述计划、复盘或调整需要/)).toBeEnabled()
+    // 引导弹窗原本会在首次进入概览约 800ms 后出现；/chat 属于主动工作场景，不能打断它。
+    await page.waitForTimeout(1100)
+    await expect(page.getByRole('dialog', { name: '🎉 欢迎来到 AI 考研助手' })).toHaveCount(0)
+  })
+
   test('手机端外壳把当前场景置于顶部，导航稳定停靠在底部', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
     await page.goto('/courses')

@@ -11,7 +11,8 @@ interface ResultViewProps {
   addingWrongId: string | null;
   wrongCount: number;
   addedWrongIds: Set<string>;
-  onAddToWrongBook: (question: PracticeQuestion) => void;
+  addedWrongQuestionIds: Record<string, string>;
+  onAddToWrongBook: (question: PracticeQuestion) => Promise<string | null>;
   onBack: () => void;
   onRetry: () => void;
 }
@@ -21,6 +22,7 @@ export function ResultView({
   addingWrongId,
   wrongCount,
   addedWrongIds,
+  addedWrongQuestionIds,
   onAddToWrongBook,
   onBack,
   onRetry,
@@ -93,13 +95,21 @@ export function ResultView({
                       </span>
                     )}
                     {!isCorrect && (
-                      <button
-                        onClick={() => onAddToWrongBook(q)}
-                        className="min-h-9 text-xs text-destructive transition-colors hover:text-destructive/80"
-                        disabled={addingWrongId === q.id || addedWrongIds.has(q.id)}
-                      >
-                        {addedWrongIds.has(q.id) ? "✅ 已收录" : addingWrongId === q.id ? "收录中..." : "🔴 收录错题"}
-                      </button>
+                      addedWrongIds.has(q.id) ? (
+                        addedWrongQuestionIds[q.id] ? (
+                          <Link href={`/wrong-questions?question=${encodeURIComponent(addedWrongQuestionIds[q.id])}`} className="inline-flex min-h-9 items-center text-xs font-medium text-brand hover:underline">
+                            已收录 · 记录错因 →
+                          </Link>
+                        ) : <span className="text-xs text-success">✅ 已收录</span>
+                      ) : (
+                        <button
+                          onClick={() => { void onAddToWrongBook(q); }}
+                          className="min-h-9 text-xs text-destructive transition-colors hover:text-destructive/80"
+                          disabled={addingWrongId === q.id}
+                        >
+                          {addingWrongId === q.id ? "收录中..." : "🔴 收录错题"}
+                        </button>
+                      )
                     )}
                   </div>
                 </div>

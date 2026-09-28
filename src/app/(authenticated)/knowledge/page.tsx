@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { ModuleLinks } from "@/components/ui/module-links";
+import { getWeekStart, toLocalDateString } from "@/lib/date-utils";
 
 type NoteKind = "note" | "key_point" | "question" | "error" | "method";
 
@@ -17,7 +19,7 @@ interface UnderstandingNote {
   nextReviewAt: string | null;
   curriculumNodeIds: string[];
   lesson?: { id: string; title: string; unit: { title: string; course: { title: string; subject: string | null } } } | null;
-  task?: { id: string; title: string; subject: string | null } | null;
+  task?: { id: string; title: string; subject: string | null; date: string } | null;
   wrongQuestion?: { id: string; subject: string; question: string; tags: string[] } | null;
   knowledgeLinks?: Array<{ node: { id: string; name: string; subject: string; category: string } }>;
 }
@@ -43,13 +45,27 @@ const NOTE_KIND_META: Record<NoteKind, { label: string; tone: string }> = {
 };
 
 function noteSource(note: UnderstandingNote): { label: string; href: string } | null {
-  if (note.task) return { label: `任务 · ${note.task.title}`, href: `/tasks?task=${note.task.id}` };
+  if (note.task) {
+    const week = toLocalDateString(getWeekStart(new Date(note.task.date)));
+    return { label: `任务 · ${note.task.title}`, href: `/tasks?week=${week}&task=${note.task.id}` };
+  }
   if (note.wrongQuestion) return { label: `错题 · ${note.wrongQuestion.subject}`, href: `/wrong-questions?question=${note.wrongQuestion.id}` };
   if (note.lesson) return { label: `课程 · ${note.lesson.unit.course.title} / ${note.lesson.title}`, href: `/courses?lesson=${note.lesson.id}` };
   return null;
 }
 
 export default function KnowledgePage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const dueOnly = searchParams.get("dueToday") === "true";
+  const taskId = searchParams.get("taskId");
+  const wrongQuestionId = searchParams.get("wrongQuestionId");
+  const sourceFilter = taskId
+    ? { key: "taskId", value: taskId, label: "这项任务留下的理解" }
+    : wrongQuestionId
+      ? { key: "wrongQuestionId", value: wrongQuestionId, label: "这道错题留下的理解" }
+      : null;
   const [notes, setNotes] = useState<UnderstandingNote[]>([]);
   const [nodes, setNodes] = useState<KnowledgeNodeOption[]>([]);
   const [outlines, setOutlines] = useState<CurriculumOutlineSummary[]>([]);
@@ -66,10 +82,13 @@ export default function KnowledgePage() {
     setLoading(true);
     setError("");
     try {
+      const noteParams = new URLSearchParams();
+      if (dueOnly) noteParams.set("dueToday", "true");
+      if (sourceFilter) noteParams.set(sourceFilter.key, sourceFilter.value);
       const [notesResponse, nodesResponse, outlinesResponse] = await Promise.all([
-        fetch("/api/study-notes", { cache: "no-store" }),
+        fetch(`/api/study-notes${noteParams.size ? `?${noteParams.toString()}` : ""}`, { cache: "no-store" }),
         fetch("/api/knowledge-graph", { cache: "no-store" }),
-        fetch("/api/curriculum", { cache: "no-store" }),
+        fetch("/api/curriculum?includeNodes=true", { cache: "no-store" }),
       ]);
       const [noteData, nodeData, outlineData] = await Promise.all([
         notesResponse.json().catch(() => ({})),
@@ -79,26 +98,16 @@ export default function KnowledgePage() {
       if (!notesResponse.ok) throw new Error(noteData.error || "加载理解记录失败");
       setNotes(Array.isArray(noteData.notes) ? noteData.notes : []);
       setNodes(nodesResponse.ok && Array.isArray(nodeData.nodes) ? nodeData.nodes : []);
-      const nextOutlines: CurriculumOutlineSummary[] = outlinesResponse.ok && Array.isArray(outlineData.outlines) ? outlineData.outlines : [];
-      setOutlines(nextOutlines);
+      const detailedOutlines: CurriculumOutline[] = outlinesResponse.ok && Array.isArray(outlineData.outlines) ? outlineData.outlines : [];
+      setOutlines(detailedOutlines.map(({ nodes: outlineNodes, ...outline }) => ({ ...outline, nodeCount: outlineNodes.length })));
       // 卡片上的已确认关联必须始终可见，不依赖用户刚好展开了对应的课程目录。
-      const details = await Promise.all(nextOutlines.map(async (outline: CurriculumOutlineSummary) => {
-        try {
-          const response = await fetch(`/api/curriculum?outlineId=${encodeURIComponent(outline.id)}`, { cache: "no-store" });
-          const detail = await response.json().catch(() => ({}));
-          return response.ok && detail.outline ? detail.outline as CurriculumOutline : null;
-        } catch {
-          // 目录映射用于增强卡片可读性；单个目录暂不可读时仍应保留用户自己的理解记录。
-          return null;
-        }
-      }));
-      setCurriculumNodes(details.flatMap((outline) => outline ? outline.nodes.map((node) => ({ id: node.id, title: node.title, outlineLabel: outline.label })) : []));
+      setCurriculumNodes(detailedOutlines.flatMap((outline) => outline.nodes.map((node) => ({ id: node.id, title: node.title, outlineLabel: outline.label }))));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "加载理解记录失败");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [dueOnly, sourceFilter?.key, sourceFilter?.value]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 初次请求由异步回调写入远端结果，不会形成同步渲染循环。
@@ -109,6 +118,20 @@ export default function KnowledgePage() {
     () => activeKind === "all" ? notes : notes.filter((note) => note.kind === activeKind),
     [activeKind, notes],
   );
+
+  const setDueOnly = (next: boolean) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next) params.set("dueToday", "true");
+    else params.delete("dueToday");
+    router.replace(`${pathname}${params.size ? `?${params.toString()}` : ""}`, { scroll: false });
+  };
+
+  const clearSourceFilter = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("taskId");
+    params.delete("wrongQuestionId");
+    router.replace(`${pathname}${params.size ? `?${params.toString()}` : ""}`, { scroll: false });
+  };
 
   const linkedCurriculumNodesById = useMemo(
     () => new Map(curriculumNodes.map((node) => [node.id, node])),
@@ -147,7 +170,10 @@ export default function KnowledgePage() {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "保存回顾失败");
-      setNotes((current) => current.map((item) => item.id === note.id ? { ...item, ...data.note } : item));
+      setNotes((current) => current
+        .map((item) => item.id === note.id ? { ...item, ...data.note } : item)
+        // 当前在“待回顾”队列时，清晰/模糊后的记录立即退出队列；“需要重看”仍保留。
+        .filter((item) => !dueOnly || item.id !== note.id || (item.nextReviewAt != null && new Date(item.nextReviewAt) <= new Date())));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "保存回顾失败");
     } finally {
@@ -197,6 +223,25 @@ export default function KnowledgePage() {
           <p className="mt-1 text-sm leading-6 text-muted-foreground">从课程、计划任务或错题现场记录；每条记录都保留来源，之后可以回到原任务继续验证。</p>
         </section>
 
+        {dueOnly && (
+          <section className="workspace-surface border-amber-300/50 bg-amber-50/70 p-4 dark:border-amber-800/50 dark:bg-amber-950/20">
+            <p className="text-sm font-medium">今日待回顾</p>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">先尝试复述自己的理解或解题思路，再如实标记状态；这不会自动改变你的掌握度。</p>
+            <button type="button" onClick={() => setDueOnly(false)} className="mt-2 min-h-10 text-sm font-medium text-brand hover:underline">查看全部理解记录 →</button>
+          </section>
+        )}
+
+        {sourceFilter && (
+          <section className="workspace-surface border-success/25 bg-success/5 p-4">
+            <p className="text-sm font-medium">当前只显示{sourceFilter.label}</p>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">你可以确认刚刚的表述是否已经沉淀下来，再回到来源继续学习或复盘。</p>
+            <div className="mt-2 flex flex-wrap gap-3">
+              <Link href={sourceFilter.key === "taskId" ? "/tasks" : "/wrong-questions"} className="text-sm font-medium text-brand hover:underline">回到来源 →</Link>
+              <button type="button" onClick={clearSourceFilter} className="text-sm font-medium text-brand hover:underline">查看全部理解记录 →</button>
+            </div>
+          </section>
+        )}
+
         {outlines.length > 0 && (
           <section className="workspace-surface p-4">
             <p className="text-sm font-medium">课程知识路径</p>
@@ -216,6 +261,14 @@ export default function KnowledgePage() {
         )}
 
         <div className="flex gap-1 overflow-x-auto rounded-xl border border-border/50 bg-muted/50 p-1" aria-label="理解记录筛选">
+          <button
+            type="button"
+            aria-pressed={dueOnly}
+            onClick={() => setDueOnly(!dueOnly)}
+            className={`min-h-10 shrink-0 rounded-lg px-3 text-xs transition-colors ${dueOnly ? "bg-card font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            今日待回顾 {dueOnly ? notes.length : ""}
+          </button>
           {(["all", "note", "method", "error", "question", "key_point"] as const).map((kind) => {
             const label = kind === "all" ? `全部 ${notes.length}` : `${NOTE_KIND_META[kind].label} ${notes.filter((note) => note.kind === kind).length}`;
             return (
@@ -223,7 +276,7 @@ export default function KnowledgePage() {
                 key={kind}
                 type="button"
                 onClick={() => setActiveKind(kind)}
-                className={`min-h-10 shrink-0 rounded-lg px-3 text-xs transition-colors ${activeKind === kind ? "bg-card font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                className={`min-h-10 shrink-0 rounded-lg px-3 text-xs transition-colors ${activeKind === kind && !dueOnly ? "bg-card font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
               >
                 {label}
               </button>
@@ -239,9 +292,10 @@ export default function KnowledgePage() {
           </div>
         ) : visibleNotes.length === 0 ? (
           <section className="workspace-surface border-dashed p-8 text-center">
-            <p className="font-medium">还没有理解记录</p>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">学习一节课程、完成一项任务或复盘错题时，写下一句自己的理解或解题思路，它会出现在这里。</p>
+            <p className="font-medium">{dueOnly ? "今天没有待回顾的理解记录" : "还没有理解记录"}</p>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">{dueOnly ? "完成学习时写下的理解，会在后续学习日回到这里等待你复述和验证。" : "学习一节课程、完成一项任务或复盘错题时，写下一句自己的理解或解题思路，它会出现在这里。"}</p>
             <div className="mt-4 flex flex-wrap justify-center gap-2">
+              {dueOnly && <button type="button" onClick={() => setDueOnly(false)} className="text-sm font-medium text-brand hover:underline">查看全部理解记录 →</button>}
               <Link href="/courses" className="text-sm font-medium text-brand hover:underline">去课程学习 →</Link>
               <Link href="/tasks" className="text-sm font-medium text-brand hover:underline">查看今日任务 →</Link>
               <Link href="/wrong-questions" className="text-sm font-medium text-brand hover:underline">复盘错题 →</Link>

@@ -54,7 +54,9 @@ test.describe("Courses", () => {
     await expect(page.getByRole("button", { name: course.title })).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole("link", { name: "打开课程入口 ↗" })).toHaveAttribute("href", expectedUrl);
     await page.getByRole("button", { name: "开始" }).click();
-    await expect(page.getByRole("link", { name: "打开课程来源 ↗" }).first()).toHaveAttribute("href", expectedUrl);
+    // 冷连接下创建学习会话可能超过默认 5 秒；先确认进入学习态再验证来源入口。
+    await expect(page.getByText("本次学习会话已开始")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("link", { name: "打开课程来源 ↗" }).first()).toHaveAttribute("href", expectedUrl, { timeout: 30_000 });
   });
 
   test("数据结构骨架按版本读取，并保留审核来源", async ({ page }) => {
@@ -71,6 +73,12 @@ test.describe("Courses", () => {
       expect.objectContaining({ id: "ds-linear-list", title: "线性表" }),
       expect.objectContaining({ id: "ds-tree", title: "树与二叉树" }),
       expect.objectContaining({ id: "ds-sort", title: "内部排序" }),
+    ]));
+
+    const outlines = await page.request.get("/api/curriculum?includeNodes=true");
+    expect(outlines.status()).toBe(200);
+    expect((await outlines.json()).outlines).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "408-data-structures-v1", nodes: expect.any(Array) }),
     ]));
   });
 
@@ -130,6 +138,42 @@ test.describe("Courses", () => {
     await page.goto("/knowledge");
     const noteCard = page.locator("article").filter({ hasText: noteContent });
     await expect(noteCard.getByRole("link", { name: "408 · 数据结构主干 · 树与二叉树" })).toBeVisible({ timeout: 30_000 });
+  });
+
+  test("首页的理解回顾入口只展示到期记录，并在回顾后退出队列", async ({ page }) => {
+    test.setTimeout(90_000);
+    const course = await page.request.post("/api/courses", {
+      data: { title: `E2E 理解回顾 ${Date.now()}`, subject: "数学一", firstLessonTitle: "极限定义" },
+    });
+    expect(course.status()).toBe(201);
+    const lessonId = (await course.json()).course.units[0].lessons[0].id;
+    const content = `E2E 待回顾理解 ${Date.now()}`;
+    const created = await page.request.post("/api/study-notes", {
+      data: { courseLessonId: lessonId, kind: "method", content },
+    });
+    expect(created.status()).toBe(201);
+    const note = (await created.json()).note;
+    expect(note.nextReviewAt).toBeTruthy();
+
+    // 新记录先安排到下一学习日，不会立即把今天的队列塞满。
+    const beforeDue = await page.request.get("/api/study-notes?dueToday=true");
+    expect((await beforeDue.json()).notes.some((item: { id: string }) => item.id === note.id)).toBe(false);
+
+    const markDue = await page.request.post(`/api/study-notes/${note.id}/review`, { data: { rating: "blocked" } });
+    expect(markDue.status()).toBe(200);
+    const due = await page.request.get("/api/study-notes?dueToday=true");
+    expect((await due.json()).notes).toEqual(expect.arrayContaining([expect.objectContaining({ id: note.id })]));
+
+    await page.goto("/knowledge?dueToday=true");
+    await expect(page.getByText("今日待回顾").first()).toBeVisible({ timeout: 30_000 });
+    const noteCard = page.locator("article").filter({ hasText: content });
+    // 页面骨架先到达，理解记录由独立请求填充；等待真实到期记录而不是依赖默认断言时限。
+    await expect(noteCard).toBeVisible({ timeout: 30_000 });
+    await noteCard.getByRole("button", { name: "能复述" }).click();
+    await expect(noteCard).toBeHidden({ timeout: 10_000 });
+
+    const afterReview = await page.request.get("/api/study-notes?dueToday=true");
+    expect((await afterReview.json()).notes.some((item: { id: string }) => item.id === note.id)).toBe(false);
   });
 
   test("课程、学习会话、笔记和自评构成可追溯闭环", async ({ page }) => {
@@ -309,7 +353,7 @@ test.describe("Courses", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/knowledge/nodes/network-tcp");
     await expect(page.getByRole("heading", { name: "TCP 可靠传输与连接管理" })).toBeVisible({ timeout: 30_000 });
-    await expect(page.locator(`a[href="/tasks?task=${taskBody.task.id}"]`).first()).toBeVisible();
+    await expect(page.locator(`a[href="/tasks?week=${weekStart}&task=${taskBody.task.id}"]`).first()).toBeVisible();
     await expect(page.getByText("你的理解与方法")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
     const rejectUnknownCurriculum = await page.request.patch(`/api/study-notes/${notes[0].id}/curriculum`, {

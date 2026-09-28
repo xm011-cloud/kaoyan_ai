@@ -3,6 +3,7 @@ import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, jsonNoStore } from "@/lib/api-utils";
 import { CURRICULUM_OUTLINES } from "@/lib/curriculum-outlines";
+import { addStudyDays, studyDateToUtc, toStudyDateString } from "@/lib/date-utils";
 
 // 学习记录优先沉淀用户自己的理解和方法，而不是复述教材。
 const NOTE_KINDS = new Set(["note", "question", "key_point", "error", "method"]);
@@ -17,6 +18,8 @@ export async function GET(request: NextRequest) {
     const taskId = searchParams.get("taskId");
     const wrongQuestionId = searchParams.get("wrongQuestionId");
     const kind = searchParams.get("kind");
+    const dueToday = searchParams.get("dueToday") === "true";
+    const todayEnd = new Date(studyDateToUtc(addStudyDays(toStudyDateString(), 1)).getTime() - 1);
     const notes = await prisma.studyNote.findMany({
       where: {
         userId: user!.id,
@@ -24,10 +27,11 @@ export async function GET(request: NextRequest) {
         ...(taskId ? { taskId } : {}),
         ...(wrongQuestionId ? { wrongQuestionId } : {}),
         ...(kind && NOTE_KINDS.has(kind) ? { kind } : {}),
+        ...(dueToday ? { nextReviewAt: { lte: todayEnd } } : {}),
       },
       include: {
         lesson: { select: { id: true, title: true, unit: { select: { title: true, course: { select: { title: true, subject: true } } } } } },
-        task: { select: { id: true, title: true, subject: true } },
+        task: { select: { id: true, title: true, subject: true, date: true } },
         wrongQuestion: { select: { id: true, subject: true, question: true, tags: true } },
         knowledgeLinks: { include: { node: { select: { id: true, name: true, subject: true, category: true } } } },
       },
@@ -110,6 +114,9 @@ export async function POST(request: NextRequest) {
         studySessionId,
         taskId,
         wrongQuestionId,
+        // 新记录默认在下一个学习日回顾一次。它只是提醒用户回看自己的表述，
+        // 不会把记录或课时自动判为掌握。
+        nextReviewAt: studyDateToUtc(addStudyDays(toStudyDateString(), 1)),
         knowledgeLinks: knowledgeNodeIds.length > 0
           ? { create: knowledgeNodeIds.map((nodeId) => ({ node: { connect: { id: nodeId } } })) }
           : undefined,

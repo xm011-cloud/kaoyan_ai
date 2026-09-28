@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { SKILL_TEMPLATES } from "@/lib/skill-templates";
 import type { SkillStep, SkillDataSource } from "@/lib/skill-templates";
-import { startOfDay, endOfDay, getWeekStart, getWeekEnd, toDateString, daysAgo } from "@/lib/date-utils";
+import { addStudyDays, startOfDay, endOfDay, getWeekStart, getWeekEnd, studyDateToUtc, toDateString, toStudyDateString, daysAgo } from "@/lib/date-utils";
 
 // ── 模板播种（首次访问 /skills 或首次对话时惰性播种为用户自己的行）──
 
@@ -120,7 +120,7 @@ export async function buildSkillDataSnapshot(
 
   if (sources.includes("wrongQuestions.recent") || sources.includes("wrongQuestions.due")) {
     const where = sources.includes("wrongQuestions.due")
-      ? { userId, reviewed: false, nextReviewDate: { lte: new Date() } }
+      ? { userId, nextReviewDate: { lte: new Date(studyDateToUtc(addStudyDays(toStudyDateString(), 1)).getTime() - 1) } }
       : { userId };
     const questions = await prisma.wrongQuestion.findMany({
       where,

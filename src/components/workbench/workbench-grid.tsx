@@ -24,7 +24,7 @@ export type WorkbenchCardSize = 'full' | 'half' | 'quarter'
 const CARD_REGISTRY: Record<string, { label: string; sizes: WorkbenchCardSize[]; render: (data: WorkbenchData) => ReactNode }> = {
   'planning-overview': { label: '🧭 计划总览', sizes: ['full'], render: (d) => <PlanningOverviewCard {...d.planning} /> },
   stats: { label: '📊 统计', sizes: ['full'], render: (d) => <StatsCards {...d.stats} /> },
-  'today-tasks': { label: '📋 任务', sizes: ['half'], render: (d) => <TodayTasksCard tasks={d.todayTasks} dateStr={d.dateStr} /> },
+  'today-tasks': { label: '📋 任务', sizes: ['half'], render: (d) => <TodayTasksCard tasks={d.todayTasks} dateStr={d.dateStr} weekStart={d.planning.weeklyPlan.weekStart} unavailable={d.todayTasksUnavailable} /> },
   'continue-learning': { label: '🎬 继续学习', sizes: ['half'], render: (d) => <ContinueLearningCard lessons={d.continueLearning} /> },
   'quick-practice': { label: '✏️ 练习', sizes: ['full'], render: (d) => <QuickPracticeCard subjects={d.subjects} todaySubjects={d.todaySubjects} dueWrongCount={d.dueWrongCount} /> },
   'study-trend': { label: '📈 趋势', sizes: ['half'], render: (d) => <StudyTrendCard bars={d.weekBars} /> },
@@ -57,7 +57,7 @@ export interface WorkbenchData {
     today: { completed: number; total: number; nextTask: string | null }
   }
   stats: {
-    todayTasks: { completed: number; total: number; minutes: number }
+    todayTasks: { completed: number; total: number; minutes: number; unavailable?: boolean }
     weekStudy: { hours: number; days: number }
     streak: number
     completionRate: { rate: number; completed: number; total: number }
@@ -68,7 +68,9 @@ export interface WorkbenchData {
     completed: boolean
     duration?: number | null
     phase?: string | null
+    courseLessonId?: string | null
   }>
+  todayTasksUnavailable?: boolean
   continueLearning: Array<{
     id: string
     title: string

@@ -19,9 +19,10 @@ interface TodayCommandCenterProps {
     milestoneTitle?: string | null
     milestoneReviewReady?: boolean
   }
-  today: { completed: number; total: number; nextTask: { id: string; title: string; courseLessonId?: string | null } | null; minutes: number }
+  today: { completed: number; total: number; nextTask: { id: string; title: string; courseLessonId?: string | null } | null; minutes: number; unavailable?: boolean }
   dueWrongCount: number
   dueUnderstandingCount: number
+  reviewsUnavailable?: boolean
 }
 
 const planStatusCopy = {
@@ -44,17 +45,32 @@ export function TodayCommandCenter({
   today,
   dueWrongCount,
   dueUnderstandingCount,
+  reviewsUnavailable = false,
 }: TodayCommandCenterProps) {
   const aiWorkspace = useAiWorkspace()
-  const hasTasks = today.total > 0
+  const todayUnavailable = today.unavailable === true
+  const hasTasks = !todayUnavailable && today.total > 0
   const isFinished = hasTasks && today.completed === today.total
-  const nextAction = isFinished
+  // 计划任务仍是第一优先级；只有今天没有待办、或待办已完成时，才把到期复习
+  // 提升为唯一下一步。这样不会让复习数量淹没一项正在进行的课程/练习。
+  const reviewAction = !reviewsUnavailable && dueWrongCount > 0
+    ? { kind: 'wrong' as const, count: dueWrongCount, description: `复习 ${dueWrongCount} 道到期错题`, href: '/wrong-questions?tab=due' }
+    : !reviewsUnavailable && dueUnderstandingCount > 0
+      ? { kind: 'understanding' as const, count: dueUnderstandingCount, description: `回顾 ${dueUnderstandingCount} 条到期理解`, href: '/knowledge?dueToday=true' }
+      : null
+  const shouldPrioritizeReview = !todayUnavailable && Boolean(reviewAction) && (!hasTasks || isFinished)
+  const nextAction = todayUnavailable
+    ? '暂时无法读取今天的任务，请重新加载后再开始'
+    : shouldPrioritizeReview
+    ? reviewAction!.description
+    : isFinished
     ? '今天的计划已经完成'
     : today.nextTask?.title || (hasTasks ? '打开今天的任务，选择下一项开始' : '先为今天安排一个可完成的学习动作')
-  const primaryHref = today.nextTask?.courseLessonId
+  const taskHref = today.nextTask?.courseLessonId
     ? `/courses?lesson=${today.nextTask.courseLessonId}&task=${today.nextTask.id}&week=${weeklyPlan.weekStart}`
     : today.nextTask ? `/tasks?week=${weeklyPlan.weekStart}&task=${today.nextTask.id}` : weeklyPlan.status === 'none' ? '/tasks' : `/tasks?week=${weeklyPlan.weekStart}`
-  const primaryLabel = isFinished ? '查看完成情况' : hasTasks ? '开始这一项' : weeklyPlan.status === 'none' ? '安排今天' : '查看本周计划'
+  const primaryHref = shouldPrioritizeReview ? reviewAction!.href : taskHref
+  const primaryLabel = todayUnavailable ? '重新加载今日任务' : shouldPrioritizeReview ? '开始复习' : isFinished ? '查看完成情况' : hasTasks ? '开始这一项' : weeklyPlan.status === 'none' ? '安排今天' : '查看本周计划'
   const weeklyHours = weeklyPlan.plannedMinutes > 0 ? `${Math.round(weeklyPlan.plannedMinutes / 60)} 小时` : '待安排'
 
   return (
@@ -83,9 +99,15 @@ export function TodayCommandCenter({
               <span data-testid="today-progress" className="shrink-0 text-sm tabular-nums text-muted-foreground">{today.completed}/{today.total} 已完成</span>
             </div>
             <div className="mt-4 flex flex-wrap items-center gap-2.5">
-              <Link href={primaryHref} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-brand px-4 text-sm font-medium text-white transition-transform hover:bg-brand/90 active:scale-[0.98] max-sm:w-full sm:min-h-10">
-                {primaryLabel}
-              </Link>
+              {todayUnavailable ? (
+                <button type="button" onClick={() => window.location.reload()} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-brand px-4 text-sm font-medium text-white transition-transform hover:bg-brand/90 active:scale-[0.98] max-sm:w-full sm:min-h-10">
+                  {primaryLabel}
+                </button>
+              ) : (
+                <Link href={primaryHref} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-brand px-4 text-sm font-medium text-white transition-transform hover:bg-brand/90 active:scale-[0.98] max-sm:w-full sm:min-h-10">
+                  {primaryLabel}
+                </Link>
+              )}
               <button
                 type="button"
                 onClick={() => aiWorkspace.requestHelp(`我正在执行今天的学习计划。下一步是「${nextAction}」。请结合我的阶段和本周目标，告诉我应如何开始；先给最小可执行的一步。`)}
@@ -93,13 +115,13 @@ export function TodayCommandCenter({
               >
                 让 AI 帮我开始
               </button>
-              {dueWrongCount > 0 && (
-                <Link href="/wrong-questions?dueToday=true" className="inline-flex min-h-10 items-center rounded-xl px-3 text-sm text-amber-700 transition-colors hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/30">
+              {dueWrongCount > 0 && reviewAction?.kind !== 'wrong' && (
+                <Link href="/wrong-questions?tab=due" className="inline-flex min-h-10 items-center rounded-xl px-3 text-sm text-amber-700 transition-colors hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/30">
                   {dueWrongCount} 道错题待复习
                 </Link>
               )}
-              {dueUnderstandingCount > 0 && (
-                <Link href="/knowledge" className="inline-flex min-h-10 items-center rounded-xl px-3 text-sm text-brand transition-colors hover:bg-brand-muted/50">
+              {dueUnderstandingCount > 0 && reviewAction?.kind !== 'understanding' && (
+                <Link href="/knowledge?dueToday=true" className="inline-flex min-h-10 items-center rounded-xl px-3 text-sm text-brand transition-colors hover:bg-brand-muted/50">
                   {dueUnderstandingCount} 条理解待回顾
                 </Link>
               )}
@@ -107,7 +129,7 @@ export function TodayCommandCenter({
           </div>
 
           <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground">
-            <span>今日计划 {today.minutes ? `${today.minutes} 分钟` : '未估时'}</span>
+            <span>{todayUnavailable ? '任务状态待重新加载' : `今日计划 ${today.minutes ? `${today.minutes} 分钟` : '未估时'}`}</span>
             <span className="hidden h-3 w-px bg-border sm:block" />
             <Link href="/pomodoro" className="transition-colors hover:text-brand">进入专注模式</Link>
             <Link href="/checkin" className="transition-colors hover:text-brand">记录今天的状态</Link>
@@ -128,8 +150,8 @@ export function TodayCommandCenter({
           <Link href={`/tasks?week=${weeklyPlan.weekStart}`} className="mt-5 inline-flex text-sm font-medium text-brand hover:underline">查看周计划 →</Link>
 
           <div className="mt-8 space-y-3 border-t border-border/60 pt-5">
-            <div className="flex items-center justify-between text-xs"><span className="text-muted-foreground">今日完成度</span><span className="font-medium tabular-nums">{today.total ? Math.round(today.completed / today.total * 100) : 0}%</span></div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-border/70"><div className="h-full rounded-full bg-brand transition-[width]" style={{ width: `${today.total ? Math.round(today.completed / today.total * 100) : 0}%` }} /></div>
+            <div className="flex items-center justify-between text-xs"><span className="text-muted-foreground">今日完成度</span><span className="font-medium tabular-nums">{todayUnavailable ? '待加载' : `${today.total ? Math.round(today.completed / today.total * 100) : 0}%`}</span></div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-border/70"><div className="h-full rounded-full bg-brand transition-[width]" style={{ width: `${todayUnavailable ? 0 : today.total ? Math.round(today.completed / today.total * 100) : 0}%` }} /></div>
           </div>
         </aside>
       </div>

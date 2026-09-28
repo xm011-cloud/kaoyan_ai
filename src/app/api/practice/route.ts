@@ -5,6 +5,7 @@ import { generatePracticeQuestions } from "@/lib/practice-generator";
 import { Prisma } from "@prisma/client";
 import { handleApiError, jsonNoStore } from "@/lib/api-utils";
 import { resolveEvidenceLink } from "@/lib/study-evidence";
+import { addStudyDays, studyDateToUtc, toStudyDateString } from "@/lib/date-utils";
 
 export async function GET(request: NextRequest) {
   const { user, error } = await getAuthUser(request);
@@ -67,13 +68,13 @@ export async function POST(request: NextRequest) {
     // Resolve wrongQuestionIds
     let resolvedWrongIds: string[] | undefined;
     if (wrongQuestionIds === "auto" || (Array.isArray(wrongQuestionIds) && wrongQuestionIds.length === 0)) {
+      const reviewDueAt = new Date(studyDateToUtc(addStudyDays(toStudyDateString(), 1)).getTime() - 1);
       // Fetch due or recent wrong questions
       const wrongs = await prisma.wrongQuestion.findMany({
         where: {
           userId: user!.id,
           ...(generationMode === "spaced_review" ? {
-            reviewed: false,
-            nextReviewDate: { lte: new Date() },
+            nextReviewDate: { lte: reviewDueAt },
           } : { subject }),
         },
         select: { id: true },

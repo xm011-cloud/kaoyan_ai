@@ -173,6 +173,14 @@ export function WeeklyPlanner({
   const coveredCurriculumNodeIds = Array.from(new Set(
     weekTasks.flatMap((task) => task.curriculumNodeIds ?? []),
   ));
+  // 首页、课程结束页和知识点详情都会带 task 参数返回计划。除了滚动到任务行，
+  // 还明确告诉用户“现在处理哪一项”，避免在七天画布中重新寻找上下文。
+  const focusedTask = highlightTaskId ? weekTasks.find((task) => task.id === highlightTaskId) ?? null : null;
+  const focusedTaskHref = focusedTask?.courseLessonId
+    ? `/courses?lesson=${encodeURIComponent(focusedTask.courseLessonId)}&task=${encodeURIComponent(focusedTask.id)}&week=${encodeURIComponent(weekKey)}`
+    : focusedTask
+      ? `/practice?task=${encodeURIComponent(focusedTask.id)}${focusedTask.milestoneId ? `&milestone=${encodeURIComponent(focusedTask.milestoneId)}` : ""}${focusedTask.subject ? `&subject=${encodeURIComponent(focusedTask.subject)}` : ""}`
+      : null;
 
   return (
     <div className="space-y-4">
@@ -192,6 +200,21 @@ export function WeeklyPlanner({
         </div>
         <Button variant="outline" size="sm" className="min-h-11 shrink-0 px-3" onClick={() => onWeekChange(1)}>下周 ▶</Button>
       </div>
+
+      {focusedTask && (
+        <section data-testid="focused-task-entry" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-brand/25 bg-brand/5 p-4" aria-label="当前定位任务">
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-brand">已定位今天的下一步</p>
+            <p className="mt-1 truncate text-sm font-semibold">{focusedTask.title}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{focusedTask.completed ? "这项任务已完成；你可以回看记录或继续本周计划。" : `${focusedTask.subject || "未分类"}${focusedTask.duration ? ` · 约 ${focusedTask.duration} 分钟` : ""}`}</p>
+          </div>
+          {!focusedTask.completed && focusedTaskHref && (
+            <Link href={focusedTaskHref} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-brand px-4 text-sm font-medium text-white transition-colors hover:bg-brand/90">
+              {focusedTask.courseLessonId ? "进入课程学习" : "开始练习"}
+            </Link>
+          )}
+        </section>
+      )}
 
       {contextualPlan?.stage && (
         <div className="rounded-2xl border border-brand/20 bg-brand/5 p-4">

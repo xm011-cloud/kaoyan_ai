@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { jsonNoStore } from "@/lib/api-utils";
 import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { addStudyDays, studyDateToUtc, toStudyDateString } from "@/lib/date-utils";
 
 /**
  * GET /api/progress/summary
@@ -20,8 +21,8 @@ export async function GET(request: NextRequest) {
     }
 
     const subjects = goal.subjects;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = studyDateToUtc(toStudyDateString());
+    const todayEnd = new Date(studyDateToUtc(addStudyDays(toStudyDateString(), 1)).getTime() - 1);
     const examDate = goal.examDate ? new Date(goal.examDate) : null;
     const daysLeft = examDate ? Math.max(0, Math.ceil((examDate.getTime() - today.getTime()) / 86400000)) : null;
 
@@ -46,8 +47,7 @@ export async function GET(request: NextRequest) {
           where: {
             userId: user!.id,
             subject,
-            reviewed: false,
-            nextReviewDate: { lte: today },
+            nextReviewDate: { lte: todayEnd },
           },
         }),
       ]);

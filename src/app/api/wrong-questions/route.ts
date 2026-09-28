@@ -3,6 +3,7 @@ import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, jsonNoStore } from "@/lib/api-utils";
 import { resolveEvidenceLink } from "@/lib/study-evidence";
+import { addStudyDays, studyDateToUtc, toStudyDateString } from "@/lib/date-utils";
 
 export async function GET(request: NextRequest) {
   const { user, error } = await getAuthUser(request);
@@ -41,11 +42,14 @@ export async function GET(request: NextRequest) {
       ];
     }
 
-    // dueToday: unreviewed and nextReviewDate is today or earlier
+    // dueToday: nextReviewDate is today or earlier. `reviewed` 只表示曾经复习过，
+    // 不能让一条已经进入 SM-2 间隔的错题永久退出后续队列。
     if (dueToday === "true") {
-      where.reviewed = false;
+      // 错题复习按中国学习日而不是 Vercel 的 UTC 进程日切分；
+      // 否则北京时间凌晨会漏掉“今天”到期的题。
+      const todayEnd = new Date(studyDateToUtc(addStudyDays(toStudyDateString(), 1)).getTime() - 1);
       where.nextReviewDate = {
-        lte: new Date(new Date().setHours(23, 59, 59, 999)),
+        lte: todayEnd,
       };
     }
 

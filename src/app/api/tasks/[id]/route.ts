@@ -12,6 +12,36 @@ function parseCurriculumNodeIds(value: unknown): string[] | null {
   return ids.every((id) => known.has(id)) ? ids : null;
 }
 
+// GET: 供课程、练习等学习场景读取“从哪项计划进入”的最小上下文。
+// 只返回当前用户自己的任务，避免客户端为了展示标题而拉取整周任务列表。
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { user, error } = await getAuthUser(request);
+  if (error) return error;
+
+  try {
+    const { id } = await params;
+    const task = await prisma.task.findFirst({
+      where: { id, userId: user!.id },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        subject: true,
+        weekStartDate: true,
+        milestoneId: true,
+        milestone: { select: { title: true } },
+      },
+    });
+    if (!task) return jsonNoStore({ error: "任务不存在" }, { status: 404 });
+    return jsonNoStore({ task });
+  } catch (err) {
+    return handleApiError(err, "读取任务");
+  }
+}
+
 // PATCH: 更新任务（切换完成状态等）
 export async function PATCH(
   request: NextRequest,

@@ -1,7 +1,7 @@
 'use client'
 
 interface StatsCardsProps {
-  todayTasks: { completed: number; total: number; minutes: number }
+  todayTasks: { completed: number; total: number; minutes: number; unavailable?: boolean }
   weekStudy: { hours: number; days: number }
   completionRate: { rate: number; completed: number; total: number }
 }
@@ -17,7 +17,9 @@ export function StatsCards(p: StatsCardsProps) {
   const getValue = (key: string) => {
     switch (key) {
       case 'week': return { value: `${p.weekStudy.hours.toFixed(1)}h`, sub: `打卡 ${p.weekStudy.days} 天` }
-      case 'todayMinutes': return { value: `${p.todayTasks.minutes} 分钟`, sub: p.todayTasks.minutes > 0 ? '今天学了这些' : '从今天开始' }
+      case 'todayMinutes': return p.todayTasks.unavailable
+        ? { value: '待加载', sub: '重新加载后查看今日任务' }
+        : { value: `${p.todayTasks.minutes} 分钟`, sub: p.todayTasks.minutes > 0 ? '今天学了这些' : '从今天开始' }
       case 'rate': return { value: `${p.completionRate.rate}%`, sub: `${p.completionRate.completed}/${p.completionRate.total}` }
       default: return { value: '', sub: '' }
     }

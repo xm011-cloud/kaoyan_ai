@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
@@ -50,6 +50,9 @@ export default function CheckInPage() {
     status: string
     note?: string | null
   } | null>(null)
+  // 初次读取可能比用户开始编辑更晚返回。此时不能用旧记录覆盖正在填写的表单，
+  // 否则用户会看到输入消失，甚至把一次「完成打卡」误点成「修改打卡」。
+  const formTouchedRef = useRef(false)
 
   const today = new Date().toISOString().split('T')[0]
 
@@ -59,7 +62,7 @@ export default function CheckInPage() {
       try {
         const res = await fetch(`/api/checkin?date=${today}`)
         const data = await res.json()
-        if (data.checkIn) {
+        if (data.checkIn && !formTouchedRef.current) {
           setTodayCheckIn(data.checkIn)
           setSubmitted(true)
         }
@@ -72,6 +75,7 @@ export default function CheckInPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    formTouchedRef.current = true
     setLoading(true)
     setError('')
 
@@ -198,8 +202,11 @@ export default function CheckInPage() {
             <input
               id="checkin-duration"
               type="number"
-              value={duration}
-              onChange={(e) => setDuration(e.target.value)}
+                value={duration}
+              onChange={(e) => {
+                formTouchedRef.current = true
+                setDuration(e.target.value)
+              }}
               placeholder="例如：120"
               required
               className="w-full h-11 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
@@ -215,7 +222,10 @@ export default function CheckInPage() {
                   <button
                     key={key}
                     type="button"
-                    onClick={() => setStatus(key)}
+                    onClick={() => {
+                      formTouchedRef.current = true
+                      setStatus(key)
+                    }}
                     className={`p-3 rounded-xl border border-border/50 text-center transition-colors ${
                       status === key
                         ? 'border-brand bg-brand-muted'
@@ -235,7 +245,10 @@ export default function CheckInPage() {
             <textarea
               id="checkin-note"
               value={note}
-              onChange={(e) => setNote(e.target.value)}
+              onChange={(e) => {
+                formTouchedRef.current = true
+                setNote(e.target.value)
+              }}
               placeholder="今天学了什么？有什么收获？"
               rows={3}
               className="w-full rounded-xl border border-border/50 bg-muted/50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"

@@ -162,3 +162,30 @@ try {
   // 建库失败仍然是硬错误，但“已存在库的扩展确认”不应让整套 E2E 无法启动。
   console.warn(`⚠️  启用 pgvector 失败，沿用已有测试库: ${err?.message}`);
 }
+
+// 测试库会跨多次本地运行保留。若不清理，复用的认证账号会不断累积路线版本、
+// 任务和证据，既让导出等全量读取无意义地变慢，也使后续断言依赖上一次运行的残留。
+// 这里只操作派生出的 *_test 库；认证账号本身在 Supabase，不受影响，首个私有 API
+// 会通过 ensureLocalUser 自动重建本地 User 记录。
+try {
+  await queryWithRetry(
+    testRuntimeUrl,
+    `DO $$
+      DECLARE record RECORD;
+      BEGIN
+        FOR record IN
+          SELECT tablename
+          FROM pg_tables
+          WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'
+        LOOP
+          EXECUTE format('TRUNCATE TABLE public.%I RESTART IDENTITY CASCADE', record.tablename);
+        END LOOP;
+      END
+    $$;`,
+    "清理上次 E2E 数据"
+  );
+  console.log("✅ 已清理上次 E2E 运行残留");
+} catch (err) {
+  console.error(`❌ 清理 E2E 测试库失败: ${err?.message}`);
+  process.exitCode = 1;
+}

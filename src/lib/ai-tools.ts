@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { startOfDay, getWeekStart, getWeekEnd, toDateString } from "@/lib/date-utils";
+import { addStudyDays, startOfDay, getWeekStart, getWeekEnd, studyDateToUtc, toDateString, toStudyDateString } from "@/lib/date-utils";
 import { randomUUID } from "node:crypto";
 import type { AiTool } from "@/lib/ai-config";
 import { appendSkillNote, skillFinish } from "@/lib/skills";
@@ -178,11 +178,9 @@ const TOOL_ENTRIES: ToolEntry[] = [
       },
     },
     executor: async (userId, args) => {
-      const now = new Date();
-      now.setHours(23, 59, 59, 999);
+      const now = new Date(studyDateToUtc(addStudyDays(toStudyDateString(), 1)).getTime() - 1);
       const where: Record<string, unknown> = {
         userId,
-        reviewed: false,
         nextReviewDate: { lte: now },
       };
       if (args.subject) where.subject = args.subject;

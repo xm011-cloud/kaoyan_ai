@@ -43,6 +43,104 @@ test.describe("Practice", () => {
     await expect(page.locator("text=练习记录")).toBeVisible({ timeout: 10000 });
   });
 
+  test("收录错题后可直接进入该题详情记录错因", async ({ page }) => {
+    const session = {
+      id: "result-with-wrong-question",
+      taskId: null,
+      milestoneId: null,
+      type: "daily",
+      subject: "计算机网络",
+      status: "completed",
+      questions: [{
+        id: "wrong-question-1",
+        type: "choice",
+        question: "TCP 建立连接时，客户端首先发送什么？",
+        options: ["A. ACK", "B. SYN", "C. FIN", "D. RST"],
+        correctAnswer: "B",
+        explanation: "三次握手由客户端先发送 SYN 开始。",
+      }],
+      answers: { "wrong-question-1": "A" },
+      scores: { "wrong-question-1": { score: 0, maxScore: 10 } },
+      totalScore: 0,
+      maxScore: 10,
+      duration: null,
+      startedAt: null,
+      completedAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+    };
+
+    await page.route("**/api/practice/result-with-wrong-question", (route) => route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ session }),
+    }));
+    await page.route("**/api/wrong-questions", async (route) => {
+      if (route.request().method() !== "POST") return route.continue();
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ question: { id: "new-wrong-question-id" } }),
+      });
+    });
+    await page.route("**/api/wrong-questions/new-wrong-question-id", (route) => route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        question: {
+          id: "new-wrong-question-id",
+          subject: "计算机网络",
+          question: "TCP 建立连接时，客户端首先发送什么？",
+          answer: "B. SYN",
+          source: "practice",
+          tags: ["choice"],
+          reviewed: false,
+          reviewCount: 0,
+          easeFactor: 2.5,
+          interval: 0,
+          nextReviewDate: null,
+          createdAt: new Date().toISOString(),
+        },
+      }),
+    }));
+
+    await page.goto("/practice?session=result-with-wrong-question&result=1");
+    await expect(page.getByRole("button", { name: "🔴 收录错题" })).toBeVisible({ timeout: 10000 });
+    await page.getByRole("button", { name: "🔴 收录错题" }).click();
+
+    const detailLink = page.getByRole("link", { name: "已收录 · 记录错因 →" });
+    await expect(detailLink).toHaveAttribute("href", "/wrong-questions?question=new-wrong-question-id");
+    await detailLink.click();
+    await expect(page).toHaveURL(/\/wrong-questions\?question=new-wrong-question-id/);
+    await expect(page.getByRole("heading", { name: "留下你的理解与方法" })).toBeVisible();
+    const reflection = page.getByRole("textbox");
+    await expect(reflection).toBeVisible();
+    await page.route("**/api/study-notes", async (route) => {
+      if (route.request().method() !== "POST") return route.continue();
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify({ note: { id: "practice-reflection" } }) });
+    });
+    await page.route(/\/api\/study-notes\?wrongQuestionId=/, async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ notes: [{
+          id: "practice-reflection",
+          content: "把 SYN 和 ACK 混淆了；下次先按三次握手的发起方回忆。",
+          kind: "error",
+          createdAt: new Date().toISOString(),
+          reviewCount: 0,
+          lastReviewedAt: null,
+          nextReviewAt: null,
+          curriculumNodeIds: [],
+          wrongQuestion: { id: "new-wrong-question-id", subject: "计算机网络", question: "TCP 建立连接时，客户端首先发送什么？", tags: [] },
+          knowledgeLinks: [],
+        }] }),
+      });
+    });
+    await reflection.fill("把 SYN 和 ACK 混淆了；下次先按三次握手的发起方回忆。");
+    await page.getByRole("button", { name: "保存理解" }).click();
+    const viewReflection = page.getByRole("link", { name: "查看这条理解 →" });
+    await expect(viewReflection).toHaveAttribute("href", "/knowledge?wrongQuestionId=new-wrong-question-id");
+    await viewReflection.click();
+    await expect(page.getByText("当前只显示这道错题留下的理解")).toBeVisible();
+    await expect(page.getByText("把 SYN 和 ACK 混淆了；下次先按三次握手的发起方回忆。")).toBeVisible();
+  });
+
   test("手机端进行中的练习可暂存退出，核心操作保持触控尺寸", async ({ page }) => {
     const session = {
       id: "mobile-active-session",

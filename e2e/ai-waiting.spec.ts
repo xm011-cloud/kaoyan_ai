@@ -12,9 +12,19 @@ test("chat shows wait-soothing bubble with phases, estimate and cancel", async (
       await route.continue();
     }
   });
-  // 拦截 /api/ai/chat：延迟 6s 响应，期间观察等待气泡的阶段轮播
+  // 拦截 /api/ai/chat 并保持请求挂起，直到已点击取消。用显式门闩而非固定
+  // 延迟，避免冷启动下断言与模拟响应互相抢时间，导致测试实际上看不到取消态。
+  let markRequestStarted!: () => void;
+  const requestStarted = new Promise<void>((resolve) => {
+    markRequestStarted = resolve;
+  });
+  let releaseResponse!: () => void;
+  const responseGate = new Promise<void>((resolve) => {
+    releaseResponse = resolve;
+  });
   await page.route("**/api/ai/chat", async (route) => {
-    await new Promise((r) => setTimeout(r, 6000));
+    markRequestStarted();
+    await responseGate;
     try {
       await route.fulfill({
         status: 200,
@@ -37,6 +47,7 @@ test("chat shows wait-soothing bubble with phases, estimate and cancel", async (
 
   await chatInput.fill("你好");
   await sendBtn.click();
+  await requestStarted;
 
   // 阶段 1（0~2.5s）：正在连接 AI
   await expect(workspace.getByText("正在连接 AI")).toBeVisible({ timeout: 5000 });
@@ -48,7 +59,11 @@ test("chat shows wait-soothing bubble with phases, estimate and cancel", async (
   await expect(workspace.getByText(/已等待 \d+ 秒/)).toBeVisible({ timeout: 8000 });
 
   // 取消：气泡消失，输入框恢复可用（不追加错误消息）
-  await workspace.getByRole("button", { name: "取消本次生成" }).click();
+  const cancelButton = workspace.getByRole("button", { name: "取消本次生成" });
+  await expect(cancelButton).toBeVisible();
+  await cancelButton.click();
+  // 允许被 abort 的拦截请求收尾，避免遗留一个 pending route。
+  releaseResponse();
   await expect(workspace.getByText(/正在理解你的情况|正在连接 AI/)).toHaveCount(0, { timeout: 10000 });
   await expect(chatInput).toBeEnabled({ timeout: 10000 });
   // 安静收场：没有追加「AI 服务暂时不可用」错误气泡

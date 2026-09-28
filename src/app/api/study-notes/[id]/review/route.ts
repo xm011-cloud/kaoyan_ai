@@ -2,16 +2,14 @@ import { NextRequest } from "next/server";
 import { getAuthUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, jsonNoStore } from "@/lib/api-utils";
+import { addStudyDays, studyDateToUtc, toStudyDateString } from "@/lib/date-utils";
 
 type Context = { params: Promise<{ id: string }> };
 type ReviewRating = "clear" | "fuzzy" | "blocked";
 
 function nextReviewDate(rating: ReviewRating, previousCount: number): Date {
   const days = rating === "clear" ? Math.min(21, Math.max(3, (previousCount + 1) * 3)) : rating === "fuzzy" ? 1 : 0;
-  const next = new Date();
-  next.setHours(0, 0, 0, 0);
-  next.setDate(next.getDate() + days);
-  return next;
+  return studyDateToUtc(addStudyDays(toStudyDateString(), days));
 }
 
 // 回顾只安排下一次提示，不推断阶段掌握或自动推进任何里程碑。

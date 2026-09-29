@@ -27,8 +27,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AI 考研助手",
-  description: "你的 AI 考研学习助手，助你高效备考",
+  title: "C6 · AI 考研学习工作台",
+  description: "把目标、路线、今日学习与自己的理解串成可追溯的考研学习闭环。",
   manifest: "/manifest.json",
   icons: {
     icon: "/favicon.ico",

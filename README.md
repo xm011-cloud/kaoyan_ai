@@ -1,174 +1,178 @@
-# 🎓 AI 考研助手
+# C6 · AI 考研学习工作台
 
-> 面向考研学生的 AI 全栈备考平台 —— 目标规划、周计划、每日打卡、错题复习、真题练习、院校情报、AI 对话与自定义技能，一站式备考。
+> 面向刚起步、学习混乱或基础薄弱的考研学生。C6 把“我想考研”拆成看得见的路线、当周方向与今天的下一步，并把课程、练习、错题和自己的理解串成可回看的学习证据。
 
-**在线体验：https://c6-orcin.vercel.app**（部署于海外，国内访问可能不稳定）· [Apache-2.0](./LICENSE) · 单作者业余开发，完全免费
+**在线体验：** https://c6-orcin.vercel.app · [Apache-2.0](./LICENSE) · 个人项目，核心功能免费
 
----
-
-## ✨ 功能亮点（19 个模块）
-
-### 📅 今日
-| 模块 | 说明 |
-|------|------|
-| 🏠 概览 | 统计卡片、打卡热力图、90 天趋势、今日任务，温柔重入提示 |
-| ✅ 打卡 | 学习时长 + 心情 + 备注，排行榜与资料页数据源 |
-| 🍅 番茄钟 | 25+5 工作法，SVG 环形计时器，反漂移引擎，后台自动保存 |
-| 🏆 学习圈 | 打卡时长排行榜（周/月/全部）、领奖台、公开资料页 |
-
-### 📝 备考
-| 模块 | 说明 |
-|------|------|
-| 🎯 目标 | 院校/专业/日期/科目/分数，专业→科目自动推荐 |
-| 📋 计划 | AI 生成周计划 → 评审 → 采纳循环，冲刺模式 |
-| ✏️ 练习 | 6 种出题模式（今日巩固/间隔复习/模考/资料出题/真题练习/自定义），AI 判分 |
-| 📕 错题本 | SM-2 间隔重复、批量导入、AI 类似题、PDF 导出、真题管理 |
-
-### 🤖 AI
-| 模块 | 说明 |
-|------|------|
-| 💬 AI 对话 | RAG 多轮问答（资料引用）、任务提案、技能运行 |
-| ⚡ 技能 | 用户自定义工作流（数据快照+提问+AI 指令+成长档案），对话蒸馏，AI 主动提议 |
-| 📊 周报 / 🗺️ 学习路径 | AI 每周分析 / 4 阶段里程碑生成 |
-
-### 📚 知识
-| 模块 | 说明 |
-|------|------|
-| 📖 资料 | PDF/TXT 上传 → pgvector 向量化 → 资料问答 |
-| 🧠 知识图谱 | D3 力导向知识点图 |
-| 🏫 院校情报 | **社区知识库**：搜索自动落库全局共享、多来源并存、👍认同/⚠️质疑信任机制、Tavily 联网搜索 |
-
-### ⚙️ 设置
-AI 自备 Key 模式（MiMo/DeepSeek/通义等 OpenAI 兼容）、驾驶模式三档、界面定制、数据导出、账号注销
+> 线上部署在海外，国内访问可能不稳定。AI 能力使用用户在设置中配置的 OpenAI 兼容 API Key，模型费用由对应服务商按用户自己的 Key 计费。
 
 ---
 
-## 📸 截图一览
+## 它解决什么问题
 
-| 学习概览（Dashboard） | 院校情报（社区库 + 搜索结果） |
-|---|---|
-| ![Dashboard](screenshots/dashboard.png) | ![院校情报](screenshots/admission-result.png) |
+许多考研学生不是缺一个待办清单，而是缺少一条能持续解释的学习主线：
 
-| AI 技能架 | 移动端 |
-|---|---|
-| ![技能](screenshots/skills.png) | ![移动端](screenshots/08-mobile-dashboard.png) |
+- 不知道当前先补什么、这周做到什么程度；
+- 计划与每天的课程、练习、错题彼此脱节；
+- 学过的理解、易错点和解题思路散落在不同笔记里，之后无法复用；
+- 计划变化时担心推翻此前努力。
 
-更多：练习 · 错题本 · AI 对话 · 打卡（见 `screenshots/`）
+C6 的目标不是替人“自动上岸”，而是让每次学习都能回到同一条可调整、可追溯的路线。
 
----
+```text
+目标与学习档案
+  → 阶段路线与里程碑
+  → 本周方向与今日任务
+  → 课程 / 练习 / 错题复习
+  → 我的理解、易错点、解题思路
+  → 关联知识节点、积累证据、用户复盘确认
+  → 据此安全调整后续计划
+```
 
-## 🛠️ 技术栈
+## V1 核心体验
+
+### 1. 今天知道该做什么，也知道为什么做
+
+- 从长期目标、当前阶段、里程碑到本周和今日任务形成同一条叙事；
+- 首页可直接进入对应课程、练习、任务或复习对象；
+- 周计划展示当前服务的阶段目标、退出标准与任务归属，而不是只罗列待办；
+- 今日微调、本周调整、长期调整分层处理，已完成记录和历史版本不会被静默改写。
+
+### 2. 在一个连续学习场景里完成课程、练习与复盘
+
+- 课程学习桌整合课程目录、外部课程来源、当前课时、学习记录、自评与 AI 协作；
+- 外部课程（如 B 站）以用户授权的新标签页打开，C6 不托管、下载或转码课程视频；
+- 练习、错题与间隔复习形成连续流程，错题可按复习到期日回看；
+- 番茄钟、打卡与周报用于记录真实学习节奏，而非制造额外打卡负担。
+
+### 3. 沉淀“自己的理解”，而不只是收藏资料
+
+- 学习后记录自己的理解、易错点、可复用的解题方法或思维线索；
+- 将记录与系统知识节点、课程、任务、练习和错题关联，逐步形成个人知识脉络；
+- 知识节点可查看关联证据和复习线索；知识图谱用于探索关联，不把图形展示误当作掌握证明；
+- 资料支持上传、检索和引用，帮助回到原始学习材料。
+
+### 4. AI 是学习管家，不是替你下结论的聊天机器人
+
+- AI 工作区根据当前页面提供计划调整、课时目标、练习提示、错因归纳或资料检索；
+- 生成计划前会优先澄清目标、基础、时间容量和阶段标准；建议会说明阶段目标、退出标准和调整影响；
+- 任务完成只积累学习证据。是否达成里程碑、继续巩固或需要重学，由用户复盘确认；
+- 支持用户自配 OpenAI 兼容模型与自定义技能，也允许把常用的外部 AI 当作并行工具。
+
+## 产品边界
+
+为了先做好学习闭环，当前 V1 **不做**：
+
+- 课程视频托管、转码、下载或绕过第三方平台限制；
+- 社区讨论、学习小组或排行榜驱动的社交产品；
+- 任意拖拽、自由缩放的“桌面画布”；
+- 无纸化手写白板；
+- 以高频泛问答为核心的通用 AI 聊天替代品。
+
+这些方向并非没有价值，但应在核心闭环通过真实用户验证后再决定是否投入。
+
+## 当前能力概览
+
+| 学习主线 | 支撑能力 |
+| --- | --- |
+| 目标与路线 | 目标档案、准备度确认、阶段路线、里程碑、完成证据与复盘确认 |
+| 执行与调整 | 周计划草稿/确认、今日任务、分层调整、历史版本与调整影响 |
+| 学习场景 | 课程学习桌、外部课程链接、笔记/理解记录、自评、番茄钟与打卡 |
+| 练习与复习 | 自定义练习、结果记录、错题本、SM-2 间隔复习、错因与变式题 |
+| 知识沉淀 | 个人知识记录、系统知识节点关联、知识图谱、资料上传与检索 |
+| AI 与反馈 | 页面上下文 AI 工作区、资料引用、周报、用户自配 Key、技能工作流 |
+| 基础能力 | 登录与私有数据隔离、PWA/安全离线队列、数据导出、移动/平板适配 |
+
+## 技术栈
 
 | 层 | 技术 |
-|----|------|
-| 框架 | Next.js 16 (App Router, Turbopack) · TypeScript strict |
-| 样式 | Tailwind CSS 4 · shadcn/ui (base-nova) |
-| 数据库 | PostgreSQL (Neon) + pgvector · Prisma 6 (driver adapter) |
-| 认证/存储 | Supabase Auth (PKCE) · Supabase Storage（支持 MemFire 兼容切换） |
-| AI | 用户自带 OpenAI 兼容 API Key · Function Calling 工具链 · RAG |
-| 搜索 | Tavily API（院校情报联网搜索） |
-| 图表 | Recharts · D3 子模块 (tree-shaking) |
-| 状态 | zustand (persist) · @tanstack/react-query |
-| 测试 | Playwright 117 E2E 用例（独立测试库） |
+| --- | --- |
+| 框架 | Next.js 16（App Router）· TypeScript strict |
+| 界面 | Tailwind CSS 4 · shadcn/ui（base-nova） |
+| 数据 | PostgreSQL（Neon）+ pgvector · Prisma 6 driver adapter |
+| 认证与存储 | Supabase Auth（PKCE）· Supabase Storage（兼容 MemFire 配置） |
+| AI | 用户自配 OpenAI 兼容 API Key · Function Calling · RAG |
+| 状态与图表 | Zustand · TanStack Query · Recharts · D3 子模块 |
+| 部署与测试 | Vercel · Playwright（独立测试数据库） |
 
----
+## 架构概览
 
-## 🏗️ 架构一览
-
-```
-用户 → Vercel (Next.js SSR/API)
-         ├── Supabase Auth（认证/存储）
-         ├── Neon PostgreSQL + pgvector（数据/向量检索）
-         └── AI（用户自配 Key：MiMo/DeepSeek/通义等）
-              └── Tavily（院校联网搜索）
+```text
+浏览器 / PWA
+  → Vercel 上的 Next.js SSR、Server Components 与 API
+       ├── Supabase Auth / Storage
+       ├── Neon PostgreSQL + pgvector
+       ├── 用户自配的 OpenAI 兼容模型
+       └── Tavily（可选的院校情报联网检索）
 ```
 
----
+## 质量与当前状态
 
-## 🧪 质量
+- 全量 Playwright 回归使用独立的 `_test` 数据库与 :3100 开发服务，不污染开发数据；
+- 2026-09-29 最近一次全量回归为 **175/175 通过**，耗时 16.3 分钟；完整证据与历史基线见 [`docs/test-baseline.md`](./docs/test-baseline.md)；
+- 当前生产地址为 https://c6-orcin.vercel.app；产品范围、已实现能力与待验证项见 [`PROJECT_STATUS.md`](./PROJECT_STATUS.md)。
 
-- **Playwright 122 个 E2E 用例全绿**（独立测试库 `neondb_test`，不污染开发数据）
-- 覆盖全部 19 模块页面、认证重定向、权限、社区反馈、技能系统、AI 配置引导、离线能力等
+## 快速开始
 
----
+### 使用产品
 
-## 🚀 快速开始
-
-### 在线体验
-
-无需安装，浏览器直接访问 **https://c6-orcin.vercel.app**（注册即用；AI 功能需自配 API Key）。
-> ⚠️ 线上服务部署于海外（Vercel），**国内访问可能不稳定**；开发者可本地 `npm run dev` 体验，国内部署方案见 [docs/edgeone-deploy.md](./docs/edgeone-deploy.md)。
+直接访问 https://c6-orcin.vercel.app，注册后先完成目标、基础和可用时间的确认。若要使用 AI，在设置页配置自己的 OpenAI 兼容 API Key。
 
 ### 本地开发
 
 ```bash
-npm install        # 首次自动 prisma generate
-cp .env.example .env.local   # 填入 Neon / Supabase 等环境变量
-npx prisma db push # 初始化数据库
-npm run dev        # http://localhost:3000
+npm install
+cp .env.example .env.local
+npx prisma db push
+npm run dev
 ```
 
-详细部署（Vercel）见下方开发者文档；国内部署（暂缓中，方案见 [docs/edgeone-deploy.md](./docs/edgeone-deploy.md)）。
+随后打开 http://localhost:3000。环境变量采用 MemFire 优先、Supabase 回退的统一配置；详细字段见下文和 [`AGENTS.md`](./AGENTS.md)。
 
----
-
-## 📄 协议与合规
-
-- 代码以 [Apache-2.0](./LICENSE) 开源，欢迎学习交流
-- 产品数据合规见 [隐私政策](https://c6-orcin.vercel.app/privacy) 与 [用户协议](https://c6-orcin.vercel.app/terms)
-- 院校情报数据标注来源仅供参考；真题为个人学习用途导入，不提供共享
-
----
-
-## 📦 开发者文档
+## 开发与部署
 
 <details>
-<summary><b>点击展开：启动 / 部署 / 代码规范</b></summary>
+<summary><b>环境变量、测试与部署命令</b></summary>
 
-### 环境变量
+### 常用环境变量
 
-| 变量 | 说明 | 获取方式 |
-|------|------|---------|
-| `DATABASE_URL` | PostgreSQL 连接串 | [Neon](https://neon.tech) 免费数据库 |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase 项目 URL | [Supabase](https://supabase.com) |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 匿名 Key | 同上 |
-| `SUPABASE_SERVICE_ROLE_KEY` | 服务 Key | 同上 |
-| `ADMIN_EMAIL` | 作者后台邮箱（fail closed） | 自定 |
-| `TAVILY_API_KEY` | 院校联网搜索（免费 1000 次/月） | [Tavily](https://app.tavily.com) |
+| 变量 | 用途 |
+| --- | --- |
+| `DATABASE_URL` | PostgreSQL 连接串（也支持 `MEMFIRE_DATABASE_URL`） |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase 项目 URL（也支持 MemFire 同名兼容配置） |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 浏览器匿名 Key |
+| `SUPABASE_SERVICE_ROLE_KEY` | 仅服务端使用的 Service Role Key |
+| `ADMIN_EMAIL` | 作者后台邮箱；未配置时后台默认拒绝访问 |
+| `TAVILY_API_KEY` | 院校情报联网搜索，可选 |
 
-用户侧 AI Key（MiMo/DeepSeek/通义等）在设置页自行配置，无需服务端全局 Key。
+### 校验
+
+```bash
+npx tsc --noEmit
+npm run lint
+npm run build
+npx playwright test
+```
+
+Playwright 会自动创建独立测试库、同步 schema 并运行在 :3100；认证用例使用 `.env.local` 中的 E2E 测试账号。
 
 ### 部署
 
-**Vercel（海外推荐）：**
 ```bash
 npx vercel --prod
 ```
 
-**EdgeOne Pages（国内）：** 已尝试部署但 Cloud SSR 函数包超 128MiB 限制，**暂缓**。备选方案（轻量服务器 Docker 等）见 [docs/edgeone-deploy.md](./docs/edgeone-deploy.md)。
-
-### 数据库
-
-```bash
-npx prisma db push   # 推送 Schema
-npx prisma studio    # 数据管理界面
-```
-
-### E2E 测试
-
-```bash
-npx playwright test  # 自动创建独立测试库 + 独立端口 3100
-```
-
-### 代码规范
-
-- 路径别名 `@/*` → `./src/*`
-- `src/proxy.ts` 为 middleware（Next 16 约定）
-- TypeScript strict；新代码与周围风格一致
-- 开发规则详见 [README 旧版说明](./docs) 与 [PROJECT_STATUS.md](./PROJECT_STATUS.md)
+Vercel 为当前生产方案。国内 EdgeOne Pages 因 Cloud SSR 函数包大小限制暂缓，参见 [`docs/edgeone-deploy.md`](./docs/edgeone-deploy.md)。
 
 </details>
 
+## 协议与反馈
+
+- 代码以 [Apache-2.0](./LICENSE) 开源；
+- 产品数据说明见 [隐私政策](https://c6-orcin.vercel.app/privacy) 与 [用户协议](https://c6-orcin.vercel.app/terms)；
+- 院校情报保留来源供核验，真题仅供用户个人学习导入；
+- 欢迎通过 [意见反馈](https://c6-orcin.vercel.app/suggestions) 提出真实学习场景。
+
 ---
 
-> 创建于 2026-07 · 持续迭代中 —— 你的 [star ⭐](https://github.com/xm011-cloud/kaoyan_ai) 和 [反馈](https://c6-orcin.vercel.app/suggestions) 是最好的支持
+持续迭代中。优先级始终是：先让用户清楚今天做什么、为什么做，以及完成后留下了什么证据。

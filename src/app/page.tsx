@@ -3,137 +3,113 @@ import { redirect } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 
+const coreExperiences = [
+  {
+    icon: "🎯",
+    title: "知道今天做什么",
+    desc: "从长期目标、当前阶段和里程碑推到本周方向与今日下一步。每项任务都能回到它服务的学习目标。",
+    points: ["路线不是任务清单", "周计划先确认再生效", "调整保留历史证据"],
+  },
+  {
+    icon: "📚",
+    title: "在学习场景里执行",
+    desc: "课程学习桌把课时、外部课程来源、学习记录、自评和必要的 AI 协作放在一起。",
+    points: ["外部课程新标签页打开", "课程、任务与笔记关联", "练习与错题连续复习"],
+  },
+  {
+    icon: "🧠",
+    title: "留下自己的理解",
+    desc: "记录理解、易错点和解题思路，并与知识节点、课程、练习和错题关联，而不只是收藏资料。",
+    points: ["个人知识记录", "可回看的关联证据", "复习线索与知识图谱"],
+  },
+  {
+    icon: "🤝",
+    title: "AI 做学习管家",
+    desc: "AI 先澄清目标、基础和时间容量，再给出可确认的计划建议，不替你判断是否真正掌握。",
+    points: ["页面上下文协作", "说明调整影响", "支持自配模型 Key"],
+  },
+]
+
 export default async function Home() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (user) {
-    redirect("/dashboard")
-  }
+  if (user) redirect("/dashboard")
 
   return (
-    <div className="flex flex-col bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-950">
-      {/* Hero */}
-      <section className="flex flex-col items-center justify-center px-6 py-20 lg:py-28 text-center">
-        <div className="inline-flex items-center gap-1 px-3 py-1 mb-6 text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 rounded-full">
-          🎓 2026 考研 · AI 加持备考
+    <div className="flex min-h-screen flex-col bg-gradient-to-b from-blue-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900">
+      <section className="flex flex-col items-center justify-center px-6 py-20 text-center lg:py-28">
+        <div className="mb-6 inline-flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+          🎓 C6 · 考研学习工作台
         </div>
-        <h1 className="text-4xl lg:text-6xl font-extrabold tracking-tight text-gray-900 dark:text-white max-w-3xl">
-          AI 考研助手
+        <h1 className="max-w-4xl text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white lg:text-6xl">
+          让每一天的学习，都走在一条看得见的路线上
         </h1>
-        <p className="mt-4 text-lg lg:text-xl text-gray-600 dark:text-gray-400 max-w-2xl">
-          智能制定学习计划 · 资料上传问答 · 每日打卡追踪 · AI 学习反馈
+        <p className="mt-5 max-w-2xl text-lg leading-relaxed text-slate-600 dark:text-slate-300 lg:text-xl">
+          面向刚起步、基础薄弱或学习混乱的考研学生。C6 将目标、阶段、周计划、课程、练习和自己的理解串成可追溯的学习闭环。
         </p>
-        <div className="flex flex-col sm:flex-row gap-4 mt-8">
-          <Link href="/login">
-            <Button size="lg" className="px-10 text-base">免费开始使用</Button>
-          </Link>
-          <Link href="/about">
-            <Button variant="outline" size="lg" className="px-10 text-base">了解更多</Button>
-          </Link>
+        <div className="mt-8 flex flex-col gap-4 sm:flex-row">
+          <Link href="/login"><Button size="lg" className="px-10 text-base">开始建立学习路线</Button></Link>
+          <Link href="/about"><Button variant="outline" size="lg" className="px-10 text-base">了解 C6</Button></Link>
         </div>
-        <p className="text-xs text-gray-400 mt-4">无需下载 · 浏览器即用 · 产品免费（AI 功能需自配 API Key）</p>
+        <p className="mt-4 text-xs text-slate-500">浏览器即用 · 核心功能免费 · AI 功能使用你自己配置的 API Key</p>
       </section>
 
-      {/* Features */}
-      <section id="features" className="px-6 py-16 lg:py-20 max-w-6xl mx-auto w-full">
-        <div className="text-center mb-12">
-          <h2 className="text-2xl lg:text-3xl font-bold">核心功能</h2>
-          <p className="text-gray-500 mt-2">覆盖考研备考全流程，AI 全程陪伴</p>
+      <section className="mx-auto w-full max-w-6xl px-6 py-16 lg:py-20" id="features">
+        <div className="mb-12 text-center">
+          <h2 className="text-2xl font-bold lg:text-3xl">不是多一个待办工具，而是一条学习主线</h2>
+          <p className="mt-2 text-slate-500">始终回答三个问题：现在处于哪里、接下来该做什么、这次学习留下了什么。</p>
         </div>
-
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {[
-            { icon: "🎯", title: "目标规划", desc: "设定目标院校和专业，AI 根据考试日期和科目自动生成三阶段专属学习计划", points: ["智能拆分科目", "基础→强化→冲刺", "每日任务分配"] },
-            { icon: "📚", title: "资料管理", desc: "上传考研资料（笔记、教材），AI 基于资料内容进行智能问答", points: ["文本自动提取", "关键词检索", "AI 上下文问答"] },
-            { icon: "✅", title: "每日打卡", desc: "记录每天的学习时长和状态，培养坚持学习的好习惯", points: ["学习时长追踪", "状态记录", "连续打卡统计"] },
-            { icon: "📊", title: "AI 反馈", desc: "AI 每周分析学习数据，给出个性化建议帮助你优化学习策略", points: ["每周学习周报", "数据趋势图表", "AI 个性化建议"] },
-            { icon: "🍅", title: "番茄钟", desc: "专注 + 休息的番茄工作法，保持高效专注的学习节奏", points: ["25+5 科学节奏", "实时专注统计", "自动同步打卡"] },
-            { icon: "📕", title: "错题本", desc: "错题自动收录、间隔重复复习，AI 生成同类题巩固薄弱点", points: ["SM-2 间隔复习", "错因分类", "AI 相似题生成"] },
-            { icon: "🗺️", title: "学习路径", desc: "AI 分析薄弱环节，生成分阶段学习路径，里程碑式推进", points: ["薄弱点诊断", "阶段里程碑", "进度可视化"] },
-            { icon: "🧠", title: "知识图谱", desc: "知识点关联可视化，看清知识脉络，快速定位薄弱环节", points: ["力导向图谱", "知识点关联", "错题联动"] },
-          ].map((item) => (
-            <div key={item.title} className="p-6 rounded-xl bg-white dark:bg-gray-800 border shadow-sm hover:shadow-md transition-shadow">
-              <div className="text-3xl mb-3">{item.icon}</div>
-              <h3 className="font-bold text-lg mb-2">{item.title}</h3>
-              <p className="text-sm text-gray-500 mb-3">{item.desc}</p>
-              <ul className="space-y-1">
-                {item.points.map((p) => (
-                  <li key={p} className="text-xs text-gray-400 flex items-center gap-1.5">
-                    <span className="text-blue-500">✓</span> {p}
-                  </li>
-                ))}
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {coreExperiences.map((item) => (
+            <article key={item.title} className="rounded-2xl border bg-white p-6 shadow-sm transition-shadow hover:shadow-md dark:bg-slate-900">
+              <div className="mb-3 text-3xl">{item.icon}</div>
+              <h3 className="mb-2 text-lg font-bold">{item.title}</h3>
+              <p className="mb-4 text-sm leading-relaxed text-slate-500">{item.desc}</p>
+              <ul className="space-y-1.5">
+                {item.points.map((point) => <li key={point} className="flex gap-1.5 text-xs text-slate-500"><span className="text-blue-500">✓</span>{point}</li>)}
               </ul>
-            </div>
+            </article>
           ))}
         </div>
       </section>
 
-      {/* How it works */}
-      <section className="px-6 py-16 lg:py-20 bg-white dark:bg-gray-800/50">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-2xl lg:text-3xl font-bold mb-4">三步开始</h2>
-          <div className="grid sm:grid-cols-3 gap-8 mt-10">
+      <section className="bg-white px-6 py-16 dark:bg-slate-900/50 lg:py-20">
+        <div className="mx-auto max-w-4xl text-center">
+          <h2 className="text-2xl font-bold lg:text-3xl">从方向到证据，逐步建立闭环</h2>
+          <div className="mt-10 grid gap-8 sm:grid-cols-3">
             {[
-              { step: "1", icon: "📝", title: "设置目标", desc: "填写目标院校、专业和考试日期" },
-              { step: "2", icon: "🤖", title: "AI 生成计划", desc: "AI 自动生成三阶段完整复习计划" },
-              { step: "3", icon: "✅", title: "每日执行打卡", desc: "按计划学习，完成每天打卡任务" },
+              { step: "1", icon: "🧭", title: "确认目标与现状", desc: "先讨论目标、基础、可用时间和阶段标准，不仓促套用模板。" },
+              { step: "2", icon: "🗓️", title: "执行本周的下一步", desc: "路线驱动周计划；课程、练习和错题复习都有明确入口。" },
+              { step: "3", icon: "✍️", title: "留下理解并复盘", desc: "将理解、易错点和方法沉淀为关联证据，再由自己确认下一步。" },
             ].map((item) => (
               <div key={item.step} className="flex flex-col items-center">
-                <div className="w-16 h-16 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-2xl mb-4">
-                  {item.icon}
-                </div>
-                <div className="text-xs font-bold text-blue-500 mb-1">步骤 {item.step}</div>
-                <h3 className="font-semibold mb-1">{item.title}</h3>
-                <p className="text-sm text-gray-500">{item.desc}</p>
+                <div className="mb-4 flex size-16 items-center justify-center rounded-full bg-blue-50 text-2xl dark:bg-blue-900/30">{item.icon}</div>
+                <div className="mb-1 text-xs font-bold text-blue-500">步骤 {item.step}</div>
+                <h3 className="mb-1 font-semibold">{item.title}</h3>
+                <p className="text-sm leading-relaxed text-slate-500">{item.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Stats */}
-      <section className="px-6 py-16 lg:py-20 max-w-4xl mx-auto w-full text-center">
-        <h2 className="text-2xl lg:text-3xl font-bold mb-10">为什么选择 AI 考研助手</h2>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
-          {[
-            { value: "AI 驱动", label: "智能规划引擎" },
-            { value: "168 天", label: "最长覆盖周期" },
-            { value: "30+", label: "AI 生成任务数" },
-            { value: "产品免费", label: "AI 按你自配的 Key 计费" },
-          ].map((s) => (
-            <div key={s.label}>
-              <div className="text-2xl lg:text-3xl font-bold text-blue-600">{s.value}</div>
-              <div className="text-sm text-gray-500 mt-1">{s.label}</div>
-            </div>
-          ))}
+      <section className="mx-auto w-full max-w-4xl px-6 py-16 text-center lg:py-20">
+        <h2 className="text-2xl font-bold lg:text-3xl">AI 负责协作，不替你做学习判断</h2>
+        <p className="mx-auto mt-4 max-w-2xl leading-relaxed text-slate-600 dark:text-slate-300">它可以帮助澄清计划、拆解课时目标、提示练习思路、归纳错因和检索资料；是否完成里程碑，仍由你的学习证据与复盘确认。</p>
+      </section>
+
+      <section className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-16 text-center text-white lg:py-20">
+        <div className="mx-auto max-w-2xl">
+          <h2 className="text-2xl font-bold lg:text-3xl">从今天开始，把备考串起来</h2>
+          <p className="mb-8 mt-3 text-white/80">先建立一条可执行的路线，再完成今天最小的一步。</p>
+          <Link href="/login"><Button size="lg" className="border-0 bg-white px-12 py-3 text-base text-blue-700 hover:bg-slate-100">免费开始使用 →</Button></Link>
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="px-6 py-16 lg:py-20 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-center">
-        <div className="max-w-2xl mx-auto">
-          <h2 className="text-2xl lg:text-3xl font-bold mb-3">准备好高效备考了吗？</h2>
-          <p className="text-white/80 mb-8">加入 AI 考研助手，让 AI 成为你的专属学习伙伴</p>
-          <p className="text-white/60 text-xs mb-6">产品完全免费；AI 功能需自备 OpenAI 兼容 API Key（支持 MiMo / DeepSeek / 通义千问等），AI 用量按你自己的 Key 计费</p>
-          <Link href="/login">
-            <Button size="lg" className="px-12 py-3 text-base bg-white text-blue-600 hover:bg-gray-100 border-0">
-              立即开始 →
-            </Button>
-          </Link>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="py-8 text-center text-sm text-gray-400 border-t dark:border-gray-800">
-        <div className="flex justify-center gap-6 mb-3">
-          <Link href="/about" className="hover:text-blue-500 transition-colors">关于我们</Link>
-          <Link href="/privacy" className="hover:text-blue-500 transition-colors">隐私政策</Link>
-          <Link href="/terms" className="hover:text-blue-500 transition-colors">用户协议</Link>
-          <Link href="/suggestions" className="hover:text-blue-500 transition-colors">意见反馈</Link>
-          <Link href="/support" className="hover:text-orange-500 transition-colors">☕ 支持作者</Link>
-        </div>
-        <p>© 2026 AI 考研助手 · 助你高效备考 · 上岸加油 🎓</p>
+      <footer className="border-t py-8 text-center text-sm text-slate-400 dark:border-slate-800">
+        <div className="mb-3 flex justify-center gap-6"><Link href="/about" className="hover:text-blue-500">关于 C6</Link><Link href="/privacy" className="hover:text-blue-500">隐私政策</Link><Link href="/terms" className="hover:text-blue-500">用户协议</Link><Link href="/suggestions" className="hover:text-blue-500">意见反馈</Link></div>
+        <p>© 2026 C6 · AI 考研学习工作台</p>
       </footer>
     </div>
   )

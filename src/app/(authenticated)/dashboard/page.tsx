@@ -171,21 +171,24 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const user = await getServerAuthUser()
   if (!user) redirect("/login")
   const params = await searchParams
+  const context = getDashboardDateContext()
+  // 新账号首次落到首页时，任务查询可能在服务繁忙时降级。用认证侧的创建时间
+  // 保留首次引导资格，避免把“暂时读不到任务”误判成“不是新用户”。
+  const isFreshAccount = toStudyDateString(new Date(user.created_at)) === context.todayStr
   const forceTour = params.tour === "1"
   // /chat 会兼容跳转到此页并自动展开 AI 工作区。主动进入对话时，迟到的
   // 新手弹窗不能盖住输入、等待状态或取消按钮；显式 tour 仍应优先展示。
   const suppressOnboardingModal = params.ai === "1" && !forceTour
-  const context = getDashboardDateContext()
   const primary = loadDashboardPrimary(user.id, context)
 
   return <div className="mx-auto max-w-7xl space-y-6 p-4 lg:p-8">
     <ChangelogBanner />
     <Suspense fallback={<DashboardHeroSkeleton />}><DashboardHero primary={primary} context={context} userId={user.id} /></Suspense>
-    <Suspense fallback={<DashboardDetailsSkeleton />}><DashboardDetails primary={primary} context={context} userId={user.id} forceTour={forceTour} suppressOnboardingModal={suppressOnboardingModal} /></Suspense>
+    <Suspense fallback={<DashboardDetailsSkeleton />}><DashboardDetails primary={primary} context={context} userId={user.id} forceTour={forceTour} suppressOnboardingModal={suppressOnboardingModal} isFreshAccount={isFreshAccount} /></Suspense>
   </div>
 }
 
-async function DashboardDetails({ primary, context, userId, forceTour, suppressOnboardingModal }: { primary: Promise<DashboardPrimary>; context: DashboardDateContext; userId: string; forceTour: boolean; suppressOnboardingModal: boolean }) {
+async function DashboardDetails({ primary, context, userId, forceTour, suppressOnboardingModal, isFreshAccount }: { primary: Promise<DashboardPrimary>; context: DashboardDateContext; userId: string; forceTour: boolean; suppressOnboardingModal: boolean; isFreshAccount: boolean }) {
   const { todayStr, today, todayEnd, weekStartStr, weekEndStr, weekStart, chartStart } = context
   const planningWeekStartStr = weekStartStr
   const [todayTaskQuery, goalQuery, weeklyPlans] = await primary
@@ -460,8 +463,11 @@ async function DashboardDetails({ primary, context, userId, forceTour, suppressO
     reentry: { show: showReentry, daysSinceLastCheckin },
   }
 
-  // 新用户判定：无目标 + 无任务 + 无打卡（用于引导弹窗/卡片）
-  const isNewUser = !goal && !goalQuery.degraded && !todayTaskQuery.degraded && todayTasks.length === 0 && recentChecks.length === 0
+  // 新用户判定：无目标、无学习记录、无任务。仅新注册账户可在“今日任务”
+  // 查询临时降级时保留引导，避免既有用户因一次超时重复看到 onboarding。
+  const hasNoLearningHistory = !goal && !goalQuery.degraded && recentChecks.length === 0
+  const hasNoTodayTasks = !todayTaskQuery.degraded && todayTasks.length === 0
+  const isNewUser = hasNoLearningHistory && (hasNoTodayTasks || (todayTaskQuery.degraded && isFreshAccount))
 
   return <>
     {/* ── 新用户引导（首次弹窗 + 常驻卡片；?tour=1 强制重放）── */}

@@ -1,19 +1,22 @@
 # 开工测试基线
 
-基线日期：2026-09-02
+最近更新：2026-09-29
 
 ## 通过结果
 
 | 检查 | 结果 |
 | --- | --- |
 | `npx tsc --noEmit` | 通过 |
-| `npm run lint` | 通过：0 error，82 warnings |
-| `npm run build` | 通过：Next.js 16.2.10，86 个页面/路由完成生成 |
-| `npx playwright test --workers=1` | 通过：127/127，8.4 分钟 |
+| `npm run lint` | 通过：0 error，75 warnings |
+| `npm run build` | 通过：Next.js 16.2.10，97 个页面/路由完成生成 |
+| `npx playwright test --workers=1` | 通过：174/174，14.8 分钟 |
+| `npx playwright test onboarding.spec.ts --repeat-each=3 --retries=0` | 通过：3 次连续新账号注册、登录、引导弹窗与引导卡流程均成功 |
+
+> 2026-09-28 的上一生产版本回归耗时约 17.8 分钟，结果为 173 条直接通过、1 条引导用例首次偶发失败后重试通过。根因是首页“今日任务”读取短暂降级时将刚注册账户判为非新用户；已于 2026-09-29 修复，并完成上述连续专项回归与 **174/174** 全量回归。历史结果与当前候选结果分别记录，不能混写。
 
 ESLint warning 的分类和偿还策略见 [lint-baseline.md](./lint-baseline.md)。
 
-## E2E 并发结论
+## 历史基线与 E2E 并发结论
 
 测试套件共用一个认证账号和同一个 `_test` 数据库。默认 8 worker 的两次全量运行分别得到：
 

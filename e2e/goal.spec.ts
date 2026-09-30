@@ -265,4 +265,92 @@ test.describe("Goal", () => {
     const rejected = await page.request.delete("/api/study-profile?ids=" + encodeURIComponent(ids));
     expect(rejected.status()).toBe(200);
   });
+
+  test("starter week creates a small exploration loop without bypassing the long-term planning gate", async ({ page }) => {
+    test.setTimeout(120000);
+    const pool = createTestDbPool();
+    const userResult = await pool.query('SELECT id FROM "User" WHERE email = $1', [process.env.E2E_TEST_USER || ""]);
+    const userId = userResult.rows[0]?.id as string;
+    const originalGoal = await pool.query('SELECT * FROM "Goal" WHERE "userId" = $1', [userId]);
+    const routes = await pool.query('SELECT id, status FROM "StudyPath" WHERE "userId" = $1 AND status IN (\'active\', \'draft\')', [userId]);
+    const weekPlans = await pool.query('SELECT id, status FROM "WeeklyPlan" WHERE "userId" = $1 AND status IN (\'active\', \'draft\')', [userId]);
+    let starter: { planId: string; pathId: string; firstTaskId: string; taskCount: number } | null = null;
+
+    await pool.query('UPDATE "StudyPath" SET status = \'archived\', "updatedAt" = now() WHERE "userId" = $1 AND status IN (\'active\', \'draft\')', [userId]);
+    await pool.query('UPDATE "WeeklyPlan" SET status = \'archived\', "updatedAt" = now() WHERE "userId" = $1 AND status IN (\'active\', \'draft\')', [userId]);
+    if (originalGoal.rows[0]) {
+      await pool.query('UPDATE "Goal" SET status = \'exploring\', "updatedAt" = now() WHERE "userId" = $1', [userId]);
+    }
+
+    try {
+      const result = await page.evaluate(async () => {
+        const res = await fetch('/api/starter-week', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ target: '2030 计算机类考研', subject: 'E2E 首周探索', weeklyHours: 12 }),
+        });
+        return { status: res.status, body: await res.json() };
+      });
+      expect(result.status).toBe(201);
+      expect(result.body.starterWeek.taskCount).toBeGreaterThanOrEqual(1);
+      expect(result.body.starterWeek.taskCount).toBeLessThanOrEqual(3);
+      const createdStarter = result.body.starterWeek as { planId: string; pathId: string; firstTaskId: string; taskCount: number };
+      starter = createdStarter;
+
+      const created = await pool.query(
+        `SELECT wp.status AS "planStatus", wp."generatedBy", sp.title AS "pathTitle", sps.status AS "stageStatus",
+                COUNT(t.id)::int AS "taskCount"
+         FROM "WeeklyPlan" wp
+         JOIN "StudyPath" sp ON sp.id = wp."studyPathId"
+         JOIN "StudyPathStage" sps ON sps.id = wp."stageId"
+         LEFT JOIN "Task" t ON t."weeklyPlanId" = wp.id
+         WHERE wp.id = $1
+         GROUP BY wp.status, wp."generatedBy", sp.title, sps.status`,
+        [createdStarter.planId],
+      );
+      expect(created.rows[0]).toMatchObject({
+        planStatus: 'active',
+        generatedBy: 'manual',
+        pathTitle: '首周探索：E2E 首周探索',
+        stageStatus: 'active',
+        taskCount: createdStarter.taskCount,
+      });
+
+      const repeat = await page.evaluate(async () => {
+        const res = await fetch('/api/starter-week', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ target: '2030 计算机类考研', subject: 'E2E 首周探索', weeklyHours: 12 }),
+        });
+        return { status: res.status, body: await res.json() };
+      });
+      expect(repeat.status).toBe(409);
+      expect(repeat.body.error).toMatch(/已有正在推进的学习路线/);
+    } finally {
+      if (starter) {
+        await pool.query('DELETE FROM "Task" WHERE "weeklyPlanId" = $1', [starter.planId]);
+        await pool.query('DELETE FROM "WeeklyPlan" WHERE id = $1', [starter.planId]);
+        await pool.query('DELETE FROM "StudyPath" WHERE id = $1', [starter.pathId]);
+      }
+      const goal = originalGoal.rows[0];
+      if (goal) {
+        await pool.query(
+          `UPDATE "Goal" SET type = $2, status = $3, direction = $4, university = $5, major = $6, "examDate" = $7,
+           "examYear" = $8, certainty = $9, subjects = $10, "targetScores" = $11, progress = $12, "studyLoad" = $13,
+           "subjectsEdited" = $14, "updatedAt" = now() WHERE "userId" = $1`,
+          [userId, goal.type, goal.status, goal.direction, goal.university, goal.major, goal.examDate, goal.examYear, goal.certainty,
+            goal.subjects, goal.targetScores, goal.progress, goal.studyLoad, goal.subjectsEdited],
+        );
+      } else {
+        await pool.query('DELETE FROM "Goal" WHERE "userId" = $1', [userId]);
+      }
+      for (const route of routes.rows) {
+        await pool.query('UPDATE "StudyPath" SET status = $1, "updatedAt" = now() WHERE id = $2', [route.status, route.id]);
+      }
+      for (const weekPlan of weekPlans.rows) {
+        await pool.query('UPDATE "WeeklyPlan" SET status = $1, "updatedAt" = now() WHERE id = $2', [weekPlan.status, weekPlan.id]);
+      }
+      await pool.end();
+    }
+  });
 });

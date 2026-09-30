@@ -81,7 +81,11 @@ function loadDashboardPrimary(userId: string, context: DashboardDateContext) {
     }), []),
     recoverDashboardQueryWithStatus("考研目标", prisma.goal.findUnique({ where: { userId } }), null),
     recoverDashboardQuery("本周计划", prisma.weeklyPlan.findMany({
-      where: { userId, weekStart: new Date(weekStartStr), status: { in: ["draft", "active"] } },
+      // 常规计划按自然周读取；首周探索允许用户从任意一天开始，因此额外读取覆盖今天的活动探索周。
+      where: { userId, status: { in: ["draft", "active"] }, OR: [
+        { weekStart: new Date(weekStartStr) },
+        { studyPath: { title: { startsWith: "首周探索：" } }, weekStart: { lte: today }, weekEnd: { gte: today } },
+      ] },
       orderBy: { version: "desc" },
       select: { id: true, status: true, objective: true, plannedMinutes: true, weekStart: true },
     }), []),
@@ -133,7 +137,7 @@ async function DashboardHero({ primary, context, userId }: { primary: Promise<Da
     status: projectedWeeklyPlan.status as "draft" | "active",
     objective: projectedWeeklyPlan.objective,
     plannedMinutes: projectedWeeklyPlan.plannedMinutes,
-    weekStart: weekStartStr,
+    weekStart: toDateString(projectedWeeklyPlan.weekStart),
     hasDraft: Boolean(draftWeeklyPlan),
     milestoneId: focusMilestone?.id ?? null,
     milestoneTitle: focusMilestone?.title ?? null,
@@ -149,13 +153,14 @@ async function DashboardHero({ primary, context, userId }: { primary: Promise<Da
     dateLabel={`今天 · ${todayStr} 星期${weekDayNames[today.getDay()]}`}
     goalLabel={goal ? getGoalLabel(goal) : null}
     stageLabel={goal ? stage.label : "从今天开始建立学习节奏"}
-    stageHint={goal ? stageHint : "先确定一个方向，AI 再帮你把它切成阶段和行动。"}
+    stageHint={goal ? stageHint : "先用三个信息开始首周探索：方向、当前最需要补的一科、每周可投入时间。正式路线会等真实学习记录出现后再一起设计。"}
     daysLeft={goal ? getDaysToGoal(goal, today) : null}
     weeklyPlan={weeklyPlan}
     today={{ completed: todayCompleted, total: todayTasks.length, nextTask: nextTodayTask ? { id: nextTodayTask.id, title: nextTodayTask.title, courseLessonId: nextTodayTask.courseLessonId } : null, minutes: todayMinutes, unavailable: todayTaskQuery.degraded }}
     dueWrongCount={dueWrongQuery.value}
     dueUnderstandingCount={dueUnderstandingQuery.value}
     reviewsUnavailable={dueWrongQuery.degraded || dueUnderstandingQuery.degraded}
+    starterEligible={!goal && !todayTaskQuery.degraded && !projectedWeeklyPlan && todayTasks.length === 0}
   />
 }
 
@@ -393,7 +398,7 @@ async function DashboardDetails({ primary, context, userId, forceTour, suppressO
         status: projectedWeeklyPlan.status as "draft" | "active",
         objective: projectedWeeklyPlan.objective,
         plannedMinutes: projectedWeeklyPlan.plannedMinutes,
-        weekStart: planningWeekStartStr,
+        weekStart: toDateString(projectedWeeklyPlan.weekStart),
         hasDraft: Boolean(draftWeeklyPlan),
         milestoneId: focusMilestone?.id ?? null,
         milestoneTitle: focusMilestone?.title ?? null,

@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useAiWorkspace } from '@/components/ai-workspace-context'
+import { StarterWeekLauncher } from '@/components/workbench/starter-week-launcher'
 
 interface TodayCommandCenterProps {
   dateLabel: string
@@ -23,6 +24,7 @@ interface TodayCommandCenterProps {
   dueWrongCount: number
   dueUnderstandingCount: number
   reviewsUnavailable?: boolean
+  starterEligible?: boolean
 }
 
 const planStatusCopy = {
@@ -46,6 +48,7 @@ export function TodayCommandCenter({
   dueWrongCount,
   dueUnderstandingCount,
   reviewsUnavailable = false,
+  starterEligible = false,
 }: TodayCommandCenterProps) {
   const aiWorkspace = useAiWorkspace()
   const todayUnavailable = today.unavailable === true
@@ -65,12 +68,12 @@ export function TodayCommandCenter({
     ? reviewAction!.description
     : isFinished
     ? '今天的计划已经完成'
-    : today.nextTask?.title || (hasTasks ? '打开今天的任务，选择下一项开始' : '先为今天安排一个可完成的学习动作')
+    : today.nextTask?.title || (starterEligible ? '先说明最需要补的一科，开始一个最小学习样本' : hasTasks ? '打开今天的任务，选择下一项开始' : '先为今天安排一个可完成的学习动作')
   const taskHref = today.nextTask?.courseLessonId
     ? `/courses?lesson=${today.nextTask.courseLessonId}&task=${today.nextTask.id}&week=${weeklyPlan.weekStart}`
     : today.nextTask ? `/tasks?week=${weeklyPlan.weekStart}&task=${today.nextTask.id}` : weeklyPlan.status === 'none' ? '/tasks' : `/tasks?week=${weeklyPlan.weekStart}`
   const primaryHref = shouldPrioritizeReview ? reviewAction!.href : taskHref
-  const primaryLabel = todayUnavailable ? '重新加载今日任务' : shouldPrioritizeReview ? '开始复习' : isFinished ? '查看完成情况' : hasTasks ? '开始这一项' : weeklyPlan.status === 'none' ? '安排今天' : '查看本周计划'
+  const primaryLabel = todayUnavailable ? '重新加载今日任务' : shouldPrioritizeReview ? '开始复习' : isFinished ? '查看完成情况' : hasTasks ? '开始这一项' : starterEligible ? '开始首周探索' : weeklyPlan.status === 'none' ? '安排今天' : '查看本周计划'
   const weeklyHours = weeklyPlan.plannedMinutes > 0 ? `${Math.round(weeklyPlan.plannedMinutes / 60)} 小时` : '待安排'
 
   return (
@@ -103,18 +106,20 @@ export function TodayCommandCenter({
                 <button type="button" onClick={() => window.location.reload()} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-brand px-4 text-sm font-medium text-white transition-transform hover:bg-brand/90 active:scale-[0.98] max-sm:w-full sm:min-h-10">
                   {primaryLabel}
                 </button>
+              ) : starterEligible && !shouldPrioritizeReview ? (
+                <StarterWeekLauncher label={primaryLabel} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-brand px-4 text-sm font-medium text-white transition-transform hover:bg-brand/90 active:scale-[0.98] max-sm:w-full sm:min-h-10" />
               ) : (
                 <Link href={primaryHref} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-brand px-4 text-sm font-medium text-white transition-transform hover:bg-brand/90 active:scale-[0.98] max-sm:w-full sm:min-h-10">
                   {primaryLabel}
                 </Link>
               )}
-              <button
+              {!starterEligible && <button
                 type="button"
                 onClick={() => aiWorkspace.requestHelp(`我正在执行今天的学习计划。下一步是「${nextAction}」。请结合我的阶段和本周目标，告诉我应如何开始；先给最小可执行的一步。`)}
                 className="inline-flex min-h-11 items-center rounded-xl border border-border bg-background px-4 text-sm font-medium text-muted-foreground transition-colors hover:border-brand/30 hover:bg-brand-muted/40 hover:text-brand sm:min-h-10"
               >
                 让 AI 帮我开始
-              </button>
+              </button>}
               {dueWrongCount > 0 && reviewAction?.kind !== 'wrong' && (
                 <Link href="/wrong-questions?tab=due" className="inline-flex min-h-10 items-center rounded-xl px-3 text-sm text-amber-700 transition-colors hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/30">
                   {dueWrongCount} 道错题待复习
@@ -129,7 +134,7 @@ export function TodayCommandCenter({
           </div>
 
           <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground">
-            <span>{todayUnavailable ? '任务状态待重新加载' : `今日计划 ${today.minutes ? `${today.minutes} 分钟` : '未估时'}`}</span>
+            <span>{todayUnavailable ? '任务状态待重新加载' : starterEligible ? '约 3 分钟完成首周设置' : `今日计划 ${today.minutes ? `${today.minutes} 分钟` : '未估时'}`}</span>
             <span className="hidden h-3 w-px bg-border sm:block" />
             <Link href="/pomodoro" className="transition-colors hover:text-brand">进入专注模式</Link>
             <Link href="/checkin" className="transition-colors hover:text-brand">记录今天的状态</Link>
@@ -138,8 +143,8 @@ export function TodayCommandCenter({
 
         <aside className="border-t border-border/60 bg-muted/25 px-5 py-5 lg:border-l lg:border-t-0 lg:px-6 lg:py-7">
           <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">这周的方向</p>
-          <p className="mt-3 text-base font-medium leading-6">{weeklyPlan.objective || '把学习节奏先稳定下来'}</p>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">{planStatusCopy[weeklyPlan.status]} · {weeklyHours}</p>
+          <p className="mt-3 text-base font-medium leading-6">{weeklyPlan.objective || (starterEligible ? '先用一周的小样本确认从哪里开始' : '把学习节奏先稳定下来')}</p>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">{starterEligible ? '不生成长期路线，也不要求你一次说清所有情况' : `${planStatusCopy[weeklyPlan.status]} · ${weeklyHours}`}</p>
           {weeklyPlan.hasDraft && weeklyPlan.status === 'active' && (
             <Link href={`/tasks?week=${weeklyPlan.weekStart}`} className="mt-2 inline-flex text-xs font-medium text-amber-700 hover:underline dark:text-amber-300">
               另有调整草稿待你对比确认 →
@@ -147,7 +152,7 @@ export function TodayCommandCenter({
           )}
           {weeklyPlan.milestoneTitle && <p className="mt-3 text-xs font-medium text-brand">正在推进：{weeklyPlan.milestoneTitle}</p>}
           {weeklyPlan.milestoneReviewReady && <Link href={weeklyPlan.milestoneId ? `/study-path?review=${weeklyPlan.milestoneId}` : "/study-path"} className="mt-2 inline-flex text-xs font-medium text-success hover:underline">已积累足够证据，可以复盘确认 →</Link>}
-          <Link href={`/tasks?week=${weeklyPlan.weekStart}`} className="mt-5 inline-flex text-sm font-medium text-brand hover:underline">查看周计划 →</Link>
+          {!starterEligible && <Link href={`/tasks?week=${weeklyPlan.weekStart}`} className="mt-5 inline-flex text-sm font-medium text-brand hover:underline">查看周计划 →</Link>}
 
           <div className="mt-8 space-y-3 border-t border-border/60 pt-5">
             <div className="flex items-center justify-between text-xs"><span className="text-muted-foreground">今日完成度</span><span className="font-medium tabular-nums">{todayUnavailable ? '待加载' : `${today.total ? Math.round(today.completed / today.total * 100) : 0}%`}</span></div>

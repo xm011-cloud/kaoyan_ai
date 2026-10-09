@@ -126,22 +126,37 @@ export default function WrongQuestionsPage() {
   }, [requestedQuestionId]);
 
   // ── Handlers ──
-  const handleReviewed = (id: string, rating: number) => {
-    if (rating < 0) {
+  const handleReviewed = async (id: string, result: { rating: number; reflection: string; reflectionKind: "error" | "method" }) => {
+    if (result.rating < 0) {
       setReviewing(null);
       return;
     }
-    updateMut.mutate(
-      {
-        id,
-        reviewed: true,
-        rating,
-        reviewEventId: crypto.randomUUID(),
-        taskId: requestedTaskId,
-        milestoneId: requestedMilestoneId,
-      },
-      { onSuccess: () => setReviewing(null) }
-    );
+    // 到期队列应当像一次连续复盘，而不是每评完一题就把用户丢回列表。
+    // 下一题取自当前快照；mutation 成功后列表会自行失效并刷新。
+    const currentIndex = questions.findIndex((question) => question.id === id);
+    const nextQuestion = tab === "due"
+      ? questions.slice(currentIndex + 1).find(isDue) ?? null
+      : null;
+    if (result.reflection) {
+      const response = await fetch("/api/study-notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wrongQuestionId: id, kind: result.reflectionKind, content: result.reflection }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "复盘记录保存失败");
+    }
+
+    await updateMut.mutateAsync({
+      id,
+      reviewed: true,
+      rating: result.rating,
+      reviewEventId: crypto.randomUUID(),
+      taskId: requestedTaskId,
+      milestoneId: requestedMilestoneId,
+    });
+    if (result.reflection) toast.success("复习与复盘记录已保存");
+    setReviewing(nextQuestion);
   };
 
   const handleDelete = async (id: string) => {
@@ -241,7 +256,7 @@ export default function WrongQuestionsPage() {
         )}
 
         {/* Tab 按钮区（始终显示） */}
-        <div className="flex overflow-x-auto rounded-xl border border-border/50 bg-muted/60 p-1">
+          <div className="flex overflow-x-auto rounded-xl border border-border/50 bg-muted/60 p-1">
           {[
             ["all", "全部"],
             ["due", "今日到期"],
@@ -266,6 +281,25 @@ export default function WrongQuestionsPage() {
             </button>
           ))}
         </div>
+
+        {tab === "due" && !isLoading && (
+          <section className="rounded-2xl border border-amber-200/80 bg-amber-50/70 p-4 dark:border-amber-900/60 dark:bg-amber-950/20">
+            {questions.length > 0 ? (
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-medium text-amber-950 dark:text-amber-100">今天有 {questions.length} 道错题需要巩固</p>
+                  <p className="mt-1 text-sm text-amber-900/75 dark:text-amber-100/75">先回忆，再看答案并评分；评分只用来安排下次复习，不代表你已经掌握。</p>
+                </div>
+                <Button className="min-h-11 shrink-0" onClick={() => setReviewing(questions[0])}>开始今日复习</Button>
+              </div>
+            ) : (
+              <div>
+                <p className="font-medium text-amber-950 dark:text-amber-100">今天没有到期错题</p>
+                <p className="mt-1 text-sm text-amber-900/75 dark:text-amber-100/75">完成练习时把不会的题收录进来，下一次复习会自动出现在这里。</p>
+              </div>
+            )}
+          </section>
+        )}
 
         {/* 错题筛选（真题 Tab 不显示） */}
         {tab !== "exam" && (
@@ -344,8 +378,8 @@ export default function WrongQuestionsPage() {
                   <div className="flex flex-col gap-1 shrink-0">
                     <button
                       onClick={(e) => { e.stopPropagation(); setReviewing(q); }}
-                      className="flex h-11 w-11 items-center justify-center rounded-lg text-brand hover:bg-brand/10 hover:text-brand/80" title="复习" aria-label="复习"
-                    >📖</button>
+                      className="flex min-h-11 items-center justify-center rounded-lg px-3 text-sm font-medium text-brand hover:bg-brand/10 hover:text-brand/80" title="复习这道题" aria-label="复习这道题"
+                    >复习</button>
                   </div>
                 </div>
               </div>
@@ -385,7 +419,6 @@ export default function WrongQuestionsPage() {
       {reviewing && (
         <ReviewModal
           question={reviewing}
-          unreviewedList={tab === "due" ? questions.filter(isDue) : questions.filter((q) => !q.reviewed)}
           onClose={() => setReviewing(null)}
           onReviewed={handleReviewed}
         />

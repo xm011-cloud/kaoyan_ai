@@ -124,6 +124,15 @@ test.describe("Tasks", () => {
         "href",
         `/practice?task=${task.id}&subject=${encodeURIComponent("数学一")}`
       );
+      await expect(focusedEntry.getByRole("link", { name: "复习错题" })).toHaveAttribute(
+        "href",
+        `/wrong-questions?tab=due&subject=${encodeURIComponent("数学一")}&task=${task.id}`,
+      );
+      await focusedEntry.getByRole("button", { name: "记录理解" }).click();
+      await expect(page.getByLabel("任务理解记录")).toBeFocused();
+      await page.getByLabel("任务理解记录").fill("先确认题目条件，再选择对应方法。");
+      await page.getByRole("button", { name: "保存理解" }).click();
+      await expect(page.getByText("已保存到我的理解与方法")).toBeVisible();
       await focusedEntry.getByRole("link", { name: "开始练习" }).click();
       await expect(page.getByText(`正在为「${title}」练习`)).toBeVisible({ timeout: 30_000 });
       await expect(page.getByRole("link", { name: "返回这项任务 →" })).toHaveAttribute(
@@ -162,6 +171,46 @@ test.describe("Tasks", () => {
       await expect(source).toHaveAttribute("href", `/tasks?week=${week}&task=${task.id}`, { timeout: 30_000 });
     } finally {
       await page.request.delete(`/api/tasks/${task.id}`);
+    }
+  });
+
+  test("任务可以关联已有课时，并把开始入口切换到课程学习", async ({ page }) => {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const localDate = (dt: Date) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() + (today.getDay() === 0 ? -6 : 1 - today.getDay()));
+    const week = localDate(weekStart);
+    const suffix = Date.now();
+    const createdCourse = await page.request.post("/api/courses", {
+      data: { title: `E2E 任务绑定课程 ${suffix}`, subject: "数学一", firstLessonTitle: "函数基础" },
+    });
+    expect(createdCourse.status()).toBe(201);
+    const course = (await createdCourse.json()).course;
+    const lessonId = course.units[0].lessons[0].id as string;
+    const createdTask = await page.request.post("/api/tasks", {
+      data: { title: `E2E 关联课时任务 ${suffix}`, date: localDate(today), weekStartDate: week, subject: "数学一" },
+    });
+    expect(createdTask.status()).toBe(200);
+    const task = (await createdTask.json()).task;
+
+    try {
+      await page.goto(`/tasks?week=${week}&task=${task.id}`);
+      const row = page.locator(`#task-${task.id}`);
+      // 任务卡含多个直达学习链接；点击标题才是稳定的“编辑任务”入口。
+      await row.getByText(task.title, { exact: true }).click();
+      const lessonSelect = page.getByLabel("为任务关联学习课时");
+      await expect(lessonSelect).toBeVisible({ timeout: 30_000 });
+      await lessonSelect.selectOption(lessonId);
+      await page.getByRole("button", { name: "保存", exact: true }).click();
+      await expect(row.getByRole("link", { name: "进入课程 →" })).toHaveAttribute(
+        "href",
+        `/courses?lesson=${lessonId}&task=${task.id}&week=${week}`,
+      );
+    } finally {
+      await page.request.delete(`/api/tasks/${task.id}`);
+      await page.request.delete(`/api/courses/${course.id}`);
     }
   });
 

@@ -54,11 +54,24 @@ export async function POST(request: NextRequest) {
     const description = readText(body.description, 1000) || null;
     const firstLessonTitle = readText(body.firstLessonTitle, 120);
     const requestedType = readText(body.sourceType, 20) || "manual";
-    const sourceType = SOURCE_TYPES.has(requestedType) ? requestedType : "manual";
-    const sourceUrl = normalizeExternalUrl(body.sourceUrl);
+    const materialId = readText(body.materialId, 120) || null;
+    const material = materialId
+      ? await prisma.material.findFirst({
+          where: { id: materialId, userId: user!.id },
+          select: { id: true, name: true },
+        })
+      : null;
+    if (materialId && !material) return jsonNoStore({ error: "关联资料不存在" }, { status: 400 });
+
+    // 资料关联优先于调用方传来的类型，避免把其他用户的附件或一个无效 URL
+    // 伪装成当前用户可学习的课时。
+    const sourceType = material ? "material" : SOURCE_TYPES.has(requestedType) ? requestedType : "manual";
+    // 附件是唯一学习来源时不读取额外链接，避免一个无关的旧输入阻断“资料放进课程”。
+    const sourceUrl = material ? null : normalizeExternalUrl(body.sourceUrl);
+    const resolvedLessonTitle = firstLessonTitle || material?.name || "";
 
     if (!title) return jsonNoStore({ error: "请填写课程名称" }, { status: 400 });
-    if (body.sourceUrl && !sourceUrl) return jsonNoStore({ error: "课程链接格式不正确" }, { status: 400 });
+    if (!material && body.sourceUrl && !sourceUrl) return jsonNoStore({ error: "课程链接格式不正确" }, { status: 400 });
 
     const course = await prisma.course.create({
       data: {
@@ -67,18 +80,19 @@ export async function POST(request: NextRequest) {
         subject,
         description,
         sourceType,
-        sourceUrl,
-        ...(firstLessonTitle && {
+        sourceUrl: material ? null : sourceUrl,
+        ...(resolvedLessonTitle && {
           units: {
             create: {
               title: "开始学习",
               order: 1,
               lessons: {
                 create: {
-                  title: firstLessonTitle,
+                  title: resolvedLessonTitle,
                   order: 1,
                   sourceType,
-                  sourceUrl,
+                  sourceUrl: material ? null : sourceUrl,
+                  materialId: material?.id,
                 },
               },
             },

@@ -93,6 +93,7 @@ interface WeeklyPlannerProps {
   onRegenerateDay: (dateStr: string) => void;
   onToggleComplete: (task: WeekTask) => void;
   onEditTask: (task: WeekTask) => void;
+  onRecordTaskReflection: (task: WeekTask) => void;
   onQuickAdjustTask: (task: WeekTask, adjustment: { date?: string; duration?: number }) => void;
   onDeleteTask: (id: string) => void;
   onAddTask: (dateStr: string) => void;
@@ -125,7 +126,7 @@ function formatDate(d: Date): string {
 export function WeeklyPlanner({
   weekStart, weekTasks, draftPlan, planVersions, generating, sprintMode,
   onWeekChange, onGenerate, onRegenerateDay, onToggleComplete,
-  onEditTask, onQuickAdjustTask, onDeleteTask, onAddTask, onJudge, onRegenerateWithFeedback,
+  onEditTask, onRecordTaskReflection, onQuickAdjustTask, onDeleteTask, onAddTask, onJudge, onRegenerateWithFeedback,
   judgeResult, judging,
   generatingPhase, generatingEstimate, onCancelGenerate,
   judgingPhase, judgingEstimate, onCancelJudge,
@@ -181,6 +182,8 @@ export function WeeklyPlanner({
     : focusedTask
       ? `/practice?task=${encodeURIComponent(focusedTask.id)}${focusedTask.milestoneId ? `&milestone=${encodeURIComponent(focusedTask.milestoneId)}` : ""}${focusedTask.subject ? `&subject=${encodeURIComponent(focusedTask.subject)}` : ""}`
       : null;
+  const wrongQuestionHref = (task: WeekTask) => `/wrong-questions?tab=due${task.subject ? `&subject=${encodeURIComponent(task.subject)}` : ""}&task=${encodeURIComponent(task.id)}${task.milestoneId ? `&milestone=${encodeURIComponent(task.milestoneId)}` : ""}`;
+  const practiceHref = (task: WeekTask) => `/practice?task=${encodeURIComponent(task.id)}${task.milestoneId ? `&milestone=${encodeURIComponent(task.milestoneId)}` : ""}${task.subject ? `&subject=${encodeURIComponent(task.subject)}` : ""}`;
 
   return (
     <div className="space-y-4">
@@ -209,9 +212,28 @@ export function WeeklyPlanner({
             <p className="mt-1 text-xs text-muted-foreground">{focusedTask.completed ? "这项任务已完成；你可以回看记录或继续本周计划。" : `${focusedTask.subject || "未分类"}${focusedTask.duration ? ` · 约 ${focusedTask.duration} 分钟` : ""}`}</p>
           </div>
           {!focusedTask.completed && focusedTaskHref && (
-            <Link href={focusedTaskHref} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-brand px-4 text-sm font-medium text-white transition-colors hover:bg-brand/90">
-              {focusedTask.courseLessonId ? "进入课程学习" : "开始练习"}
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              {focusedTask.courseLessonId ? (
+                <Link href={focusedTaskHref} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-brand px-4 text-sm font-medium text-white transition-colors hover:bg-brand/90">
+                  进入课程学习
+                </Link>
+              ) : (
+                <>
+                  <Link href={focusedTaskHref} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-brand px-4 text-sm font-medium text-white transition-colors hover:bg-brand/90">
+                    开始练习
+                  </Link>
+                  <Link href={wrongQuestionHref(focusedTask)} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-brand/25 bg-card px-3 text-sm font-medium text-brand transition-colors hover:bg-brand/5">
+                    复习错题
+                  </Link>
+                  <button type="button" onClick={() => onRecordTaskReflection(focusedTask)} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl px-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-brand/5 hover:text-brand">
+                    记录理解
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+          {focusedTask && !focusedTask.completed && !focusedTask.courseLessonId && (
+            <p className="w-full text-xs leading-5 text-muted-foreground">这项任务还没绑定课程。现在可以用练习验证、复习相关错题，或留下自己的方法；不需要先完成全部入口。</p>
           )}
         </section>
       )}
@@ -520,9 +542,10 @@ export function WeeklyPlanner({
                               {task.courseLessonId ? (
                                 <Link href={`/courses?lesson=${task.courseLessonId}&task=${task.id}&week=${toLocalDateString(weekStart)}`} onClick={(event) => event.stopPropagation()} className="font-medium text-brand hover:underline">进入课程 →</Link>
                               ) : (
-                                <Link href={`/practice?task=${task.id}${task.milestoneId ? `&milestone=${task.milestoneId}` : ""}${task.subject ? `&subject=${encodeURIComponent(task.subject)}` : ""}`} onClick={(event) => event.stopPropagation()} className="font-medium text-brand hover:underline">开始练习 →</Link>
+                                <Link href={practiceHref(task)} onClick={(event) => event.stopPropagation()} className="font-medium text-brand hover:underline">开始练习 →</Link>
                               )}
-                              <Link href={`/wrong-questions?tab=due${task.subject ? `&subject=${encodeURIComponent(task.subject)}` : ""}&task=${task.id}${task.milestoneId ? `&milestone=${task.milestoneId}` : ""}`} onClick={(event) => event.stopPropagation()} className="font-medium text-muted-foreground hover:text-brand hover:underline">复习错题 →</Link>
+                              <Link href={wrongQuestionHref(task)} onClick={(event) => event.stopPropagation()} className="font-medium text-muted-foreground hover:text-brand hover:underline">复习错题 →</Link>
+                              <button type="button" onClick={(event) => { event.stopPropagation(); onRecordTaskReflection(task); }} className="font-medium text-muted-foreground hover:text-brand hover:underline">记录理解 →</button>
                             </div>
                           )}
                         </div>

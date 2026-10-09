@@ -3,6 +3,17 @@ import { createServer } from "node:http";
 import { expect, test } from "@playwright/test";
 import { createTestDbPool } from "./test-db";
 
+function chinaStudyDate(): string {
+  const parts = new Intl.DateTimeFormat("en", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
+  return `${value("year")}-${value("month")}-${value("day")}`;
+}
+
 test.describe("AI 工作区入口", () => {
   test("桌面端旧 /chat 链接会打开工作台中的 AI 协作区", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -67,7 +78,7 @@ test("AI 任务草稿不会写入其他用户传入的对话", async ({ page }) 
                 function: {
                   name: "propose_tasks",
                   arguments: JSON.stringify({
-                    items: [{ title: "安全回归任务", date: "2026-10-01", duration: 30, subject: "数学" }],
+                    items: [{ title: "安全回归任务", date: chinaStudyDate(), duration: 30, subject: "数学" }],
                     note: "仅用于验证对话归属",
                   }),
                 },

@@ -25,28 +25,31 @@ const RATINGS = [
 
 interface ReviewModalProps {
   question: Question;
-  unreviewedList: Question[];
   onClose: () => void;
-  onReviewed: (id: string, rating: number) => void;
+  onReviewed: (id: string, result: { rating: number; reflection: string; reflectionKind: "error" | "method" }) => Promise<void>;
 }
 
-export function ReviewModal({ question, unreviewedList, onClose, onReviewed }: ReviewModalProps) {
+export function ReviewModal({ question, onClose, onReviewed }: ReviewModalProps) {
   const [showAnswer, setShowAnswer] = useState(false);
+  const [reflection, setReflection] = useState("");
+  const [reflectionKind, setReflectionKind] = useState<"error" | "method">("error");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
-  const handleRate = (rating: number) => {
-    onReviewed(question.id, rating);
+  const handleRate = async (rating: number) => {
+    setSubmitting(true);
+    setSubmitError("");
+    try {
+      await onReviewed(question.id, { rating, reflection: reflection.trim(), reflectionKind });
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "复习记录保存失败，请重试。");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleSkip = () => {
-    const idx = unreviewedList.findIndex((q) => q.id === question.id);
-    const next = unreviewedList.slice(idx + 1)[0];
-    if (next) {
-      onReviewed(question.id, -1); // skip signal
-      onClose();
-      // Caller should reopen with next
-    } else {
-      onClose();
-    }
+    onClose();
   };
 
   return (
@@ -67,17 +70,19 @@ export function ReviewModal({ question, unreviewedList, onClose, onReviewed }: R
               {RATINGS.map((r) => (
                 <button
                   key={r.value}
-                  onClick={() => handleRate(r.value)}
-                  className={`min-h-11 rounded-lg px-1 py-2 text-xs font-medium text-white transition-colors ${r.color}`}
+                  onClick={() => void handleRate(r.value)}
+                  disabled={submitting}
+                  className={`min-h-11 rounded-lg px-1 py-2 text-xs font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${r.color}`}
                 >
                   {r.label}
                 </button>
               ))}
             </div>
             <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <Button className="min-h-11 w-full sm:w-auto" variant="outline" size="sm" onClick={handleSkip}>再看看</Button>
-              <span className="text-center text-xs text-muted-foreground">0=完全忘了 · 3=还可以 · 5=很熟练</span>
+              <Button className="min-h-11 w-full sm:w-auto" variant="outline" size="sm" onClick={handleSkip}>暂不评分</Button>
+              <span className="text-center text-xs text-muted-foreground">评分后会安排下一次复习；到期队列会自动进入下一题</span>
             </div>
+            {submitError && <p className="mt-2 text-center text-xs text-destructive">{submitError}</p>}
           </div>
         ) : undefined
       }
@@ -101,6 +106,33 @@ export function ReviewModal({ question, unreviewedList, onClose, onReviewed }: R
                 {question.answer}
               </div>
             </div>
+          )}
+
+          {showAnswer && (
+            <section className="rounded-xl border border-brand/20 bg-brand/5 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h4 className="text-sm font-medium">留下一句复盘（可选）</h4>
+                  <p className="mt-1 text-xs text-muted-foreground">写下为什么错，或下次遇到这类题先怎么判断。</p>
+                </div>
+                <select
+                  aria-label="复盘记录类型"
+                  value={reflectionKind}
+                  onChange={(event) => setReflectionKind(event.target.value as "error" | "method")}
+                  className="h-10 rounded-lg border border-border/60 bg-background px-2 text-xs"
+                >
+                  <option value="error">易错点</option>
+                  <option value="method">解题思路</option>
+                </select>
+              </div>
+              <textarea
+                value={reflection}
+                onChange={(event) => setReflection(event.target.value)}
+                rows={3}
+                placeholder={reflectionKind === "method" ? "例如：先判断题干给出的条件，再从定义推导……" : "例如：我把……和……混淆了，下次先检查……"}
+                className="mt-3 w-full rounded-lg border border-border/60 bg-background p-2.5 text-sm"
+              />
+            </section>
           )}
 
           {question.tags.length > 0 && (

@@ -59,6 +59,14 @@ interface CurriculumNodeOption {
   outlineLabel: string;
 }
 
+interface CourseLessonOption {
+  id: string;
+  title: string;
+  unitTitle: string;
+  courseTitle: string;
+  subject: string | null;
+}
+
 interface WeeklyPlanDraft {
   id: string;
   version: number;
@@ -196,10 +204,13 @@ export default function TasksPage() {
   const [editSubject, setEditSubject] = useState("");
   const [editPhase, setEditPhase] = useState("");
   const [editDate, setEditDate] = useState("");
+  const [editCourseLessonId, setEditCourseLessonId] = useState("");
   const [saving, setSaving] = useState(false);
   const [taskReflection, setTaskReflection] = useState("");
   const [taskReflectionKind, setTaskReflectionKind] = useState<"error" | "method">("method");
   const [savingTaskReflection, setSavingTaskReflection] = useState(false);
+  const [focusTaskReflection, setFocusTaskReflection] = useState(false);
+  const taskReflectionInputRef = useRef<HTMLTextAreaElement>(null);
   // 任务完成后仍停留在同一学习现场：可选地留下一个易错点或方法，
   // 不强迫用户写复盘，也不把“写了笔记”误作掌握结论。
   const [completedTaskForReflection, setCompletedTaskForReflection] = useState<Task | null>(null);
@@ -210,6 +221,8 @@ export default function TasksPage() {
   const [editCurriculumNodeIds, setEditCurriculumNodeIds] = useState<string[]>([]);
   const [curriculumOutlines, setCurriculumOutlines] = useState<CurriculumOutlineOption[]>([]);
   const [curriculumNodes, setCurriculumNodes] = useState<CurriculumNodeOption[]>([]);
+  const [courseLessonOptions, setCourseLessonOptions] = useState<CourseLessonOption[]>([]);
+  const [loadingCourseLessons, setLoadingCourseLessons] = useState(false);
   const [activeCurriculumOutline, setActiveCurriculumOutline] = useState<CurriculumOutlineOption | null>(null);
   const [loadingCurriculum, setLoadingCurriculum] = useState(false);
 
@@ -687,11 +700,43 @@ export default function TasksPage() {
     setEditSubject(task.subject || "");
     setEditPhase(task.phase || "");
     setEditDate(task.date.split("T")[0]);
+    setEditCourseLessonId(task.courseLessonId || "");
     setTaskReflection("");
     setTaskReflectionKind("method");
     setEditCurriculumNodeIds(task.curriculumNodeIds ?? []);
     void loadCurriculumForTask(null, task.subject, task.curriculumNodeIds ?? []);
+    void loadCourseLessons();
   };
+
+  const loadCourseLessons = async () => {
+    setLoadingCourseLessons(true);
+    try {
+      const response = await fetch("/api/courses/lessons", { cache: "no-store" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "加载课程课时失败");
+      setCourseLessonOptions(Array.isArray(data.lessons) ? data.lessons : []);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "加载课程课时失败");
+    } finally {
+      setLoadingCourseLessons(false);
+    }
+  };
+
+  // 从任务卡直接写下理解时，仍复用同一个任务编辑面板，避免再造一条脱离任务的笔记入口。
+  const openTaskReflection = (task: Task) => {
+    openEdit(task);
+    setFocusTaskReflection(true);
+  };
+
+  useEffect(() => {
+    if (!editTask || !focusTaskReflection) return;
+    const timer = window.setTimeout(() => {
+      taskReflectionInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      taskReflectionInputRef.current?.focus();
+      setFocusTaskReflection(false);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [editTask, focusTaskReflection]);
 
   const saveTaskReflection = async () => {
     if (!editTask || !taskReflection.trim()) return;
@@ -779,6 +824,7 @@ export default function TasksPage() {
           title: editTitle, description: editDesc || null,
           duration: editDuration ? parseInt(editDuration) : null,
           subject: editSubject || null, phase: editPhase || null, date: editDate,
+          courseLessonId: editCourseLessonId || null,
           curriculumNodeIds: editCurriculumNodeIds,
         }),
       });
@@ -1046,7 +1092,7 @@ export default function TasksPage() {
             planVersions={weeklyPlanVersions} generating={generating}
             sprintMode={sprintMode} onWeekChange={handleWeekChange}
             onGenerate={handleGenerate} onRegenerateDay={handleRegenerateDay}
-            onToggleComplete={handleToggleComplete} onEditTask={openEdit} onQuickAdjustTask={handleQuickAdjustTask}
+            onToggleComplete={handleToggleComplete} onEditTask={openEdit} onRecordTaskReflection={openTaskReflection} onQuickAdjustTask={handleQuickAdjustTask}
             milestoneEvidence={milestoneEvidence}
             curriculumNodeLabels={Object.fromEntries(curriculumNodes.map((node) => [node.id, `${node.outlineLabel} · ${node.title}`]))}
             onDeleteTask={handleDeleteTask} onAddTask={handleAddTask}
@@ -1114,6 +1160,30 @@ export default function TasksPage() {
                       className="w-full h-10 rounded-xl border border-border/50 bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20" />
                   </div>
                 </div>
+                <div className="border-t border-border/60 pt-4">
+                  <label htmlFor="task-edit-course-lesson" className="block text-sm font-medium">关联学习课时（可选）</label>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">关联后，计划中的“开始这一项”会直接进入该课时；不关联时仍可选择练习、错题复习或记录理解。</p>
+                  {loadingCourseLessons ? (
+                    <p className="mt-2 text-xs text-muted-foreground">正在加载你的课程课时…</p>
+                  ) : courseLessonOptions.length > 0 ? (
+                    <select
+                      id="task-edit-course-lesson"
+                      aria-label="为任务关联学习课时"
+                      value={editCourseLessonId}
+                      onChange={(event) => setEditCourseLessonId(event.target.value)}
+                      className="mt-3 h-11 w-full rounded-xl border border-border/60 bg-background px-3 text-sm"
+                    >
+                      <option value="">暂不关联课程，保留多种开始方式</option>
+                      {courseLessonOptions.map((lesson) => (
+                        <option key={lesson.id} value={lesson.id}>
+                          {lesson.subject ? `${lesson.subject} · ` : ""}{lesson.courseTitle} / {lesson.unitTitle} / {lesson.title}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <p className="mt-2 text-xs text-muted-foreground">还没有可关联的课时。先到课程学习添加课程或附件，再回来绑定任务。</p>
+                  )}
+                </div>
                 <details className="border-t border-border/60 pt-4">
                   <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-brand">关联课程知识点（可选）</summary>
                   <div className="mt-3 space-y-2">
@@ -1159,6 +1229,8 @@ export default function TasksPage() {
                     </select>
                   </div>
                   <textarea
+                    ref={taskReflectionInputRef}
+                    aria-label="任务理解记录"
                     value={taskReflection}
                     onChange={(event) => setTaskReflection(event.target.value)}
                     rows={3}

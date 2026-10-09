@@ -23,6 +23,7 @@ interface FetchParams {
   source?: string;
   tag?: string;
   search?: string;
+  dueToday?: boolean;
   page?: number;
   limit?: number;
 }
@@ -37,6 +38,7 @@ async function fetchList(params: FetchParams): Promise<{
   if (params.source) sp.set("source", params.source);
   if (params.tag) sp.set("tag", params.tag);
   if (params.search) sp.set("search", params.search);
+  if (params.dueToday) sp.set("dueToday", "true");
   sp.set("page", String(params.page || 1));
   sp.set("limit", String(params.limit || 20));
 

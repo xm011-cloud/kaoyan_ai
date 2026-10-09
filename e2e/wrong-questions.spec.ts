@@ -83,6 +83,36 @@ test.describe("Wrong Questions", () => {
     }
   });
 
+  test("今日到期只展示需要复习的队列", async ({ page }) => {
+    const subject = `E2E 到期队列 ${Date.now()}`;
+    const dueTitle = `${subject} - 今天到期`;
+    const futureTitle = `${subject} - 明天复习`;
+    const createdIds: string[] = [];
+
+    try {
+      for (const [question, nextReviewDate] of [
+        [dueTitle, `${chinaStudyDate()}T00:00:00.000Z`],
+        [futureTitle, `${chinaStudyDate(1)}T00:00:00.000Z`],
+      ]) {
+        const created = await page.request.post("/api/wrong-questions", {
+          data: { subject, question, answer: "用于验证页面到期队列。", source: "manual" },
+        });
+        expect(created.status()).toBe(200);
+        const id = (await created.json()).question.id as string;
+        createdIds.push(id);
+        const scheduled = await page.request.patch(`/api/wrong-questions/${id}`, { data: { nextReviewDate } });
+        expect(scheduled.status()).toBe(200);
+      }
+
+      await page.goto(`/wrong-questions?tab=due&subject=${encodeURIComponent(subject)}`);
+      await expect(page.getByText(dueTitle)).toBeVisible({ timeout: 10000 });
+      await expect(page.getByText(futureTitle)).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "开始今日复习" })).toBeVisible();
+    } finally {
+      await Promise.all(createdIds.map((id) => page.request.delete(`/api/wrong-questions/${id}`)));
+    }
+  });
+
   test("batch import modal opens", async ({ page }) => {
     const batchBtn = page.getByRole("button", { name: /批量|导入/ });
     if (await batchBtn.isVisible({ timeout: 5000 }).catch(() => false)) {

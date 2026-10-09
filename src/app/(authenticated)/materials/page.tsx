@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import Link from 'next/link'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
 import { Modal } from '@/components/ui/modal'
@@ -8,6 +9,7 @@ import { confirmDialog } from '@/stores/confirm-store'
 import { cn } from '@/lib/utils'
 import { useStudyContext } from '@/components/study-context'
 import { getMaterialReadiness } from '@/lib/material-readiness'
+import { toast } from '@/stores/toast-store'
 
 interface Material {
   id: string
@@ -26,6 +28,7 @@ export default function MaterialsPage() {
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
+  const [loadError, setLoadError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // 查看器状态
@@ -35,10 +38,11 @@ export default function MaterialsPage() {
   const loadMaterials = useCallback(async () => {
     try {
       const res = await fetch('/api/materials')
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || '学习资料加载失败')
       setMaterials(data.materials || [])
-    } catch {
-      // 加载失败
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : '学习资料加载失败，请稍后重试')
     } finally {
       setLoading(false)
     }
@@ -99,12 +103,11 @@ export default function MaterialsPage() {
     setViewLoading(true)
     try {
       const res = await fetch(`/api/materials/${material.id}`)
-      const data = await res.json()
-      if (data.material) {
-        setViewing(data.material)
-      }
-    } catch {
-      // 忽略
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || '资料内容加载失败')
+      if (data.material) setViewing(data.material)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '资料内容加载失败')
     } finally {
       setViewLoading(false)
     }
@@ -121,12 +124,13 @@ export default function MaterialsPage() {
 
     try {
       const res = await fetch(`/api/materials?id=${id}`, { method: 'DELETE' })
-      if (res.ok) {
-        setMaterials(prev => prev.filter(m => m.id !== id))
-        if (viewing?.id === id) setViewing(null)
-      }
-    } catch {
-      // 忽略
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || '删除资料失败')
+      setMaterials(prev => prev.filter(m => m.id !== id))
+      if (viewing?.id === id) setViewing(null)
+      toast.success('已删除资料')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '删除资料失败')
     }
   }
 
@@ -149,38 +153,48 @@ export default function MaterialsPage() {
   }
 
   const aiReadiness = (material: Material) => material.aiReady ?? getMaterialReadiness(material.content) === 'ready'
+  const hasOriginalFile = (material: Material) => Boolean(material.url) && !material.url.startsWith('local:')
 
   return (
     <div className="workspace-page">
       <div className="mx-auto max-w-4xl space-y-7">
         <PageHeader
-          title="学习资料"
-          subtitle="上传资料后可以在线查看；只有可提取的文字资料才会成为 AI 回答依据。"
+          title="学习资料与附件"
+          subtitle="课程链接请放进课程学习；这里保存讲义、题单和附件。资料是否可被 AI 引用会明确标注，不影响你自己查看和记录。"
           action={
-            // 文件框直接铺满按钮（absolute + opacity-0）——点击落点在 <input type=file> 本体，
-            // 走原生用户手势打开选择器，不依赖程序化 .click() 或 label→input 转发，
-            // iOS PWA standalone 下最稳（display:none + 程序化 click 会被 WebKit 屏蔽）。
-            <label
-              className={cn(
-                buttonVariants({ variant: 'default' }),
-                'relative cursor-pointer overflow-hidden',
-                uploading && 'pointer-events-none opacity-50'
-              )}
-            >
-              {uploading ? '上传中...' : '上传资料'}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp,.txt"
-                onChange={handleUpload}
-                aria-label="上传资料"
-                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-              />
-            </label>
+            <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:flex-nowrap">
+              <Link href="/courses?create=1" className={cn(buttonVariants({ variant: 'outline' }), 'min-h-11 flex-1 sm:flex-none')}>
+                添加课程链接
+              </Link>
+              {/* 透明 input 覆盖真实点击区域，保证移动端/PWA 也由原生手势打开选择器。 */}
+              <label
+                className={cn(
+                  buttonVariants({ variant: 'default' }),
+                  'relative min-h-11 flex-1 cursor-pointer overflow-hidden sm:flex-none',
+                  uploading && 'pointer-events-none opacity-50'
+                )}
+              >
+                {uploading ? '上传中...' : '上传附件'}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp,.txt"
+                  onChange={handleUpload}
+                  aria-label="上传资料"
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                />
+              </label>
+            </div>
           }
         />
 
         {uploadError && <p className="text-sm text-destructive">{uploadError}</p>}
+        {loadError && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            <span>{loadError}</span>
+            <Button variant="outline" size="sm" onClick={() => { setLoadError(''); setLoading(true); void loadMaterials() }}>重新加载</Button>
+          </div>
+        )}
 
         {/* Material list */}
         <section className="space-y-3">
@@ -189,8 +203,15 @@ export default function MaterialsPage() {
           ) : materials.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <div className="text-4xl mb-3">📚</div>
-              <p>还没有上传资料</p>
-              <p className="text-sm">可以上传 PDF、Word、图片等资料查看；只有可提取文字的资料才会供 AI 检索和引用。</p>
+              <p className="font-medium text-foreground">先放进你正在使用的学习资源</p>
+              <p className="mt-1 text-sm">课程链接进入“课程学习”；讲义、题单和图片可以作为附件上传。上传并不等于 AI 一定能读取，但你仍可把它作为学习凭据和笔记来源。</p>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                <Link href="/courses?create=1" className={buttonVariants({ variant: 'outline' })}>添加课程链接</Link>
+                <label className={cn(buttonVariants({ variant: 'default' }), 'relative cursor-pointer overflow-hidden')}>
+                  上传附件
+                  <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp,.txt" onChange={handleUpload} aria-label="上传资料" className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+                </label>
+              </div>
             </div>
           ) : (
             materials.map((material) => (
@@ -204,18 +225,28 @@ export default function MaterialsPage() {
                   <p className="text-sm text-muted-foreground">
                     {formatSize(material.size)} · {formatDate(material.createdAt)}
                     {aiReadiness(material)
-                      ? <span className="ml-2 text-success">· AI 可检索</span>
-                      : <span className="ml-2 text-warning">· AI 暂不可检索</span>}
+                      ? <span className="ml-2 text-success">· AI 可引用</span>
+                      : <span className="ml-2 text-warning">· 仅作学习附件</span>}
                   </p>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleView(material)}
-                  className="shrink-0"
-                >
-                  查看
-                </Button>
+                <div className="flex shrink-0 items-center gap-1">
+                  {hasOriginalFile(material) && (
+                    <a href={`/api/materials/${material.id}/file`} target="_blank" rel="noopener noreferrer" className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'min-h-10')}>
+                      打开附件
+                    </a>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleView(material)}
+                    className="min-h-10"
+                  >
+                    {aiReadiness(material) ? '查看摘录' : '查看说明'}
+                  </Button>
+                  <Link href={`/courses?create=1&material=${encodeURIComponent(material.id)}`} className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'min-h-10')}>
+                    放进课程
+                  </Link>
+                </div>
                 <button
                   onClick={() => handleDelete(material.id, material.name)}
                   className="text-muted-foreground hover:text-destructive text-sm shrink-0 px-1"
@@ -243,17 +274,17 @@ export default function MaterialsPage() {
               <Button variant="outline" size="sm" onClick={() => setViewing(null)}>
                 关闭
               </Button>
+              {hasOriginalFile(viewing) && <a href={`/api/materials/${viewing.id}/file`} target="_blank" rel="noopener noreferrer" className={buttonVariants({ size: 'sm' })}>打开附件</a>}
               <Button
                 size="sm"
                 onClick={() => {
-                  // 复制全部内容
                   if (viewing.content) {
-                    navigator.clipboard.writeText(viewing.content)
+                    void navigator.clipboard.writeText(viewing.content).then(() => toast.success('已复制文字摘录')).catch(() => toast.error('复制失败，请手动选择内容'))
                   }
                 }}
                 disabled={!viewing.content}
               >
-                📋 复制内容
+                复制摘录
               </Button>
             </>
           }
@@ -269,13 +300,14 @@ export default function MaterialsPage() {
               ) : (
                 <div className="text-center py-12 text-muted-foreground">
                   <div className="text-4xl mb-3">{typeIcon(viewing.type)}</div>
-                  <p>当前无法提取可检索文字</p>
+                  <p>这份附件暂不能提取为可检索文字</p>
                   <p className="text-sm mt-1">
                     {viewing.type === 'pdf' && '可能是扫描件或图片型 PDF；请上传可复制文字版，或补充文本摘录。'}
                     {viewing.type?.startsWith('word') && '请导出为可复制的 .txt 文本后上传。'}
                     {viewing.type?.startsWith('image') && '图片暂不能提取文字；请补充文本内容。'}
                     {viewing.type === 'other' && '当前格式暂不能提取文字；请补充文本内容。'}
                   </p>
+                  <p className="mt-3 text-xs">它仍然可以作为学习附件保留；你可以从课程学习中记录本次学到的内容、易错点或解题思路。</p>
                 </div>
               )}
         </Modal>

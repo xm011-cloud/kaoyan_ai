@@ -222,6 +222,17 @@ test.describe("Goal", () => {
     ]));
     expect(analysisResult.body.analysis.questions.length).toBeGreaterThan(0);
 
+    // 规划卡只会在目标已保存后出现；该用例必须自带前置状态，不能依赖
+    // 同一 spec 中较早的“保存目标”用例恰好先执行。
+    const savedGoal = await page.evaluate(async () => {
+      const res = await fetch("/api/goal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ direction: "计算机类考研", subjects: ["数学一"] }),
+      });
+      return res.status;
+    });
+    expect(savedGoal).toBe(200);
     await page.reload();
     await expect(page.locator("#planning-statement")).toBeVisible({ timeout: 10000 });
     await page.locator("#planning-statement").fill(statement);

@@ -56,7 +56,9 @@ export function PlanningIntakeCard() {
         const facts = Array.isArray(data.facts) ? data.facts : [];
         setSavedFacts(facts);
         setReadiness(data.readiness ?? null);
-        setStatement(statementFromFacts(facts));
+        // 异步载入档案不能覆盖用户已经开始输入的原话；否则首屏加载稍慢时，
+        // 输入框会在用户点击“先看看系统怎么理解”前被重置为空。
+        setStatement((current) => current || statementFromFacts(facts));
       })
       .catch(() => undefined);
     return () => {

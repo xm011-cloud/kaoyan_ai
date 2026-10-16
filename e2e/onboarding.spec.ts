@@ -16,6 +16,9 @@ test("new user sees onboarding modal and card after registration", async ({ page
 
   // 登录
   await page.goto("/login");
+  // authenticated 项目复用的共享账号会保存“已读引导”偏好；此用例验证的是
+  // 全新浏览器中的新账号体验，因此在登录前显式清除这项客户端偏好。
+  await page.evaluate(() => localStorage.removeItem("ui-store"));
   await page.fill('input[type="email"]', email);
   await page.fill('input[type="password"]', password);
   await page.getByRole("button", { name: "登录" }).click();

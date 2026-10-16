@@ -1,5 +1,5 @@
 import { test as setup, type Browser } from "@playwright/test";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 function loadEnvLocal() {
@@ -35,6 +35,22 @@ function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * 共享认证账号在每次 E2E 启动前都会被清空学习数据，因此产品会正确地把它
+ * 识别为新用户。业务回归不应被首次引导遮挡；专门的 onboarding.spec.ts
+ * 使用新注册账号验证该流程。这里把“已读”写入 storageState，确保两类用例
+ * 各自验证自己的边界。
+ */
+async function initializeE2EClientPreferences(page: import("@playwright/test").Page, nextMonday: string) {
+  await page.evaluate((nextMondayValue) => {
+    localStorage.setItem("weeklyPlanPrompted", nextMondayValue);
+    localStorage.setItem("ui-store", JSON.stringify({
+      state: { onboardingSeen: true },
+      version: 10,
+    }));
+  }, nextMonday);
+}
+
 /** 状态文件里的 Supabase cookie 含 expires_at；过期 token 不能只靠本地 API 探针复用。 */
 function hasFreshAuthSession(authStatePath: string) {
   try {
@@ -53,6 +69,24 @@ function hasFreshAuthSession(authStatePath: string) {
   } catch {
     return false;
   }
+}
+
+/**
+ * access token 的 expires_at 只代表当前令牌有效期，session 内仍有可续期的
+ * refresh token。若把浏览器 Cookie 的过期时间也设成 expires_at，长时间 E2E
+ * 回归会在后半程把整个会话直接删除，服务端失去刷新令牌而统一返回 401。
+ *
+ * Playwright 的 session Cookie 在同一次浏览器上下文中保持有效；这里把认证
+ * Cookie 规范化为 session Cookie，让中间件/Supabase 客户端可以正常续期。
+ */
+async function persistAuthState(context: import("@playwright/test").BrowserContext, authStatePath: string) {
+  const state = await context.storageState();
+  state.cookies = state.cookies.map((cookie) => (
+    typeof cookie.name === "string" && cookie.name.startsWith("sb-") && cookie.name.endsWith("-auth-token")
+      ? { ...cookie, expires: -1 }
+      : cookie
+  ));
+  writeFileSync(authStatePath, JSON.stringify(state, null, 2));
 }
 
 /**
@@ -79,9 +113,6 @@ async function createAuthStateByPasswordGrant(
 
   const session = await response.json() as { expires_at?: unknown };
   const projectRef = new URL(projectUrl).hostname.split(".")[0];
-  const expires = typeof session.expires_at === "number"
-    ? session.expires_at
-    : Math.floor(Date.now() / 1000) + 3_600;
   const context = await browser.newContext();
   try {
     await context.addCookies([{
@@ -89,7 +120,6 @@ async function createAuthStateByPasswordGrant(
       value: `base64-${Buffer.from(JSON.stringify(session)).toString("base64")}`,
       domain: "localhost",
       path: "/",
-      expires,
       httpOnly: false,
       secure: false,
       sameSite: "Lax",
@@ -98,10 +128,10 @@ async function createAuthStateByPasswordGrant(
     // 登录页在已有会话时会重定向到需要大量数据请求的工作台；这里仅需写入
     // 同源的测试偏好，因此走公开且轻量的页面，避免认证 setup 被首页加载拖住。
     await page.goto(`${origin}/support`, { waitUntil: "domcontentloaded", timeout: 10_000 });
-    await page.evaluate((nextMonday) => localStorage.setItem("weeklyPlanPrompted", nextMonday), nextMondayLocal());
+    await initializeE2EClientPreferences(page, nextMondayLocal());
     const probe = await page.request.get(`${origin}/api/goal`, { timeout: 15_000 });
     if (!probe.ok()) throw new Error(`E2E 本地会话探针失败（HTTP ${probe.status()}）`);
-    await context.storageState({ path: authStatePath });
+    await persistAuthState(context, authStatePath);
   } finally {
     await context.close();
   }
@@ -131,6 +161,11 @@ setup("创建可信认证态", async ({ browser, baseURL }) => {
       const probePage = await existingContext.newPage();
       const probe = await probePage.request.get(`${origin}/api/goal`, { timeout: 15_000 });
       if (probe.ok()) {
+        // 旧 storageState 可能在引入该偏好前生成；复用时也必须补齐，
+        // 否则清库后的共享账号会被首次引导遮挡。
+        await probePage.goto(`${origin}/support`, { waitUntil: "domcontentloaded", timeout: 10_000 });
+        await initializeE2EClientPreferences(probePage, nextMondayLocal());
+        await persistAuthState(existingContext, authStatePath);
         console.log("✅ Reused verified E2E auth state");
         return;
       }
@@ -165,8 +200,8 @@ setup("创建可信认证态", async ({ browser, baseURL }) => {
 
       // 触发隔离测试库的本地用户落库；失败仍由后续真实 API 暴露，而不会写出伪造会话。
       await page.request.get(`${origin}/api/goal`).catch(() => undefined);
-      await page.evaluate((nextMonday) => localStorage.setItem("weeklyPlanPrompted", nextMonday), nextMondayLocal()).catch(() => undefined);
-      await context.storageState({ path: authStatePath });
+      await initializeE2EClientPreferences(page, nextMondayLocal()).catch(() => undefined);
+      await persistAuthState(context, authStatePath);
       console.log("✅ Auth state saved to e2e/.auth/user.json");
       return;
     } catch (error) {

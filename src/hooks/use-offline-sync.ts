@@ -36,12 +36,21 @@ export function useOnlineStatus(): boolean {
 export function useOfflineSync(): boolean {
   const online = useOnlineStatus();
   useEffect(() => {
-    if (!online) return;
-    void flushAndNotify();
+    const flushWhenOnline = () => {
+      if (navigator.onLine) void flushAndNotify();
+    };
+
+    // 不能只依赖 online 状态更新后的 effect：用户刚恢复网络就刷新/跳转时，
+    // React 可能尚未执行新的 effect，队列写入会被页面卸载中断。
+    window.addEventListener("online", flushWhenOnline);
+    flushWhenOnline();
     const timer = setInterval(() => {
-      void flushAndNotify();
+      flushWhenOnline();
     }, 30_000);
-    return () => clearInterval(timer);
-  }, [online]);
+    return () => {
+      window.removeEventListener("online", flushWhenOnline);
+      clearInterval(timer);
+    };
+  }, []);
   return online;
 }

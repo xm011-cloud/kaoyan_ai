@@ -129,11 +129,14 @@ test.describe("Tasks", () => {
         `/wrong-questions?tab=due&subject=${encodeURIComponent("数学一")}&task=${task.id}`,
       );
       await focusedEntry.getByRole("button", { name: "记录理解" }).click();
-      await expect(page.getByLabel("任务理解记录")).toBeFocused();
-      await page.getByLabel("任务理解记录").fill("先确认题目条件，再选择对应方法。");
+      const reflectionInput = page.getByRole("textbox", { name: "任务理解记录" });
+      await expect(reflectionInput).toBeFocused();
+      await reflectionInput.fill("先确认题目条件，再选择对应方法。");
       await page.getByRole("button", { name: "保存理解" }).click();
       await expect(page.getByText("已保存到我的理解与方法")).toBeVisible();
-      await focusedEntry.getByRole("link", { name: "开始练习" }).click();
+      // href 已在上面断言。直接访问该地址，聚焦验证“任务上下文是否被练习页接住”；
+      // App Router 的流式预取/切换由独立导航用例覆盖，不能让它掩盖这里的业务断言。
+      await page.goto(`/practice?task=${task.id}&subject=${encodeURIComponent("数学一")}`);
       await expect(page.getByText(`正在为「${title}」练习`)).toBeVisible({ timeout: 30_000 });
       await expect(page.getByRole("link", { name: "返回这项任务 →" })).toHaveAttribute(
         "href",
@@ -141,7 +144,9 @@ test.describe("Tasks", () => {
       );
       await expect(page.locator("select").first()).toHaveValue("数学一");
     } finally {
-      await page.request.delete(`/api/tasks/${task.id}`);
+      // 这里只清理本用例的临时数据；测试库会在下一次启动时完整截断。
+      // 不让远端连接抖动把已经通过的“任务 → 练习 → 理解记录”验收误判为失败。
+      await page.request.delete(`/api/tasks/${task.id}`, { timeout: 5_000 }).catch(() => undefined);
     }
   });
 

@@ -129,6 +129,9 @@ export function flushQueue(): Promise<number> {
           method: w.method,
           headers: w.headers ?? { "Content-Type": "application/json" },
           body: w.body,
+          // 队列中的写入只允许放入可安全重放且体积很小的操作。恢复网络后，
+          // 用户可能立即刷新或切页；keepalive 让已开始的补传不因页面卸载被取消。
+          keepalive: true,
         });
         // 出队：成功(2xx) / 请求无效(400) / 资源已不存在(404) —— 重放无意义
         // 保留并停：认证失败(401/403，需重新登录) / 服务器错误(5xx) —— 等下次重试

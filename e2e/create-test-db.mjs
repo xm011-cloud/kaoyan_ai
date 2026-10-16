@@ -86,9 +86,10 @@ function toNeonPoolerUrl(url) {
  * Neon 偶发在 TLS 握手后立即关闭连接。每次重试均新建一个单连接池，
  * 不复用已终止的 client，也不会掩盖最终错误。
  */
-async function queryWithRetry(connectionString, query, label) {
+async function queryWithRetry(connectionString, query, label, maxAttempts = RETRY_DELAYS.length) {
+  const attempts = Math.min(maxAttempts, RETRY_DELAYS.length);
   let lastError;
-  for (let attempt = 0; attempt < RETRY_DELAYS.length; attempt += 1) {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
     if (attempt > 0) await wait(RETRY_DELAYS[attempt]);
     const pool = new Pool({
       connectionString,
@@ -102,7 +103,7 @@ async function queryWithRetry(connectionString, query, label) {
     } catch (error) {
       lastError = error;
       if (!isTransientConnectionError(error)) throw error;
-      if (attempt < RETRY_DELAYS.length - 1) {
+      if (attempt < attempts - 1) {
         console.warn(`⚠️  ${label} 第 ${attempt + 1} 次连接失败，正在重试`);
       }
     } finally {
@@ -110,6 +111,21 @@ async function queryWithRetry(connectionString, query, label) {
     }
   }
   throw lastError;
+}
+
+/**
+ * E2E 应用优先走 Neon pooler，但本地网络偶发只影响其中一个端点。
+ * 对可安全重放的启动查询，短暂重试 pooler 后切到同一测试库的直连端点；
+ * 既不会把测试数据写入开发库，也避免单次 pooler 抖动拖垮整套回归。
+ */
+async function queryTestDbWithFallback(query, label) {
+  try {
+    return await queryWithRetry(testRuntimeUrl, query, label, 2);
+  } catch (error) {
+    if (!isTransientConnectionError(error) || testRuntimeUrl === testUrl) throw error;
+    console.warn(`⚠️  ${label} pooler 暂不可用，切换直连端点重试`);
+    return queryWithRetry(testUrl, query, `${label}（直连）`);
+  }
 }
 
 // 启用 pgvector(schema 的 knowledgeNode.embedding 使用 vector 类型)
@@ -125,7 +141,7 @@ const testRuntimeUrl = toNeonPoolerUrl(testUrl);
 
 let testDatabaseReady = false;
 try {
-  await queryWithRetry(testRuntimeUrl, "SELECT 1", "连接已有测试库");
+  await queryTestDbWithFallback("SELECT 1", "连接已有测试库");
   testDatabaseReady = true;
   console.log(`ℹ️  测试库 "${testDbName}" 已存在,跳过创建`);
 } catch (err) {
@@ -151,8 +167,7 @@ if (!testDatabaseReady) {
 }
 
 try {
-  await queryWithRetry(
-    testRuntimeUrl,
+  await queryTestDbWithFallback(
     'CREATE EXTENSION IF NOT EXISTS "vector"',
     "启用 pgvector"
   );
@@ -168,8 +183,7 @@ try {
 // 这里只操作派生出的 *_test 库；认证账号本身在 Supabase，不受影响，首个私有 API
 // 会通过 ensureLocalUser 自动重建本地 User 记录。
 try {
-  await queryWithRetry(
-    testRuntimeUrl,
+  await queryTestDbWithFallback(
     `DO $$
       DECLARE record RECORD;
       BEGIN

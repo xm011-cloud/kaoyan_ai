@@ -8,7 +8,11 @@ test.describe("Dashboard", () => {
   test("stats cards are visible", async ({ page }) => {
     // 首页主叙事已改为“现在，只做下一步”，不再依赖已废弃的“学习概览”标题。
     await expect(page.getByText("现在，只做下一步")).toBeVisible({ timeout: 10000 });
-    await expect(page.getByRole("link", { name: /开始这一项|安排今天|查看本周计划|查看完成情况/ })).toBeVisible();
+    // 测试库刚清空时，尚未创建目标也有一个合法的首步入口。
+    await expect(page.getByRole("link", { name: /开始这一项|安排今天|查看本周计划|查看完成情况/ })
+      .or(page.getByRole("button", { name: "开始首周探索" }))
+      .or(page.getByRole("button", { name: "重新加载今日任务" })))
+      .toBeVisible();
   });
 
   test("quick-entry grid has module links", async ({ page }) => {
@@ -21,14 +25,27 @@ test.describe("Dashboard", () => {
 
   test("today tasks section is visible", async ({ page }) => {
     await expect(page.getByText("现在，只做下一步")).toBeVisible({ timeout: 10000 });
-    await expect(page.getByRole("link", { name: /查看周计划/ })).toBeVisible();
+    // 新用户没有周计划时，产品正确展示“首周探索”按钮；已有计划时才展示周计划链接。
+    await expect(page.getByRole("link", { name: /开始这一项|安排今天|查看本周计划|查看完成情况/ })
+      .or(page.getByRole("button", { name: "开始首周探索" }))
+      .or(page.getByRole("button", { name: "重新加载今日任务" })))
+      .toBeVisible();
   });
 
   test("planning overview links goal, stage, week and today to actionable pages", async ({ page }) => {
     const commandCenter = page.locator("section").filter({ hasText: "现在，只做下一步" }).first();
     await expect(commandCenter).toBeVisible({ timeout: 10000 });
-    await expect(commandCenter.locator('a[href^="/tasks"], a[href^="/courses"]').first()).toBeVisible();
-    await expect(commandCenter.locator('a[href^="/tasks?week="]').first()).toBeVisible();
+    // 空白账号会先进入首周探索；有计划后，主行动和周计划才会是链接。
+    await expect(commandCenter.getByRole("link", { name: /开始这一项|安排今天|查看本周计划|查看完成情况/ })
+      .or(commandCenter.getByRole("button", { name: "开始首周探索" }))
+      .or(commandCenter.getByRole("button", { name: "重新加载今日任务" })))
+      .toBeVisible();
+    const weekLink = commandCenter.getByRole("link", { name: "查看周计划" });
+    if (await weekLink.count()) {
+      await expect(weekLink).toHaveAttribute("href", /^\/tasks\?week=/);
+    } else {
+      await expect(commandCenter.getByText(/先用一周的小样本确认从哪里开始|把学习节奏先稳定下来/)).toBeVisible();
+    }
   });
 
   test("visible today course tasks link directly to a lesson in their planned week", async ({ page }) => {

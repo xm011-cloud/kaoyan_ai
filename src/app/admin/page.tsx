@@ -52,8 +52,14 @@ export default async function AdminPage() {
     rating: f.rating,
     content: f.content,
     anonymous: f.anonymous,
+    type: f.type,
+    sourcePath: f.sourcePath,
+    clientContext: f.clientContext,
     status: f.status,
+    authorNote: f.authorNote,
+    releaseVersion: f.releaseVersion,
     createdAt: f.createdAt.toISOString(),
+    updatedAt: f.updatedAt.toISOString(),
     user: { email: f.user.email, name: f.user.name },
   }))
   const supporterItems = supporters.map((s) => ({

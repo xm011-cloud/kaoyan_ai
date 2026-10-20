@@ -552,7 +552,7 @@ export default function SettingsPage() {
         <p className="text-sm text-muted-foreground mb-4">这个应用由作者一人业余开发、完全免费。你的反馈和一杯咖啡都是最好的支持。</p>
         <div className="flex gap-2 flex-wrap">
           <Link href="/suggestions">
-            <Button variant="outline" className="rounded-full h-10 px-5 active:scale-[0.98] transition-all">💬 意见反馈</Button>
+            <Button variant="outline" className="rounded-full h-10 px-5 active:scale-[0.98] transition-all">💬 问题与建议</Button>
           </Link>
           <Link href="/support">
             <Button variant="outline" className="rounded-full h-10 px-5 active:scale-[0.98] transition-all">☕ 支持作者</Button>

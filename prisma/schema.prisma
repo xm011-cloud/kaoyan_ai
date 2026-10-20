@@ -766,18 +766,26 @@ model Supporter {
   @@index([userId])
 }
 
-// 意见反馈 — 用户给作者的评价/建议（需登录）
+// 产品反馈 — 用户报告问题、理解障碍或建议（需登录）。
+// 旧的星级与状态保留兼容；新流程以类型、上下文、分诊状态和处理说明为主。
 model AuthorFeedback {
   id        String   @id @default(uuid())
   userId    String
-  rating    Int // 1-5
+  rating    Int // 旧字段兼容；新反馈未评分时写入中性值 3
   content   String
   anonymous Boolean  @default(false)
-  status    String   @default("new") // "new" | "read" | "resolved"
+  type      String   @default("general") // problem | confusing | idea | praise | other | general
+  sourcePath String?
+  clientContext Json? // 仅保存页面提交时的设备摘要，不保存完整 UA 或敏感信息
+  status    String   @default("new") // new | triaged | planned | released | closed；read/resolved 为旧值
+  authorNote String? @db.Text
+  releaseVersion String?
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([status, createdAt])
+  @@index([type, createdAt])
   @@index([userId])
 }

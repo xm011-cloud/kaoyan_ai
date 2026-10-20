@@ -108,7 +108,7 @@ export default async function Home() {
       </section>
 
       <footer className="border-t py-8 text-center text-sm text-slate-400 dark:border-slate-800">
-        <div className="mb-3 flex justify-center gap-6"><Link href="/about" className="hover:text-blue-500">关于 C6</Link><Link href="/privacy" className="hover:text-blue-500">隐私政策</Link><Link href="/terms" className="hover:text-blue-500">用户协议</Link><Link href="/suggestions" className="hover:text-blue-500">意见反馈</Link></div>
+        <div className="mb-3 flex justify-center gap-6"><Link href="/about" className="hover:text-blue-500">关于 C6</Link><Link href="/privacy" className="hover:text-blue-500">隐私政策</Link><Link href="/terms" className="hover:text-blue-500">用户协议</Link><Link href="/suggestions" className="hover:text-blue-500">问题与建议</Link></div>
         <p>© 2026 C6 · AI 考研学习工作台</p>
       </footer>
     </div>

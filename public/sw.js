@@ -1,6 +1,6 @@
 // Basic Service Worker for offline support + notification click handling
-// v10：离线补传逻辑更新；只缓存公开导航和静态资源，登录后的页面与私有 API 都不能跨账号回放。
-const CACHE_NAME = 'c6-study-v10';
+// v11：离线补传完成后同步刷新学习现场；只缓存公开导航和静态资源，登录后的页面与私有 API 都不能跨账号回放。
+const CACHE_NAME = 'c6-study-v11';
 
 // Assets to cache on install
 const PRECACHE_ASSETS = [

@@ -28,7 +28,7 @@ export default function AdminTabs({
     { id: 'funnel' as const, icon: '📊', label: '激活漏斗' },
     { id: 'closure' as const, icon: '🔗', label: '闭环健康度' },
     { id: 'data-seed' as const, icon: '🏫', label: '数据补全' },
-    { id: 'feedback' as const, icon: '💬', label: '意见反馈' },
+    { id: 'feedback' as const, icon: '💬', label: '反馈收件箱' },
     { id: 'support' as const, icon: '☕', label: '支持留言' },
     { id: 'dispute' as const, icon: '🏫', label: '院校质疑' },
     { id: 'deletion' as const, icon: '🗑️', label: '注销请求' },
@@ -37,12 +37,12 @@ export default function AdminTabs({
 
   return (
     <>
-      <div className="flex gap-1 p-1 rounded-2xl bg-muted">
+      <div className="flex gap-1 overflow-x-auto rounded-2xl bg-muted p-1 pb-2 sm:pb-1">
         {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all active:scale-[0.98] ${
+            className={`shrink-0 flex items-center justify-center gap-1.5 whitespace-nowrap px-3 py-2 rounded-xl text-sm font-medium transition-all active:scale-[0.98] ${
               tab === t.id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
             }`}
           >

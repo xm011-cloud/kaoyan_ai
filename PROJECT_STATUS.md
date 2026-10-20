@@ -1,6 +1,6 @@
 # C6 · AI 考研学习工作台 — 项目状态
 
-> 最后更新: 2026-09-30 | 分支: `dev` | 维护者: Xm
+> 最后更新: 2026-10-20 | 分支: `dev` | 维护者: Xm
 
 ## 项目概述
 
@@ -104,12 +104,12 @@
 - 请作者喝咖啡 ¥9.9，微信/支付宝收款码图，留言 + 感谢墙（**审核后展示**）
 - **API**: `api/support/route.ts`（蜜罐 + 限流 3/min/IP + 强制金额）
 
-#### 💬 意见反馈 (`/suggestions`)
-- 1-5 星 + 意见 + 匿名开关（需登录）；`api/suggestions/route.ts`
+#### 💬 问题与建议 (`/suggestions`)
+- 反馈类型 + 文字描述（需登录），自动携带当前页面与设备摘要；用户可查看分诊进度、作者说明和发布版本；`api/suggestions/route.ts`
 
 #### 🔒 作者后台 (`/admin`)
-- 意见反馈 / 支持留言审核 / 重置密码三 Tab；`ADMIN_EMAIL` env 校验（fail closed）
-- **API**: `api/admin/*`（feedback 状态流转、support 审核/删除、users/reset-link）
+- 产品反馈收件箱 / 支持留言审核 / 重置密码等 Tab；`ADMIN_EMAIL` env 校验（fail closed）
+- **API**: `api/admin/*`（feedback 分诊、作者说明与版本记录、support 审核/删除、users/reset-link）
 - **重置链接**：`generateLink`→`hashed_token` 自建链接，跨浏览器免邮件（PKCE 下 action_link 不可用的替代通道）
 
 #### 📄 认证页
@@ -178,7 +178,7 @@ src/
 | Task | `weekStartDate` + `source` + `@@index([userId, weekStartDate])` | 2026-07-28 |
 | Goal | `progress` (Json) | 2026-07-28 |
 | **Supporter** | 🆕 感谢墙留言：`userId?/name/amount/message/approved/createdAt`（审核制） | 2026-08-10 |
-| **AuthorFeedback** | 🆕 意见反馈：`userId/rating/content/anonymous/status`（new→read→resolved） | 2026-08-10 |
+| **AuthorFeedback** | 🆕 产品反馈：`userId/rating/content/anonymous/type/sourcePath/clientContext/status/authorNote/releaseVersion/updatedAt`（兼容旧 new→read→resolved 状态） | 2026-10-20 |
 | **Goal** | 🆕 `subjectsEdited Boolean @default(false)`（专业→科目联动：手动改过则不再自动覆盖） | 2026-08-13 |
 | **User** | 🆕 `drivingMode String @default("assisted")`（驾驶模式三档：auto/assisted/manual） | 2026-08-13 |
 | **Task** | 🆕 `proposalId String?` + `chatId String?` + `@@index([userId, proposalId])`；`source` 新增取值 `ai_confirmed` | 2026-08-13 |
@@ -191,7 +191,14 @@ src/
 
 ## 近期迭代记录
 
-### 第 37 轮 — 课程、错题与理解记录回路收口（2026-10-20，待部署）
+### 第 38 轮 — 产品反馈收件箱与本地构建可靠性（2026-10-20，待部署）
+- **问题更容易说清**：反馈页改为“页面有问题 / 这里看不懂 / 我有建议”等类型，不强迫评分；提交时保留当前页面与精简设备摘要，便于复现。
+- **用户能看到结果**：用户只能查看自己的最近反馈，并可看到“待分诊 / 待复现 / 已计划 / 已发布”等状态、作者说明和发布版本。
+- **作者能完成闭环**：作者后台反馈 Tab 改为可筛选的收件箱，可记录分诊状态、版本和用户可见说明；管理员 API 沿用 `requireAdmin` fail-closed 边界。
+- **构建不依赖外网字体**：改用中文系统字体栈，避免 Google Fonts 短暂不可达阻断本地生产构建与 E2E 启动。
+- **数据与验证**：`AuthorFeedback` 为追加式兼容迁移；TypeScript、ESLint、生产构建、用户反馈路径与作者权限 E2E 通过，待完整发布门禁和生产部署完成后补充版本号。
+
+### 第 37 轮 — 课程、错题与理解记录回路收口（2026-10-20，已部署）
 - **任务直达课程**：未绑定课程的计划任务可直接创建课程或资料，首个课时会自动关联回原任务；课程来源支持无协议的 `b23.tv` 短链，并提供可复制的外部链接兜底。
 - **错题复盘不断档**：到期复习会带回该错题此前写下的易错点与解题思路；复习评分只安排下一次回顾，不把一次作答误判为掌握。
 - **理解记录可回源**：从理解库筛选任务或错题来源时，可精确返回原任务所属周或原错题，学习记录不再成为孤立卡片。

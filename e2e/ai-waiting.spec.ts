@@ -86,9 +86,9 @@ test("feedback page shows inline wait indicator and can cancel", async ({ page }
   });
 
   await page.goto("/feedback");
-  await expect(page.getByRole("button", { name: "生成本周反馈" })).toBeVisible({ timeout: 20000 });
+  await expect(page.getByRole("button", { name: "生成本周复盘" })).toBeVisible({ timeout: 20000 });
 
-  await page.getByRole("button", { name: "生成本周反馈" }).click();
+  await page.getByRole("button", { name: "生成本周复盘" }).click();
 
   // 行内等待指示：阶段文案可见
   await expect(page.getByText("正在连接 AI")).toBeVisible({ timeout: 5000 });
@@ -96,5 +96,5 @@ test("feedback page shows inline wait indicator and can cancel", async ({ page }
   // 取消：指示消失
   await page.getByRole("button", { name: "取消本次生成" }).click();
   await expect(page.getByText("正在连接 AI")).toHaveCount(0, { timeout: 10000 });
-  await expect(page.getByRole("button", { name: "生成本周反馈" })).toBeEnabled({ timeout: 10000 });
+  await expect(page.getByRole("button", { name: "生成本周复盘" })).toBeEnabled({ timeout: 10000 });
 });

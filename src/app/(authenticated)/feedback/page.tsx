@@ -285,13 +285,13 @@ export default function FeedbackPage() {
     <div className="workspace-page">
       <div className="mx-auto max-w-4xl space-y-7">
         <PageHeader
-          title="学习周报"
-          subtitle="AI 基于你的学习数据生成周报和建议"
+          title="周复盘"
+          subtitle="回看这一周的学习事实，再决定下周怎样调整；这里不是产品问题反馈入口"
           action={
             <div className="flex items-center gap-3">
               {generating && <AiWaiting variant="inline" phase={waitPhase} estimate={waitEstimate} onCancel={waitCancel} />}
               <Button onClick={handleGenerate} disabled={generating}>
-                {generating ? 'AI 分析中...' : '生成本周反馈'}
+                {generating ? 'AI 分析中...' : '生成本周复盘'}
               </Button>
             </div>
           }
@@ -327,7 +327,7 @@ export default function FeedbackPage() {
           ) : feedbacks.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground bg-card rounded-2xl border border-border/50">
               <div className="text-4xl mb-3">📊</div>
-              <p className="font-medium">暂无学习反馈</p>
+              <p className="font-medium">还没有周复盘</p>
               <p className="text-sm mt-1">
                 完成一周的学习后，点击上方按钮让 AI 为你生成专属反馈
               </p>

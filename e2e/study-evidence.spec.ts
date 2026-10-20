@@ -190,7 +190,10 @@ test.describe("Study evidence", () => {
   });
 
   test("复盘结论自动生成下一周草稿，但不会直接改动正式计划", async ({ page }) => {
-    test.setTimeout(120000);
+    // 该用例连续覆盖路线建档、证据归属、三次计划草稿与数据库清理。
+    // 隔离 Neon 测试库冷连接时，120 秒会在业务断言全部完成前截断清理链路；
+    // 延长的是整条 E2E 链路预算，不放宽任何单步行为断言。
+    test.setTimeout(180000);
     const suffix = randomUUID();
     const pool = createTestDbPool();
     const email = process.env.E2E_TEST_USER || "";

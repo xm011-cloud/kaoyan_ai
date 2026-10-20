@@ -328,6 +328,14 @@ export default function TasksPage() {
 
   useEffect(() => { loadWeekTasks(); }, [loadWeekTasks]);
 
+  // 离线补传可能在用户恢复网络后、刷新页面前后才完成。首次读取可能拿到
+  // 旧状态，因此补传完成时重新读取本周任务，避免页面一直展示过期的勾选结果。
+  useEffect(() => {
+    const reloadAfterOfflineFlush = () => { void loadWeekTasks(); };
+    window.addEventListener("c6:offline-queue-flushed", reloadAfterOfflineFlush);
+    return () => window.removeEventListener("c6:offline-queue-flushed", reloadAfterOfflineFlush);
+  }, [loadWeekTasks]);
+
   useEffect(() => {
     const plan = weeklyPlanDraft ?? weeklyPlanVersions.find((item) => item.status === "active");
     const label = plan?.status === "draft" ? "本周计划草稿" : "本周学习计划";

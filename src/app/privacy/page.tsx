@@ -31,7 +31,7 @@ export default function PrivacyPage() {
             <li><b>上传资料</b>：你主动上传的学习资料（PDF/TXT）及其内容，用于资料检索与 AI 问答</li>
             <li><b>AI 配置</b>：你在设置中填写的 AI API Key（仅用于调用你指定的 AI 服务，明文存储于数据库）</li>
             <li><b>院校数据反馈</b>：你在院校情报中的搜索、收藏、认同与质疑记录</li>
-            <li><b>意见反馈</b>：你提交的评分、意见（可选择匿名）</li>
+            <li><b>产品反馈</b>：你提交的问题或建议、来源页面及最小设备摘要，仅供作者排查和回复，不向其他用户公开</li>
           </ul>
         </section>
 
@@ -89,7 +89,7 @@ export default function PrivacyPage() {
 
         <section className="space-y-3">
           <h2 className="text-xl font-bold">八、联系我们</h2>
-          <p className="text-gray-600 dark:text-gray-400 leading-relaxed">对本政策或数据处理有任何疑问，可通过「意见反馈」页面联系作者。</p>
+          <p className="text-gray-600 dark:text-gray-400 leading-relaxed">对本政策或数据处理有任何疑问，可通过「问题与建议」页面联系作者。</p>
         </section>
       </main>
 

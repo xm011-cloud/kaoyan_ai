@@ -184,6 +184,7 @@ export function WeeklyPlanner({
       : null;
   const wrongQuestionHref = (task: WeekTask) => `/wrong-questions?tab=due${task.subject ? `&subject=${encodeURIComponent(task.subject)}` : ""}&task=${encodeURIComponent(task.id)}${task.milestoneId ? `&milestone=${encodeURIComponent(task.milestoneId)}` : ""}`;
   const practiceHref = (task: WeekTask) => `/practice?task=${encodeURIComponent(task.id)}${task.milestoneId ? `&milestone=${encodeURIComponent(task.milestoneId)}` : ""}${task.subject ? `&subject=${encodeURIComponent(task.subject)}` : ""}`;
+  const addCourseHref = (task: WeekTask) => `/courses?create=1&task=${encodeURIComponent(task.id)}&week=${encodeURIComponent(weekKey)}`;
 
   return (
     <div className="space-y-4">
@@ -225,6 +226,9 @@ export function WeeklyPlanner({
                   <Link href={wrongQuestionHref(focusedTask)} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-brand/25 bg-card px-3 text-sm font-medium text-brand transition-colors hover:bg-brand/5">
                     复习错题
                   </Link>
+                  <Link href={addCourseHref(focusedTask)} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl px-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-brand/5 hover:text-brand">
+                    添加课程或资料
+                  </Link>
                   <button type="button" onClick={() => onRecordTaskReflection(focusedTask)} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl px-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-brand/5 hover:text-brand">
                     记录理解
                   </button>
@@ -233,7 +237,7 @@ export function WeeklyPlanner({
             </div>
           )}
           {focusedTask && !focusedTask.completed && !focusedTask.courseLessonId && (
-            <p className="w-full text-xs leading-5 text-muted-foreground">这项任务还没绑定课程。现在可以用练习验证、复习相关错题，或留下自己的方法；不需要先完成全部入口。</p>
+            <p className="w-full text-xs leading-5 text-muted-foreground">这项任务还没绑定课程。你可以先练习、复习错题、记录理解，也可以添加课程或资料；创建首课时后会自动关联回来。</p>
           )}
         </section>
       )}

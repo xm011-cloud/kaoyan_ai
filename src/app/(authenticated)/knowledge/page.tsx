@@ -61,11 +61,11 @@ export default function KnowledgePage() {
   const dueOnly = searchParams.get("dueToday") === "true";
   const taskId = searchParams.get("taskId");
   const wrongQuestionId = searchParams.get("wrongQuestionId");
-  const sourceFilter = taskId
+  const sourceFilter = useMemo(() => taskId
     ? { key: "taskId", value: taskId, label: "这项任务留下的理解" }
     : wrongQuestionId
       ? { key: "wrongQuestionId", value: wrongQuestionId, label: "这道错题留下的理解" }
-      : null;
+      : null, [taskId, wrongQuestionId]);
   const [notes, setNotes] = useState<UnderstandingNote[]>([]);
   const [nodes, setNodes] = useState<KnowledgeNodeOption[]>([]);
   const [outlines, setOutlines] = useState<CurriculumOutlineSummary[]>([]);
@@ -107,7 +107,7 @@ export default function KnowledgePage() {
     } finally {
       setLoading(false);
     }
-  }, [dueOnly, sourceFilter?.key, sourceFilter?.value]);
+  }, [dueOnly, sourceFilter]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 初次请求由异步回调写入远端结果，不会形成同步渲染循环。
@@ -118,6 +118,18 @@ export default function KnowledgePage() {
     () => activeKind === "all" ? notes : notes.filter((note) => note.kind === activeKind),
     [activeKind, notes],
   );
+
+  const sourceBack = useMemo(() => {
+    if (!sourceFilter) return null;
+    const note = notes.find((item) => sourceFilter.key === "taskId"
+      ? item.task?.id === sourceFilter.value
+      : item.wrongQuestion?.id === sourceFilter.value);
+    const exactSource = note ? noteSource(note) : null;
+    if (exactSource) return { ...exactSource, label: sourceFilter.key === "taskId" ? "回到这项任务" : "回到这道错题" };
+    return sourceFilter.key === "taskId"
+      ? { href: `/tasks?task=${encodeURIComponent(sourceFilter.value)}`, label: "回到这项任务" }
+      : { href: `/wrong-questions?question=${encodeURIComponent(sourceFilter.value)}`, label: "回到这道错题" };
+  }, [notes, sourceFilter]);
 
   const setDueOnly = (next: boolean) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -236,7 +248,7 @@ export default function KnowledgePage() {
             <p className="text-sm font-medium">当前只显示{sourceFilter.label}</p>
             <p className="mt-1 text-sm leading-6 text-muted-foreground">你可以确认刚刚的表述是否已经沉淀下来，再回到来源继续学习或复盘。</p>
             <div className="mt-2 flex flex-wrap gap-3">
-              <Link href={sourceFilter.key === "taskId" ? "/tasks" : "/wrong-questions"} className="text-sm font-medium text-brand hover:underline">回到来源 →</Link>
+              {sourceBack && <Link href={sourceBack.href} className="text-sm font-medium text-brand hover:underline">{sourceBack.label} →</Link>}
               <button type="button" onClick={clearSourceFilter} className="text-sm font-medium text-brand hover:underline">查看全部理解记录 →</button>
             </div>
           </section>
@@ -383,7 +395,7 @@ export default function KnowledgePage() {
                       {linkingCurriculumNoteId === note.id && <span className="text-xs text-muted-foreground">保存中…</span>}
                     </div>
                   </details>
-                  {source && <Link href={source.href} className="mt-3 inline-flex text-xs font-medium text-brand hover:underline">{source.label} →</Link>}
+                  {source && <Link href={source.href} className="mt-3 inline-flex text-xs font-medium text-brand hover:underline">来源：{source.label} →</Link>}
                 </article>
               );
             })}

@@ -113,6 +113,90 @@ test.describe("Wrong Questions", () => {
     }
   });
 
+  test("复习错题时会带回此前留下的错因与解题方法", async ({ page }) => {
+    const subject = `E2E 历史复盘 ${Date.now()}`;
+    const reflection = "上次把条件概率和联合概率混淆，下次先写出条件事件。";
+    const created = await page.request.post("/api/wrong-questions", {
+      data: { subject, question: `${subject} 题目`, answer: "E2E 解析", source: "manual" },
+    });
+    expect(created.status()).toBe(200);
+    const question = (await created.json()).question;
+
+    try {
+      const note = await page.request.post("/api/study-notes", {
+        data: { wrongQuestionId: question.id, kind: "error", content: reflection },
+      });
+      expect(note.status()).toBe(201);
+      const scheduled = await page.request.patch(`/api/wrong-questions/${question.id}`, {
+        data: { nextReviewDate: `${chinaStudyDate()}T00:00:00.000Z` },
+      });
+      expect(scheduled.status()).toBe(200);
+
+      await page.goto(`/wrong-questions?tab=due&subject=${encodeURIComponent(subject)}`);
+      await page.getByRole("button", { name: "复习这道题" }).click();
+      await expect(page.getByText("这道题还没有完成过复习")).toBeVisible();
+      await page.getByRole("button", { name: /点击查看答案/ }).click();
+      await expect(page.getByText("你上次留下的复盘")).toBeVisible();
+      await expect(page.getByText(reflection)).toBeVisible();
+    } finally {
+      await page.request.delete(`/api/wrong-questions/${question.id}`);
+    }
+  });
+
+  test("错题留下的理解可精确返回原题", async ({ page }) => {
+    const subject = `E2E 理解来源 ${Date.now()}`;
+    const created = await page.request.post("/api/wrong-questions", {
+      data: { subject, question: `${subject} 题目`, answer: "E2E 解析", source: "manual" },
+    });
+    expect(created.status()).toBe(200);
+    const question = (await created.json()).question;
+
+    try {
+      const note = await page.request.post("/api/study-notes", {
+        data: { wrongQuestionId: question.id, kind: "method", content: "E2E 从错题回到原题" },
+      });
+      expect(note.status()).toBe(201);
+
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(`/knowledge?wrongQuestionId=${question.id}`);
+      const back = page.getByRole("link", { name: "回到这道错题 →" });
+      await expect(back).toHaveAttribute("href", `/wrong-questions?question=${question.id}`, { timeout: 30_000 });
+      await expect(page.getByText("来源：错题 ·")).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+    } finally {
+      await page.request.delete(`/api/wrong-questions/${question.id}`);
+    }
+  });
+
+  test("手机端今日错题可开始复习，主要操作不小于触控尺寸", async ({ page }) => {
+    const subject = `E2E 手机复习 ${Date.now()}`;
+    const created = await page.request.post("/api/wrong-questions", {
+      data: { subject, question: `${subject} 题目`, answer: "E2E 解析", source: "manual" },
+    });
+    expect(created.status()).toBe(200);
+    const question = (await created.json()).question;
+
+    try {
+      await page.request.patch(`/api/wrong-questions/${question.id}`, {
+        data: { nextReviewDate: `${chinaStudyDate()}T00:00:00.000Z` },
+      });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(`/wrong-questions?tab=due&subject=${encodeURIComponent(subject)}`);
+      const start = page.getByRole("button", { name: "开始今日复习" });
+      await expect(start).toBeVisible({ timeout: 30_000 });
+      const startBox = await start.boundingBox();
+      expect(startBox?.height).toBeGreaterThanOrEqual(44);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+      await start.click();
+      const reveal = page.getByRole("button", { name: /点击查看答案/ });
+      await expect(reveal).toBeVisible();
+      const revealBox = await reveal.boundingBox();
+      expect(revealBox?.height).toBeGreaterThanOrEqual(44);
+    } finally {
+      await page.request.delete(`/api/wrong-questions/${question.id}`);
+    }
+  });
+
   test("batch import modal opens", async ({ page }) => {
     const batchBtn = page.getByRole("button", { name: /批量|导入/ });
     if (await batchBtn.isVisible({ timeout: 5000 }).catch(() => false)) {

@@ -32,6 +32,32 @@ async function patchWithTransientRetry(page: Page, url: string, data: unknown): 
 }
 
 test.describe("Courses", () => {
+  test("任务可直接接入省略协议的 B 站短链，并自动关联首个课时", async ({ page }) => {
+    const suffix = Date.now();
+    const taskTitle = `E2E 接入课程任务${suffix}`;
+    const createdTask = await page.request.post("/api/tasks", {
+      data: { title: taskTitle, date: new Date().toISOString().slice(0, 10), source: "manual" },
+    });
+    expect(createdTask.status()).toBe(200);
+    const { task } = await createdTask.json();
+
+    await page.goto(`/courses?create=1&task=${task.id}`);
+    await expect(page.getByText("创建后会把第一节课自动关联到你刚才打开的任务")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(taskTitle)).toBeVisible({ timeout: 30_000 });
+    await page.getByPlaceholder("课程名称，例如：王道计算机网络").fill(`E2E 短链课程${suffix}`);
+    await page.getByPlaceholder("第一节要学习什么（可选）").fill("网络层概述");
+    await page.getByPlaceholder("课程或课时链接（可选，支持 b23.tv 短链）").fill("b23.tv/c6-ui-entry");
+    await page.getByRole("button", { name: "创建课程" }).click();
+
+    await expect(page.getByText("课程入口已创建并关联到原任务")).toBeVisible({ timeout: 30_000 });
+    const taskAfter = await page.request.get(`/api/tasks/${task.id}`);
+    expect(taskAfter.status()).toBe(200);
+    const taskData = await taskAfter.json();
+    expect(taskData.task.courseLessonId).toBeTruthy();
+
+    await page.request.delete(`/api/tasks/${task.id}`);
+  });
+
   test("课程入口支持 B 站短链，并在学习开始前后都能打开", async ({ page }) => {
     const suffix = Date.now();
     const created = await page.request.post("/api/courses", {
@@ -50,13 +76,17 @@ test.describe("Courses", () => {
     expect(course.sourceUrl).toBe(expectedUrl);
     expect(lesson.sourceUrl).toBe(expectedUrl);
 
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`/courses?lesson=${lesson.id}`);
     await expect(page.getByRole("button", { name: course.title })).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole("link", { name: "打开课程入口 ↗" })).toHaveAttribute("href", expectedUrl);
+    await expect(page.getByRole("button", { name: "复制课程链接" })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
     await page.getByRole("button", { name: "开始" }).click();
     // 冷连接下创建学习会话可能超过默认 5 秒；先确认进入学习态再验证来源入口。
     await expect(page.getByText("本次学习会话已开始")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole("link", { name: "打开课程来源 ↗" }).first()).toHaveAttribute("href", expectedUrl, { timeout: 30_000 });
+    await expect(page.getByRole("button", { name: "复制课程链接" })).toBeVisible();
   });
 
   test("数据结构骨架按版本读取，并保留审核来源", async ({ page }) => {

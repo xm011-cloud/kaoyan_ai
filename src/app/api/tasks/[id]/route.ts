@@ -30,6 +30,7 @@ export async function GET(
         title: true,
         description: true,
         subject: true,
+        courseLessonId: true,
         weekStartDate: true,
         milestoneId: true,
         milestone: { select: { title: true } },

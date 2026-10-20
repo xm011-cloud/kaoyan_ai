@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 
@@ -11,8 +11,12 @@ interface Question {
   answer: string;
   tags: string[];
   reviewed: boolean;
+  reviewCount: number;
   interval: number;
+  nextReviewDate?: string | null;
 }
+
+type Reflection = { id: string; content: string; kind: "error" | "method"; createdAt: string };
 
 const RATINGS = [
   { value: 0, label: "完全忘了", color: "bg-red-500 hover:bg-red-600" },
@@ -35,6 +39,21 @@ export function ReviewModal({ question, onClose, onReviewed }: ReviewModalProps)
   const [reflectionKind, setReflectionKind] = useState<"error" | "method">("error");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [history, setHistory] = useState<{ questionId: string; notes: Reflection[] } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/study-notes?wrongQuestionId=${encodeURIComponent(question.id)}`, { cache: "no-store" })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "读取历史复盘失败");
+        if (!cancelled) setHistory({ questionId: question.id, notes: (data.notes || []).slice(0, 3) });
+      })
+      .catch(() => { if (!cancelled) setHistory({ questionId: question.id, notes: [] }); });
+    return () => { cancelled = true; };
+  }, [question.id]);
+
+  const reflections = history?.questionId === question.id ? history.notes : [];
 
   const handleRate = async (rating: number) => {
     setSubmitting(true);
@@ -88,6 +107,10 @@ export function ReviewModal({ question, onClose, onReviewed }: ReviewModalProps)
       }
     >
       <div className="space-y-4">
+          <div className="rounded-xl border border-amber-200/80 bg-amber-50/70 p-3 text-sm dark:border-amber-900/60 dark:bg-amber-950/20">
+            <p className="font-medium text-amber-950 dark:text-amber-100">{question.reviewed ? "这道题按上次复习后的间隔，今天再次出现" : "这道题还没有完成过复习"}</p>
+            <p className="mt-1 text-xs leading-5 text-amber-900/75 dark:text-amber-100/75">先自己回忆，再查看答案并评分。评分只安排下一次复习，不会自动代表你已经掌握。</p>
+          </div>
           <div>
             <h4 className="text-sm font-medium text-muted-foreground mb-2">题目</h4>
             <div className="bg-muted/50 rounded-xl p-4 text-sm leading-relaxed">
@@ -109,6 +132,21 @@ export function ReviewModal({ question, onClose, onReviewed }: ReviewModalProps)
           )}
 
           {showAnswer && (
+            <>
+            {reflections.length > 0 && (
+              <section className="rounded-xl border border-border/60 bg-muted/35 p-3">
+                <h4 className="text-sm font-medium">你上次留下的复盘</h4>
+                <p className="mt-1 text-xs text-muted-foreground">先对照自己的旧思路，再判断这次是否真的能独立做出。</p>
+                <div className="mt-3 space-y-2">
+                  {reflections.map((note) => (
+                    <div key={note.id} className="rounded-lg bg-background px-3 py-2 text-sm">
+                      <span className="text-xs font-medium text-brand">{note.kind === "method" ? "解题思路" : "易错点"}</span>
+                      <p className="mt-1 whitespace-pre-wrap leading-6">{note.content}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
             <section className="rounded-xl border border-brand/20 bg-brand/5 p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
@@ -133,6 +171,7 @@ export function ReviewModal({ question, onClose, onReviewed }: ReviewModalProps)
                 className="mt-3 w-full rounded-lg border border-border/60 bg-background p-2.5 text-sm"
               />
             </section>
+            </>
           )}
 
           {question.tags.length > 0 && (

@@ -26,6 +26,7 @@ type Course = {
   sourceType: string; sourceUrl?: string | null; status: string; updatedAt: string;
   lessonCount?: number; units?: Unit[];
 };
+type TaskContext = { id: string; title: string; subject?: string | null; weekStartDate?: string | null };
 
 const NOTE_TYPES = [
   { value: "note", label: "我的理解" },
@@ -60,6 +61,7 @@ export default function CoursesPage() {
   const [activeSession, setActiveSession] = useState<{ session: Session; lesson: Lesson } | null>(null);
   const [completedTaskId, setCompletedTaskId] = useState<string | null>(null);
   const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
+  const [taskContext, setTaskContext] = useState<TaskContext | null>(null);
   const [notes, setNotes] = useState<Note[]>([]);
   const [noteContent, setNoteContent] = useState("");
   const [noteKind, setNoteKind] = useState("note");
@@ -117,6 +119,19 @@ export default function CoursesPage() {
     openedCreateFromResource.current = true;
     setCreateOpen(true);
   }, [loading, shouldCreateCourse]);
+
+  useEffect(() => {
+    if (!requestedTaskId) return;
+    let cancelled = false;
+    fetch(`/api/tasks/${requestedTaskId}`, { cache: "no-store" })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "读取任务失败");
+        if (!cancelled) setTaskContext(data.task);
+      })
+      .catch(() => { if (!cancelled) setTaskContext(null); });
+    return () => { cancelled = true; };
+  }, [requestedTaskId]);
 
   const allLessons = useMemo(() => selected?.units?.flatMap((unit) => unit.lessons) || [], [selected]);
   const completedLessons = allLessons.filter((lesson) => lesson.status === "completed").length;
@@ -192,6 +207,20 @@ export default function CoursesPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "创建课程失败");
       setCreateOpen(false);
+      const firstLessonId = data.course.units?.[0]?.lessons?.[0]?.id as string | undefined;
+      if (requestedTaskId && firstLessonId) {
+        const attach = await fetch(`/api/tasks/${requestedTaskId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ courseLessonId: firstLessonId }),
+        });
+        const attachData = await attach.json();
+        if (!attach.ok) {
+          setNotice(attachData.error || "课程已创建，但暂时无法关联原任务；可回到任务页手动关联。");
+        } else {
+          setNotice("课程入口已创建并关联到原任务；现在可以开始这节课。");
+        }
+      }
       await loadCourses(data.course.id);
     } catch (err) { setError(err instanceof Error ? err.message : "创建失败"); }
     finally { setSaving(false); }
@@ -244,6 +273,15 @@ export default function CoursesPage() {
       await loadCourse(selected!.id);
     } catch (err) { setError(err instanceof Error ? err.message : "无法开始学习"); }
     finally { setSaving(false); }
+  };
+
+  const copyCourseSource = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setNotice("课程链接已复制；若站外页面没有打开，可粘贴到浏览器或课程 App 中继续学习。");
+    } catch {
+      setError("复制课程链接失败，请长按或右键复制课程入口。");
+    }
   };
 
   const saveNote = async () => {
@@ -344,6 +382,13 @@ export default function CoursesPage() {
           action={courses.length > 0 ? <Button onClick={() => setCreateOpen(true)}>添加课程</Button> : undefined}
         />
         {error && <p className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</p>}
+        {notice && <p role="status" className="rounded-xl border border-success/25 bg-success/5 px-3 py-2 text-sm text-success">{notice}</p>}
+        {taskContext?.id === requestedTaskId && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand/20 bg-brand/5 px-4 py-3 text-sm">
+            <div className="min-w-0"><p className="text-xs font-medium text-brand">你正在推进今天的任务</p><p className="mt-1 truncate font-medium">{taskContext.title}</p></div>
+            <Link href={`/tasks?${requestedWeek ? `week=${encodeURIComponent(requestedWeek)}&` : ""}task=${taskContext.id}`} className="shrink-0 text-sm font-medium text-brand hover:underline">查看任务 →</Link>
+          </div>
+        )}
         {completedTaskId && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-success/25 bg-success/5 px-4 py-3 text-sm">
             <div><p className="font-medium text-success">学习记录已保存为计划证据</p><p className="mt-0.5 text-xs text-muted-foreground">课程完成不等于任务自动完成；确认任务状态后，路线才会得到准确反馈。</p></div>
@@ -377,7 +422,7 @@ export default function CoursesPage() {
             ) : (
               <>
                 <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/50 p-5">
-                  <div><p className="text-xs text-brand">{selected.subject || "课程学习"}</p><h2 className="mt-1 text-xl font-semibold">{selected.title}</h2><p className="mt-1 text-sm text-muted-foreground">{selected.description || "课程进度、笔记和自评会留在这里。"}</p>{selected.sourceUrl && <a href={selected.sourceUrl} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex min-h-10 items-center text-sm font-medium text-brand hover:underline">打开课程入口 ↗</a>}</div>
+                  <div><p className="text-xs text-brand">{selected.subject || "课程学习"}</p><h2 className="mt-1 text-xl font-semibold">{selected.title}</h2><p className="mt-1 text-sm text-muted-foreground">{selected.description || "课程进度、笔记和自评会留在这里。"}</p>{selected.sourceUrl && <div className="mt-3 flex flex-wrap items-center gap-3"><a href={selected.sourceUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center text-sm font-medium text-brand hover:underline">打开课程入口 ↗</a><button type="button" onClick={() => void copyCourseSource(selected.sourceUrl!)} className="inline-flex min-h-10 items-center text-sm font-medium text-muted-foreground hover:text-brand">复制课程链接</button></div>}</div>
                   <div className="text-right"><p className="text-sm font-medium">{completedLessons} / {allLessons.length} 节已完成</p><p className="mt-1 text-xs text-muted-foreground">完成代表学完；掌握仍需练习验证</p></div>
                 </div>
                 <div className="space-y-5 p-5">
@@ -400,10 +445,11 @@ export default function CoursesPage() {
 
       {createOpen && <Modal open onClose={() => setCreateOpen(false)} title="添加一门正在学的课程" footer={<><Button variant="outline" onClick={() => setCreateOpen(false)}>取消</Button><Button type="submit" form="create-course" disabled={saving}>{saving ? "创建中..." : "创建课程"}</Button></>}>
         <form id="create-course" className="space-y-3" onSubmit={(e) => { e.preventDefault(); createCourse(e.currentTarget); }}>
+          {requestedTaskId && <p className="rounded-xl border border-brand/20 bg-brand/5 px-3 py-2 text-xs leading-5 text-brand">创建后会把第一节课自动关联到你刚才打开的任务；可以填课程链接、选择已有附件，或先建立手动学习单元。</p>}
           <input name="title" required defaultValue={requestedMaterialId ? materials.find((material) => material.id === requestedMaterialId)?.name : undefined} placeholder="课程名称，例如：王道计算机网络" className="h-11 w-full rounded-xl border bg-muted/40 px-3 text-sm" />
           <input name="subject" placeholder="科目，例如：408 / 数学一" className="h-11 w-full rounded-xl border bg-muted/40 px-3 text-sm" />
           <input name="firstLessonTitle" defaultValue={requestedMaterialId ? materials.find((material) => material.id === requestedMaterialId)?.name : undefined} placeholder="第一节要学习什么（可选）" className="h-11 w-full rounded-xl border bg-muted/40 px-3 text-sm" />
-          <input name="sourceUrl" type="url" placeholder="课程或课时链接（可选，仅保存入口）" className="h-11 w-full rounded-xl border bg-muted/40 px-3 text-sm" />
+          <input name="sourceUrl" type="text" inputMode="url" placeholder="课程或课时链接（可选，支持 b23.tv 短链）" className="h-11 w-full rounded-xl border bg-muted/40 px-3 text-sm" />
           <select name="materialId" defaultValue={requestedMaterialId || ""} className="h-11 w-full rounded-xl border bg-muted/40 px-3 text-sm">
             <option value="">不关联附件</option>
             {materials.map((material) => <option key={material.id} value={material.id}>{material.name}</option>)}
@@ -418,7 +464,7 @@ export default function CoursesPage() {
           <input name="unitTitle" placeholder="新章节名称（选择已有章节时留空）" className="h-11 w-full rounded-xl border bg-muted/40 px-3 text-sm" />
           <input name="lessonTitle" required placeholder="课时名称，例如：2.1 传输层服务" className="h-11 w-full rounded-xl border bg-muted/40 px-3 text-sm" />
           <div className="grid grid-cols-2 gap-3"><select name="sourceType" className="h-11 rounded-xl border bg-muted/40 px-3 text-sm" defaultValue="manual"><option value="manual">手动学习单元</option><option value="external">外部课程链接</option><option value="material">关联已有资料</option></select><input name="plannedMinutes" type="number" min="1" max="600" placeholder="预计分钟（可选）" className="h-11 rounded-xl border bg-muted/40 px-3 text-sm" /></div>
-          <input name="sourceUrl" type="url" placeholder="外部课时链接（可选）" className="h-11 w-full rounded-xl border bg-muted/40 px-3 text-sm" />
+          <input name="sourceUrl" type="text" inputMode="url" placeholder="外部课时链接（可选，支持 b23.tv 短链）" className="h-11 w-full rounded-xl border bg-muted/40 px-3 text-sm" />
           <select name="materialId" className="h-11 w-full rounded-xl border bg-muted/40 px-3 text-sm" defaultValue=""><option value="">不关联资料</option>{materials.map((material) => <option key={material.id} value={material.id}>{material.name}</option>)}</select>
         </form>
       </Modal>}
@@ -430,7 +476,7 @@ export default function CoursesPage() {
           <section className="workspace-surface min-w-0 p-5 lg:p-7">
             <div className="mb-6 flex items-start justify-between gap-4 border-b border-border/60 pb-5"><div><p className="text-xs font-medium text-brand">正在学习</p><h1 className="mt-1 text-2xl font-semibold tracking-tight">{activeSession.lesson.title}</h1><p className="mt-1 text-sm text-muted-foreground">学习、记录和复盘都留在这个现场。</p></div><Button variant="outline" size="sm" className="min-h-11 shrink-0" onClick={() => setActiveSession(null)}>返回课程</Button></div>
         <div className="space-y-5">
-          <div className="rounded-xl border border-brand/20 bg-brand/5 p-3 text-sm"><p className="font-medium">本次学习会话已开始</p><p className="mt-1 text-muted-foreground">先学习，再留下自己的理解、易错点或解题思路；结束时再判断这节课是否需要练习。</p>{draftRestored && <p className="mt-2 text-xs font-medium text-brand">已恢复上次未提交的本地草稿。</p>}{activeSession.session.taskId && <p className="mt-2 text-xs font-medium text-brand">已关联本周计划任务，结束后会沉淀为路线证据。</p>}{activeSourceUrl && <a href={activeSourceUrl} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex min-h-11 items-center text-sm font-medium text-brand hover:underline">打开课程来源 ↗</a>}{activeMaterialFileAvailable && <a href={`/api/materials/${activeMaterial!.id}/file`} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex min-h-11 items-center text-sm font-medium text-brand hover:underline">打开学习附件 ↗</a>}<Button variant="outline" size="sm" className="mt-3 min-h-11 w-full lg:hidden" onClick={() => aiWorkspace.requestHelp(`我正在学习「${activeSession.lesson.title}」。请先根据当前课时帮我明确这次学习的最小目标。`)}>让 AI 协助本课</Button></div>
+          <div className="rounded-xl border border-brand/20 bg-brand/5 p-3 text-sm"><p className="font-medium">本次学习会话已开始</p><p className="mt-1 text-muted-foreground">先学习，再留下自己的理解、易错点或解题思路；结束时再判断这节课是否需要练习。</p>{draftRestored && <p className="mt-2 text-xs font-medium text-brand">已恢复上次未提交的本地草稿。</p>}{activeSession.session.taskId && <p className="mt-2 text-xs font-medium text-brand">{taskContext ? `正在推进：${taskContext.title}` : "已关联本周计划任务"}；结束后会沉淀为路线证据。</p>}{activeSourceUrl && <div className="mt-3 flex flex-wrap items-center gap-3"><a href={activeSourceUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center text-sm font-medium text-brand hover:underline">打开课程来源 ↗</a><button type="button" onClick={() => void copyCourseSource(activeSourceUrl)} className="inline-flex min-h-11 items-center text-sm font-medium text-muted-foreground hover:text-brand">复制课程链接</button></div>}{activeMaterialFileAvailable && <a href={`/api/materials/${activeMaterial!.id}/file`} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex min-h-11 items-center text-sm font-medium text-brand hover:underline">打开学习附件 ↗</a>}<Button variant="outline" size="sm" className="mt-3 min-h-11 w-full lg:hidden" onClick={() => aiWorkspace.requestHelp(`我正在学习「${activeSession.lesson.title}」。请先根据当前课时帮我明确这次学习的最小目标。`)}>让 AI 协助本课</Button></div>
           <div>
             <div className="mb-2 flex items-center justify-between"><div><h3 className="text-sm font-medium">我的理解与方法</h3><p className="mt-0.5 text-xs text-muted-foreground">记录你怎么理解、容易错什么，以及下次遇到这类题如何切入。</p></div><select value={noteKind} onChange={(e) => setNoteKind(e.target.value)} className="h-11 rounded-lg border bg-background px-2 text-xs">{NOTE_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></div>
             <textarea value={noteContent} onChange={(e) => setNoteContent(e.target.value)} rows={4} placeholder="用自己的话写下理解、易错点，或遇到这类题时的切入思路…" className="w-full rounded-xl border bg-muted/40 p-3 text-sm" />

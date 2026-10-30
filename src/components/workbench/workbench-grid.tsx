@@ -106,8 +106,10 @@ export function WorkbenchGrid({ data, isExploration = false }: { data: Workbench
   const workspaceCards = useUIStore((s) => s.workspaceCards)
   const ordered = (workspaceCards.length > 0 ? workspaceCards : DEFAULT_WORKSPACE_CARDS)
     // 目标 / 阶段 / 本周 / 今日已收拢进 TodayCommandCenter，避免首页重复出现两套计划叙事。
-    .filter((id) => id !== 'planning-overview')
+    .filter((id) => id !== 'planning-overview' && id !== 'stats' && id !== 'today-tasks')
     .filter((id) => CARD_REGISTRY[id] && !(isExploration && EXPLORATION_HIDDEN.has(id)))
+    // 没有可继续课时时不展示空的课程入口；任务现场会在需要时提供“添加课程或资料”。
+    .filter((id) => id !== 'continue-learning' || data.continueLearning.length > 0)
   // 当前固定布局按卡片默认档位（sizes[0]）分列；网格引擎就绪后改为按 {id,size,pos} 排布
   const sizeOf = (id: string): WorkbenchCardSize => CARD_REGISTRY[id]?.sizes[0] ?? 'full'
   const fullCards = ordered.filter((id) => sizeOf(id) === 'full')
@@ -117,6 +119,10 @@ export function WorkbenchGrid({ data, isExploration = false }: { data: Workbench
     const entry = CARD_REGISTRY[cardId]
     return entry ? <div key={cardId}>{entry.render(data)}</div> : null
   }
+
+  // 首页主线已经由 TodayCommandCenter 承担。没有可继续的课时、也无需温柔重入时，
+  // 不渲染空网格，避免在主行动后留下没有意义的留白。
+  if (!data.reentry.show && ordered.length === 0) return null
 
   return (
     <div className="space-y-4">

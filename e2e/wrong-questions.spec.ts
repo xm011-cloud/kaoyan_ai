@@ -143,6 +143,38 @@ test.describe("Wrong Questions", () => {
     }
   });
 
+  test("复盘用可理解的结果语言安排下一次复习，而不暴露算法评分", async ({ page }) => {
+    const subject = `E2E 复盘语言 ${Date.now()}`;
+    const created = await page.request.post("/api/wrong-questions", {
+      data: { subject, question: `${subject} 题目`, answer: "E2E 解析", source: "manual" },
+    });
+    expect(created.status()).toBe(200);
+    const question = (await created.json()).question;
+
+    try {
+      await page.request.patch(`/api/wrong-questions/${question.id}`, {
+        data: { nextReviewDate: `${chinaStudyDate()}T00:00:00.000Z` },
+      });
+      await page.goto(`/wrong-questions?tab=due&subject=${encodeURIComponent(subject)}`);
+      await page.getByRole("button", { name: "复习这道题" }).click();
+      await page.getByRole("button", { name: /点击查看答案/ }).click();
+
+      await expect(page.getByText("这次回忆的结果是？")).toBeVisible();
+      await expect(page.getByRole("button", { name: /仍不会/ })).toBeVisible();
+      await expect(page.getByRole("button", { name: /有点模糊/ })).toBeVisible();
+      await expect(page.getByRole("button", { name: /这次能独立做出/ })).toBeVisible();
+      await expect(page.getByText("很熟练", { exact: true })).toHaveCount(0);
+
+      await page.getByRole("button", { name: /仍不会/ }).click();
+      await expect.poll(async () => {
+        const response = await page.request.get(`/api/wrong-questions/${question.id}`);
+        return (await response.json()).question.interval;
+      }).toBe(1);
+    } finally {
+      await page.request.delete(`/api/wrong-questions/${question.id}`);
+    }
+  });
+
   test("错题留下的理解可精确返回原题", async ({ page }) => {
     const subject = `E2E 理解来源 ${Date.now()}`;
     const created = await page.request.post("/api/wrong-questions", {

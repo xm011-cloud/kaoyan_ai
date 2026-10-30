@@ -6,7 +6,7 @@ test.describe("Materials", () => {
   });
 
   test("page loads correctly", async ({ page }) => {
-    await expect(page.locator("h1").filter({ hasText: /资料/ })).toBeVisible({ timeout: 10000 });
+    await expect(page.locator("h1").filter({ hasText: /学习资源/ })).toBeVisible({ timeout: 10000 });
   });
 
   test("empty state or file list is shown", async ({ page }) => {
@@ -18,7 +18,7 @@ test.describe("Materials", () => {
 
   test("upload area is accessible", async ({ page }) => {
     // 上传触发为 <label> 内铺满按钮的透明 file input（PWA standalone 下也走原生手势），不再以 button role 定位
-    const uploadLabel = page.getByText("上传资料").first();
+    const uploadLabel = page.getByText(/上传(资料|附件)/).first();
     const fileInput = page.locator('input[type="file"]');
     const hasUpload = (await uploadLabel.isVisible({ timeout: 5000 }).catch(() => false)) ||
                       (await fileInput.isVisible({ timeout: 3000 }).catch(() => false));
@@ -75,6 +75,19 @@ test.describe("Materials", () => {
       const course = courses.find((item) => item.title === courseTitle);
       expect(course).toBeTruthy();
       createdCourseId = course?.id ?? null;
+
+      const courseDetail = await page.request.get(`/api/courses/${createdCourseId}`);
+      expect(courseDetail.status()).toBe(200);
+      const lessonId = (await courseDetail.json()).course.units[0].lessons[0].id as string;
+
+      // 回到资源页时，附件不再只是孤立文件；应显示它正在服务的课时，
+      // 并可以直接回到对应学习现场。
+      await page.goto("/materials");
+      const courseResourceLink = page.locator('section[aria-label="正在使用的课程"]').getByRole("link", { name: new RegExp(courseTitle) });
+      await expect(courseResourceLink).toHaveAttribute("href", `/courses?course=${createdCourseId}`);
+      const linkedRow = page.getByText(materialName, { exact: true }).locator('xpath=ancestor::div[contains(@class, "workspace-surface")]');
+      const resourceLink = linkedRow.getByRole("link", { name: `${courseTitle} · ${materialName}` });
+      await expect(resourceLink).toHaveAttribute("href", `/courses?lesson=${lessonId}`);
     } finally {
       if (createdCourseId) await page.request.delete(`/api/courses/${createdCourseId}`);
       if (materialId) await page.request.delete(`/api/materials?id=${materialId}`);

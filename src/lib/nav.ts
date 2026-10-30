@@ -47,7 +47,7 @@ export const defaultNavGroups: NavGroup[] = [
     // 计划排最前：Header tab = 组首项 → 指向"计划"（备考规划中心），而非低频的"目标"
     items: [
       { href: '/tasks', label: '计划', icon: '📋', shortLabel: '计划' },
-      { href: '/practice', label: '练习', icon: '✏️', shortLabel: '练习' },
+      { href: '/practice', label: '练习', icon: '✏️', shortLabel: '练习', status: 'beta' },
       { href: '/wrong-questions', label: '错题', icon: '📕', shortLabel: '错题' },
       { href: '/goal', label: '目标', icon: '🎯', shortLabel: '目标' },
     ],
@@ -57,8 +57,8 @@ export const defaultNavGroups: NavGroup[] = [
     label: 'AI',
     icon: '🤖',
     items: [
-      { href: '/chat', label: 'AI 工作区', icon: '💬', shortLabel: 'AI' },
-      { href: '/feedback', label: '周报', icon: '📊', shortLabel: '周报' },
+      { href: '/chat', label: 'AI 工作区', icon: '💬', shortLabel: 'AI', status: 'beta' },
+      { href: '/feedback', label: '周报', icon: '📊', shortLabel: '周报', status: 'beta' },
       { href: '/study-path', label: '学习路径', icon: '🗺️', shortLabel: '路径' },
     ],
   },

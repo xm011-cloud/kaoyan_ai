@@ -94,10 +94,7 @@ function loadDashboardPrimary(userId: string, context: DashboardDateContext) {
 
 type DashboardPrimary = Awaited<ReturnType<typeof loadDashboardPrimary>>
 
-/**
- * 只有今天没有待办、或已完成所有待办时，复习才有资格成为主行动。延后到这个分支
- * 再查，保证正常学习日不会被辅助计数查询拖慢首屏。
- */
+/** 首页行动主线同时需要“新的任务”与“到期复习”：二者共同决定今天先做什么。 */
 function loadDashboardReviewCounts(userId: string, todayEnd: Date) {
   return Promise.all([
     recoverDashboardQueryWithStatus("到期错题数", prisma.wrongQuestion.count({
@@ -110,6 +107,9 @@ function loadDashboardReviewCounts(userId: string, todayEnd: Date) {
 }
 
 async function DashboardHero({ primary, context, userId }: { primary: Promise<DashboardPrimary>; context: DashboardDateContext; userId: string }) {
+  // 与任务、目标并行读取。复习队列不是下方统计卡，而是决定主行动的事实；
+  // 每项查询仍有独立的 5 秒可恢复降级，数据库波动时不会把“读不到”伪装成“没有”。
+  const reviewCounts = loadDashboardReviewCounts(userId, context.todayEnd)
   const [todayTaskQuery, goalQuery, weeklyPlans] = await primary
   const todayTasks = todayTaskQuery.value
   const goal = goalQuery.value
@@ -126,10 +126,7 @@ async function DashboardHero({ primary, context, userId }: { primary: Promise<Da
   const draftWeeklyPlan = weeklyPlans.find((plan) => plan.status === "draft") ?? null
   const projectedWeeklyPlan = activeWeeklyPlan ?? draftWeeklyPlan ?? null
   const nextTodayTask = todayTasks.find((task) => !task.completed) ?? null
-  const needsReviewAction = !todayTaskQuery.degraded && nextTodayTask === null
-  const [dueWrongQuery, dueUnderstandingQuery] = needsReviewAction
-    ? await loadDashboardReviewCounts(userId, context.todayEnd)
-    : [{ value: 0, degraded: false }, { value: 0, degraded: false }]
+  const [dueWrongQuery, dueUnderstandingQuery] = await reviewCounts
   const focusMilestone = nextTodayTask?.milestone ?? null
   const todayCompleted = todayTasks.filter((task) => task.completed).length
   const todayMinutes = todayTasks.reduce((total, task) => total + (task.duration || 0), 0)

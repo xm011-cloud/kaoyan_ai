@@ -148,9 +148,12 @@ export const DEFAULT_NAV_GROUPS: NavGroup[] = [
 ]
 
 export const DEFAULT_WORKSPACE_CARDS = [
-  'stats',
-  'today-tasks',
   'continue-learning',
+]
+
+// 首页默认只服务“现在该做什么”。这些能力仍可在设置中按需加入，
+// 但不再和阶段、本周与今日主行动竞争注意力。
+export const OPTIONAL_WORKSPACE_CARDS = [
   'quick-practice',
   'study-trend',
   'recent-materials',
@@ -230,7 +233,7 @@ export const useUIStore = create<UIState>()(
     }),
     {
       name: 'ui-store',
-      version: 10,
+      version: 11,
       // 保留老存储里已有的偏好，只补新字段，避免升级清空用户的自定义
       migrate: (persistedState) => {
         const p = (persistedState ?? {}) as Partial<UIState>
@@ -245,6 +248,8 @@ export const useUIStore = create<UIState>()(
             items: [...existing.items, ...dg.items.filter((di) => !hrefs.has(di.href))],
           }
         })
+        // v11：首页默认收束为唯一主线。旧版默认卡片中的统计、任务、练习、趋势、
+        // 资料和错题概览不再自动占据首屏；用户主动定制过的辅助卡片仍予以保留。
         // v10：收紧到学习主闭环。旧的院校/图谱/技能入口移入“更多工具”，
         // 排行榜暂停普通使用；只迁移导航偏好，不删除已有功能或用户数据。
         const today = navGroups.find((g) => g.id === 'today')
@@ -257,14 +262,15 @@ export const useUIStore = create<UIState>()(
         const persistedCards = p.workspaceCards && p.workspaceCards.length > 0
           ? p.workspaceCards
           : DEFAULT_WORKSPACE_CARDS
-        const workspaceCards = persistedCards.filter((id) => id !== 'planning-overview')
-        // v8：课程闭环进入首页，老用户获得一次“继续学习”入口，仍可自行隐藏/排序。
-        const workspaceCardsWithLearning = workspaceCards.includes('continue-learning')
-          ? workspaceCards
-          : ['continue-learning', ...workspaceCards]
+        const legacyDefaultCards = ['stats', 'today-tasks', 'continue-learning', 'quick-practice', 'study-trend', 'recent-materials', 'wrong-overview']
+        const usesLegacyDefault = persistedCards.length === legacyDefaultCards.length
+          && legacyDefaultCards.every((id) => persistedCards.includes(id))
+        const workspaceCards = usesLegacyDefault
+          ? DEFAULT_WORKSPACE_CARDS
+          : persistedCards.filter((id) => id !== 'planning-overview' && id !== 'stats' && id !== 'today-tasks')
         return {
           navGroups,
-          workspaceCards: workspaceCardsWithLearning,
+          workspaceCards,
           workspaceSidebarCollapsed: p.workspaceSidebarCollapsed ?? false,
           workspaceFocusMode: false,
           aiWorkspaceOpen: p.aiWorkspaceOpen ?? false,

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
+import { FeatureStatusNotice } from '@/components/ui/feature-status-notice'
 import { ModuleLinks } from '@/components/ui/module-links'
 import { AiWaiting } from '@/components/ai-waiting'
 import { useAiTask } from '@/hooks/use-ai-task'
@@ -296,6 +297,9 @@ export default function FeedbackPage() {
             </div>
           }
         />
+        <FeatureStatusNotice title="AI 周复盘仍在 Beta 阶段">
+          它只基于当前已记录的学习事实提出建议；请先核对内容，再决定是否生成下一周或阶段调整草稿。
+        </FeatureStatusNotice>
 
         {genError && (
           <p className={`text-sm px-4 py-2 rounded ${genError.includes('已存在') ? 'bg-brand/10 text-brand' : 'bg-red-50 text-destructive dark:bg-red-900/30'}`}>

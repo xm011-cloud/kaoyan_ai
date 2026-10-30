@@ -44,6 +44,7 @@ function sourceLabel(lesson: Lesson) {
 
 export default function CoursesPage() {
   const searchParams = useSearchParams();
+  const requestedCourseId = searchParams.get("course");
   const requestedLessonId = searchParams.get("lesson");
   const requestedTaskId = searchParams.get("task");
   const requestedWeek = searchParams.get("week");
@@ -98,10 +99,10 @@ export default function CoursesPage() {
     if (!res.ok) throw new Error(data.error || "加载课程失败");
     const list = data.courses || [];
     setCourses(list);
-    const id = selectId || data.selectedCourseId || selected?.id || list[0]?.id;
+    const id = selectId || data.selectedCourseId || requestedCourseId || selected?.id || list[0]?.id;
     if (id) await loadCourse(id);
     else setSelected(null);
-  }, [loadCourse, requestedLessonId, selected?.id]);
+  }, [loadCourse, requestedCourseId, requestedLessonId, selected?.id]);
 
   useEffect(() => {
     // 初次加载只同步远端课程数据；后续选择课程由显式交互触发。

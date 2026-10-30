@@ -211,6 +211,12 @@ export function WeeklyPlanner({
             <p className="text-xs font-medium text-brand">已定位今天的下一步</p>
             <p className="mt-1 truncate text-sm font-semibold">{focusedTask.title}</p>
             <p className="mt-1 text-xs text-muted-foreground">{focusedTask.completed ? "这项任务已完成；你可以回看记录或继续本周计划。" : `${focusedTask.subject || "未分类"}${focusedTask.duration ? ` · 约 ${focusedTask.duration} 分钟` : ""}`}</p>
+            {!focusedTask.completed && (
+              <div className="mt-3 space-y-1.5 text-xs leading-5 text-muted-foreground">
+                <p><span className="font-medium text-foreground">为什么做：</span>{focusedTask.milestoneTitle ? `推进「${focusedTask.milestoneTitle}」这一里程碑。` : "推进本周计划；暂未关联具体里程碑。"}</p>
+                <p><span className="font-medium text-foreground">做到什么：</span>{focusedTask.description?.trim() || "完成这项学习，并在结束时记录理解、卡点或下一步。"}</p>
+              </div>
+            )}
           </div>
           {!focusedTask.completed && focusedTaskHref && (
             <div className="flex flex-wrap items-center gap-2">

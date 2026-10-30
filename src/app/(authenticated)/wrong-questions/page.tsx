@@ -126,7 +126,7 @@ export default function WrongQuestionsPage() {
   }, [requestedQuestionId]);
 
   // ── Handlers ──
-  const handleReviewed = async (id: string, result: { rating: number; reflection: string; reflectionKind: "error" | "method" }) => {
+  const handleReviewed = async (id: string, result: { rating: number; reflection: string; reflectionKind: "error" | "method"; curriculumNodeIds: string[] }) => {
     if (result.rating < 0) {
       setReviewing(null);
       return;
@@ -141,7 +141,12 @@ export default function WrongQuestionsPage() {
       const response = await fetch("/api/study-notes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ wrongQuestionId: id, kind: result.reflectionKind, content: result.reflection }),
+        body: JSON.stringify({
+          wrongQuestionId: id,
+          kind: result.reflectionKind,
+          content: result.reflection,
+          curriculumNodeIds: result.curriculumNodeIds,
+        }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "复盘记录保存失败");
@@ -251,7 +256,7 @@ export default function WrongQuestionsPage() {
         {(requestedTaskId || requestedMilestoneId) && (
           <div className="rounded-xl border border-brand/25 bg-brand/5 px-4 py-3 text-sm">
             <p className="font-medium text-brand">本次错题复习已连接到当前计划</p>
-            <p className="mt-1 text-xs text-muted-foreground">评分后会把这次复习准确记录到对应任务和里程碑，不会按科目猜测归属。</p>
+            <p className="mt-1 text-xs text-muted-foreground">完成这次复盘后，会把学习证据准确记录到对应任务和里程碑，不会按科目猜测归属。</p>
           </div>
         )}
 
@@ -288,7 +293,7 @@ export default function WrongQuestionsPage() {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="font-medium text-amber-950 dark:text-amber-100">今天有 {questions.length} 道错题需要巩固</p>
-                  <p className="mt-1 text-sm text-amber-900/75 dark:text-amber-100/75">先回忆，再看答案并评分；评分只用来安排下次复习，不代表你已经掌握。</p>
+                  <p className="mt-1 text-sm text-amber-900/75 dark:text-amber-100/75">先回忆，再看答案并记录这次的结果；结果只用来安排下次复习，不代表你已经掌握。</p>
                 </div>
                 <Button className="min-h-11 shrink-0" onClick={() => setReviewing(questions[0])}>开始今日复习</Button>
               </div>

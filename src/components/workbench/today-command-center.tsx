@@ -54,14 +54,14 @@ export function TodayCommandCenter({
   const todayUnavailable = today.unavailable === true
   const hasTasks = !todayUnavailable && today.total > 0
   const isFinished = hasTasks && today.completed === today.total
-  // 计划任务仍是第一优先级；只有今天没有待办、或待办已完成时，才把到期复习
-  // 提升为唯一下一步。这样不会让复习数量淹没一项正在进行的课程/练习。
+  // 到期复习优先于新的学习输入：错因与自己的理解需要在遗忘前被重新提取。
+  // 原计划任务不会被隐藏，而是明确显示为复习后的下一项，避免用户误以为计划被改写。
   const reviewAction = !reviewsUnavailable && dueWrongCount > 0
     ? { kind: 'wrong' as const, count: dueWrongCount, description: `复习 ${dueWrongCount} 道到期错题`, href: '/wrong-questions?tab=due' }
     : !reviewsUnavailable && dueUnderstandingCount > 0
       ? { kind: 'understanding' as const, count: dueUnderstandingCount, description: `回顾 ${dueUnderstandingCount} 条到期理解`, href: '/knowledge?dueToday=true' }
       : null
-  const shouldPrioritizeReview = !todayUnavailable && Boolean(reviewAction) && (!hasTasks || isFinished)
+  const shouldPrioritizeReview = !todayUnavailable && Boolean(reviewAction)
   const nextAction = todayUnavailable
     ? '暂时无法读取今天的任务，请重新加载后再开始'
     : shouldPrioritizeReview
@@ -131,6 +131,14 @@ export function TodayCommandCenter({
                 </Link>
               )}
             </div>
+            {shouldPrioritizeReview && today.nextTask && !isFinished && (
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                完成复习后，继续{' '}
+                <Link href={taskHref} className="font-medium text-foreground underline decoration-border underline-offset-4 transition-colors hover:text-brand hover:decoration-brand">
+                  {today.nextTask.title}
+                </Link>
+              </p>
+            )}
           </div>
 
           <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground">

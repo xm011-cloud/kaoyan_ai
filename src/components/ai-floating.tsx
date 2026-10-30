@@ -603,8 +603,8 @@ export function AiWorkspace() {
         {/* 头部 */}
         <div className="shrink-0 flex min-w-0 items-center justify-between gap-2 border-b border-border/50 px-4 py-3 lg:min-w-[400px]">
           <div>
-            <h2 className="text-sm font-semibold">AI 学习管家</h2>
-            <p className="text-[10px] text-muted-foreground">规划、复盘与调整；帮你明确下一步</p>
+            <div className="flex items-center gap-1.5"><h2 className="text-sm font-semibold">AI 学习管家</h2><span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">Beta</span></div>
+            <p className="text-[10px] text-muted-foreground">规划、复盘与调整；建议需要你确认</p>
           </div>
           <div className="flex items-center gap-1">
             {runningSkill && (

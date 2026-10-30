@@ -26,7 +26,7 @@ export async function GET(
                   where: { userId: user!.id },
                   orderBy: { startedAt: "desc" },
                   take: 1,
-                  select: { id: true, status: true, startedAt: true, endedAt: true, selfAssessment: true },
+                  select: { id: true, status: true, startedAt: true, endedAt: true, selfAssessment: true, taskId: true },
                 },
                 _count: { select: { notes: true } },
               },

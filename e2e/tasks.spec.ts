@@ -219,6 +219,35 @@ test.describe("Tasks", () => {
     }
   });
 
+  test("从首页定位到未绑定课时的任务时，会解释目的、完成标准和可选行动", async ({ page }) => {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const localDate = (dt: Date) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() + (today.getDay() === 0 ? -6 : 1 - today.getDay()));
+    const week = localDate(weekStart);
+    const title = `E2E 聚焦任务说明 ${Date.now()}`;
+    const description = "先写出 TCP 三次握手的状态变化，再完成两道判断题。";
+    const created = await page.request.post("/api/tasks", {
+      data: { title, description, date: localDate(today), weekStartDate: week, subject: "408计算机" },
+    });
+    expect(created.status()).toBe(200);
+    const { task } = await created.json();
+
+    try {
+      await page.goto(`/tasks?week=${week}&task=${task.id}`);
+      const focus = page.getByTestId("focused-task-entry");
+      await expect(focus).toBeVisible({ timeout: 30_000 });
+      await expect(focus.getByText(/为什么做：推进本周计划/)).toBeVisible();
+      await expect(focus.getByText(new RegExp(`做到什么：${description}`))).toBeVisible();
+      await expect(focus.getByRole("link", { name: "开始练习" })).toHaveAttribute("href", `/practice?task=${task.id}&subject=${encodeURIComponent("408计算机")}`);
+      await expect(focus.getByRole("link", { name: "添加课程或资料" })).toHaveAttribute("href", `/courses?create=1&task=${task.id}&week=${week}`);
+    } finally {
+      await page.request.delete(`/api/tasks/${task.id}`);
+    }
+  });
+
   test("编辑任务时会按已关联节点打开正确的课程知识路径", async ({ page }) => {
     const pad = (n: number) => String(n).padStart(2, "0");
     const localDate = (dt: Date) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;

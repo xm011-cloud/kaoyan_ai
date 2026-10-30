@@ -24,6 +24,17 @@ test.describe("Navigation & Module Linking", () => {
     }
   });
 
+  test("实验性 AI 能力在导航中明确标注 Beta", async ({ page }) => {
+    await page.goto("/dashboard");
+    const workspaceNav = page.locator('aside').filter({ has: page.locator('a[href="/checkin"]') }).first();
+    await expect(workspaceNav).toBeVisible({ timeout: 10000 });
+
+    for (const href of ["/practice", "/chat", "/feedback", "/skills", "/knowledge-graph", "/admission"]) {
+      const link = workspaceNav.locator(`a[href="${href}"]`).first();
+      if (await link.count()) await expect(link.getByText("Beta", { exact: true })).toBeVisible();
+    }
+  });
+
   test("dashboard quick-entry links navigate correctly", async ({ page }) => {
     await page.goto("/dashboard");
     await page.waitForTimeout(2000);

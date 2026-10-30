@@ -12,9 +12,32 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const brief = searchParams.get("brief");
 
-    const select = brief
-      ? { id: true, name: true, type: true, size: true, url: true, createdAt: true }
-      : { id: true, name: true, type: true, size: true, url: true, content: true, createdAt: true };
+    // 资料不是孤立的文件：把它已经接入的课程课时和任务一起投影出来。
+    // 这是既有 Course / CourseLesson / Task 关系的只读聚合，不新增资源表或迁移历史数据。
+    const select = {
+      id: true,
+      name: true,
+      type: true,
+      size: true,
+      url: true,
+      createdAt: true,
+      ...(brief ? {} : { content: true }),
+      courseLessons: {
+        where: { unit: { course: { userId: user!.id } } },
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          unit: { select: { course: { select: { id: true, title: true, subject: true } } } },
+          tasks: {
+            where: { userId: user!.id },
+            orderBy: [{ completed: "asc" as const }, { date: "asc" as const }],
+            select: { id: true, title: true, weekStartDate: true },
+            take: 1,
+          },
+        },
+      },
+    };
 
     const materials = await prisma.material.findMany({
       where: { userId: user!.id },
@@ -22,7 +45,26 @@ export async function GET(request: NextRequest) {
       select,
     });
 
-    return jsonNoStore({ materials });
+    return jsonNoStore({
+      materials: materials.map(({ courseLessons, ...material }) => ({
+        ...material,
+        resourceLinks: courseLessons.map((lesson) => ({
+          lessonId: lesson.id,
+          lessonTitle: lesson.title,
+          lessonStatus: lesson.status,
+          courseId: lesson.unit.course.id,
+          courseTitle: lesson.unit.course.title,
+          subject: lesson.unit.course.subject,
+          task: lesson.tasks[0]
+            ? {
+                id: lesson.tasks[0].id,
+                title: lesson.tasks[0].title,
+                weekStartDate: lesson.tasks[0].weekStartDate,
+              }
+            : null,
+        })),
+      })),
+    });
   } catch (err) {
     return handleApiError(err, "获取资料列表");
   }

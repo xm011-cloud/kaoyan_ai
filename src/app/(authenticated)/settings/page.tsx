@@ -7,7 +7,7 @@ import { toast } from '@/stores/toast-store'
 import { confirmDialog } from '@/stores/confirm-store'
 import { PageHeader } from '@/components/ui/page-header'
 import {
-  useUIStore, DEFAULT_NAV_GROUPS, DEFAULT_WORKSPACE_CARDS, DEFAULT_PRACTICE_DEFAULTS
+  useUIStore, DEFAULT_NAV_GROUPS, DEFAULT_WORKSPACE_CARDS, OPTIONAL_WORKSPACE_CARDS, DEFAULT_PRACTICE_DEFAULTS
 } from '@/stores/ui-store'
 import { WORKBENCH_CARD_LABELS } from '@/components/workbench/workbench-grid'
 import { defaultNavGroups } from '@/lib/nav'
@@ -467,11 +467,11 @@ export default function SettingsPage() {
           {/* Workspace cards */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold">工作台卡片</h3>
+              <div><h3 className="text-sm font-semibold">首页辅助卡片</h3><p className="mt-1 text-xs text-muted-foreground">首页默认只显示今天的主线；需要时再把辅助信息放回来。</p></div>
               <button onClick={resetWorkspaceToDefaults} className="text-xs text-muted-foreground hover:text-foreground">恢复默认</button>
             </div>
             <div className="flex flex-wrap gap-2">
-              {DEFAULT_WORKSPACE_CARDS.map(cid => {
+              {[...DEFAULT_WORKSPACE_CARDS, ...OPTIONAL_WORKSPACE_CARDS].map(cid => {
                 const vis = workspaceCards.includes(cid)
                 return (
                   <button key={cid} onClick={() => setWorkspaceCards(vis ? workspaceCards.filter(c => c !== cid) : [...workspaceCards, cid])}

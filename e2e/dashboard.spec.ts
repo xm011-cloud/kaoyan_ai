@@ -5,7 +5,7 @@ test.describe("Dashboard", () => {
     await page.goto("/dashboard");
   });
 
-  test("stats cards are visible", async ({ page }) => {
+  test("首页首先给出一条可执行的学习主线", async ({ page }) => {
     // 首页主叙事已改为“现在，只做下一步”，不再依赖已废弃的“学习概览”标题。
     await expect(page.getByText("现在，只做下一步")).toBeVisible({ timeout: 10000 });
     // 测试库刚清空时，尚未创建目标也有一个合法的首步入口。
@@ -21,6 +21,13 @@ test.describe("Dashboard", () => {
     for (const href of links) {
       await expect(page.locator(`a[href="${href}"]`).first()).toBeVisible({ timeout: 5000 });
     }
+  });
+
+  test("默认首页不重复铺开今日任务和学习统计", async ({ page }) => {
+    // 任务数量、阶段和本周方向已在顶部的命令中心说明；
+    // 默认首页不应再渲染旧的“今日任务”与统计卡片来争夺注意力。
+    await expect(page.getByRole("link", { name: "📋 今日任务" })).toHaveCount(0);
+    await expect(page.getByText("本周学习", { exact: true })).toHaveCount(0);
   });
 
   test("today tasks section is visible", async ({ page }) => {
@@ -104,7 +111,7 @@ test.describe("Dashboard", () => {
     }
   });
 
-  test("当天没有待办时，到期错题会成为首页的下一步", async ({ page }) => {
+  test("没有今日任务时，到期错题会成为首页的下一步", async ({ page }) => {
     const pad = (n: number) => String(n).padStart(2, "0");
     const localDate = (date: Date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
     const today = new Date();
@@ -153,6 +160,61 @@ test.describe("Dashboard", () => {
     }
   });
 
+  test("有今日任务时，到期错题仍优先，原任务作为复习后的下一项保留", async ({ page }) => {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const localDate = (date: Date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() + (today.getDay() === 0 ? -6 : 1 - today.getDay()));
+    const suffix = Date.now();
+    const taskTitle = `E2E 复习后任务 ${suffix}`;
+    const taskResponse = await page.request.post("/api/tasks", {
+      data: { title: taskTitle, date: localDate(today), weekStartDate: localDate(weekStart) },
+    });
+    expect(taskResponse.status()).toBe(200);
+    const task = (await taskResponse.json()).task as { id: string };
+    const created = await page.request.post("/api/wrong-questions", {
+      data: { subject: "408计算机", question: `E2E 任务与到期错题 ${suffix}`, answer: "用于验证优先级", source: "manual" },
+    });
+    expect(created.status()).toBe(200);
+    const questionId = ((await created.json()).question as { id: string }).id;
+    const existingResponse = await page.request.get(`/api/tasks?date=${localDate(today)}`);
+    expect(existingResponse.status()).toBe(200);
+    const existingTasks = (await existingResponse.json()).tasks as Array<{ id: string; completed: boolean; date: string }>;
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const movedTasks: Array<{ id: string; date: string }> = [];
+
+    try {
+      // 共享测试账号可能已有今日任务；暂时移开它们，保证“复习后下一项”的
+      // 文案指向本用例创建的真实任务，而不是依赖测试执行顺序。
+      for (const existingTask of existingTasks.filter((item) => !item.completed && item.id !== task.id)) {
+        const moved = await page.request.patch(`/api/tasks/${existingTask.id}`, { data: { date: localDate(tomorrow) } });
+        expect(moved.status()).toBe(200);
+        movedTasks.push(existingTask);
+      }
+      const due = await page.request.patch(`/api/wrong-questions/${questionId}`, {
+        data: { nextReviewDate: today.toISOString() },
+      });
+      expect(due.status()).toBe(200);
+      await page.goto("/dashboard");
+
+      const commandCenter = page.locator("section").filter({ hasText: "现在，只做下一步" }).first();
+      await expect(commandCenter.getByText(/复习 \d+ 道到期错题/)).toBeVisible({ timeout: 30_000 });
+      const reviewLink = commandCenter.getByRole("link", { name: "开始复习" });
+      await expect(reviewLink).toHaveAttribute("href", "/wrong-questions?tab=due");
+      const followUp = commandCenter.getByRole("link", { name: taskTitle });
+      await expect(followUp).toHaveAttribute("href", `/tasks?week=${localDate(weekStart)}&task=${task.id}`);
+    } finally {
+      await page.request.delete(`/api/wrong-questions/${questionId}`);
+      await page.request.delete(`/api/tasks/${task.id}`);
+      for (const movedTask of movedTasks) {
+        await page.request.patch(`/api/tasks/${movedTask.id}`, { data: { date: movedTask.date } });
+      }
+    }
+  });
+
   test("首页到期错题数字不受列表 10 条上限影响", async ({ page }) => {
     // 该用例需要创建并逐条标记 11 道错题，冷测试库下应给予完整写入预算。
     test.setTimeout(120_000);
@@ -173,8 +235,7 @@ test.describe("Dashboard", () => {
     const dueDate = today;
 
     try {
-      // 到期复习只会在当天没有未完成任务时成为首页主行动；先隔离共享账号的
-      // 既有任务，才能验证精确计数，而不是依赖用例执行顺序。
+      // 隔离共享账号的既有任务，避免精确计数依赖其他用例的执行顺序。
       for (const task of existingTasks.filter((item) => !item.completed)) {
         const moved = await page.request.patch(`/api/tasks/${task.id}`, { data: { date: localDate(tomorrow) } });
         expect(moved.status()).toBe(200);

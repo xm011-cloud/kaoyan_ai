@@ -17,6 +17,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { AiWaiting } from "@/components/ai-waiting";
 import { useAiTask } from "@/hooks/use-ai-task";
 import { useStudyContext } from "@/components/study-context";
+import { FeatureStatusNotice } from "@/components/ui/feature-status-notice";
 
 // ── sessionStorage helpers for answers ──
 const ANSWERS_KEY_PREFIX = "practice-answers-";
@@ -387,6 +388,9 @@ export default function PracticePage() {
       <div className="workspace-page">
         <div className="mx-auto max-w-4xl space-y-7">
           <PageHeader title="练习" subtitle="从一次短练开始，完成后把不稳的知识点带进错题复习。" />
+          <FeatureStatusNotice title="AI 出题仍在 Beta 阶段">
+            题目用于补充练习，不替代课程、教材或真题。生成可能较慢或失败；重要结论请自行核对，不稳的题可以收录进错题复盘。
+          </FeatureStatusNotice>
           {(requestedTaskId || requestedMilestoneId) && (
             <div className="rounded-xl border border-brand/25 bg-brand/5 px-4 py-3 text-sm">
               <p className="font-medium text-brand">{activeLinkedTask ? `正在为「${activeLinkedTask.title}」练习` : "这次练习已连接到当前计划"}</p>

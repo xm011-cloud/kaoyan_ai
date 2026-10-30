@@ -20,11 +20,29 @@ interface Material {
   content?: string | null
   aiReady?: boolean
   createdAt: string
+  resourceLinks?: Array<{
+    lessonId: string
+    lessonTitle: string
+    lessonStatus: string
+    courseId: string
+    courseTitle: string
+    subject?: string | null
+    task?: { id: string; title: string; weekStartDate?: string | null } | null
+  }>
+}
+
+interface CourseResource {
+  id: string
+  title: string
+  subject?: string | null
+  status: string
+  lessonCount: number
 }
 
 export default function MaterialsPage() {
   const { setContext } = useStudyContext()
   const [materials, setMaterials] = useState<Material[]>([])
+  const [courses, setCourses] = useState<CourseResource[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
@@ -48,9 +66,20 @@ export default function MaterialsPage() {
     }
   }, [])
 
+  const loadCourses = useCallback(async () => {
+    try {
+      const res = await fetch('/api/courses', { cache: 'no-store' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || '课程加载失败')
+      setCourses(data.courses || [])
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : '学习资源加载失败，请稍后重试')
+    }
+  }, [])
+
   useEffect(() => {
-    loadMaterials()
-  }, [loadMaterials])
+    void Promise.all([loadMaterials(), loadCourses()])
+  }, [loadCourses, loadMaterials])
 
   useEffect(() => {
     if (!viewing) {
@@ -154,13 +183,21 @@ export default function MaterialsPage() {
 
   const aiReadiness = (material: Material) => material.aiReady ?? getMaterialReadiness(material.content) === 'ready'
   const hasOriginalFile = (material: Material) => Boolean(material.url) && !material.url.startsWith('local:')
+  const resourceHref = (link: NonNullable<Material['resourceLinks']>[number]) => {
+    const params = new URLSearchParams({ lesson: link.lessonId })
+    if (link.task) {
+      params.set('task', link.task.id)
+      if (link.task.weekStartDate) params.set('week', new Date(link.task.weekStartDate).toISOString().slice(0, 10))
+    }
+    return `/courses?${params.toString()}`
+  }
 
   return (
     <div className="workspace-page">
       <div className="mx-auto max-w-4xl space-y-7">
         <PageHeader
-          title="学习资料与附件"
-          subtitle="课程链接请放进课程学习；这里保存讲义、题单和附件。资料是否可被 AI 引用会明确标注，不影响你自己查看和记录。"
+          title="学习资源"
+          subtitle="在这里管理讲义、题单和附件；它们接入课程后会显示服务的课时和任务。资料是否可被 AI 引用会明确标注，不影响你自己查看和记录。"
           action={
             <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:flex-nowrap">
               <Link href="/courses?create=1" className={cn(buttonVariants({ variant: 'outline' }), 'min-h-11 flex-1 sm:flex-none')}>
@@ -192,19 +229,44 @@ export default function MaterialsPage() {
         {loadError && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">
             <span>{loadError}</span>
-            <Button variant="outline" size="sm" onClick={() => { setLoadError(''); setLoading(true); void loadMaterials() }}>重新加载</Button>
+            <Button variant="outline" size="sm" onClick={() => { setLoadError(''); setLoading(true); void Promise.all([loadMaterials(), loadCourses()]) }}>重新加载</Button>
           </div>
         )}
 
-        {/* Material list */}
+        {courses.length > 0 && (
+          <section aria-label="正在使用的课程" className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold">正在使用的课程</h2>
+                <p className="mt-1 text-sm text-muted-foreground">从这里回到课程学习桌，继续课时、笔记和学习记录。</p>
+              </div>
+              <Link href="/courses" className="shrink-0 text-sm font-medium text-brand hover:underline">全部课程 →</Link>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {courses.slice(0, 4).map((course) => (
+                <Link key={course.id} href={`/courses?course=${encodeURIComponent(course.id)}`} className="workspace-surface block p-4 transition-shadow hover:shadow-md">
+                  <p className="text-xs font-medium text-brand">{course.subject || '课程学习'}</p>
+                  <p className="mt-1 truncate font-medium">{course.title}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{course.lessonCount} 节课 · {course.status === 'completed' ? '已完成' : course.status === 'paused' ? '已暂停' : '继续学习'} →</p>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* 附件资源 */}
         <section className="space-y-3">
+          <div>
+            <h2 className="text-base font-semibold">附件与讲义</h2>
+            <p className="mt-1 text-sm text-muted-foreground">上传后可直接打开、查看摘录，或接入某个课程课时。</p>
+          </div>
           {loading ? (
             <div className="text-center py-8 text-muted-foreground">加载中...</div>
           ) : materials.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <div className="text-4xl mb-3">📚</div>
-              <p className="font-medium text-foreground">先放进你正在使用的学习资源</p>
-              <p className="mt-1 text-sm">课程链接进入“课程学习”；讲义、题单和图片可以作为附件上传。上传并不等于 AI 一定能读取，但你仍可把它作为学习凭据和笔记来源。</p>
+              <p className="font-medium text-foreground">还没有附件或讲义</p>
+              <p className="mt-1 text-sm">讲义、题单和图片可以作为附件上传。上传并不等于 AI 一定能读取，但你仍可把它作为学习凭据和笔记来源。</p>
               <div className="mt-4 flex flex-wrap justify-center gap-2">
                 <Link href="/courses?create=1" className={buttonVariants({ variant: 'outline' })}>添加课程链接</Link>
                 <label className={cn(buttonVariants({ variant: 'default' }), 'relative cursor-pointer overflow-hidden')}>
@@ -228,6 +290,19 @@ export default function MaterialsPage() {
                       ? <span className="ml-2 text-success">· AI 可引用</span>
                       : <span className="ml-2 text-warning">· 仅作学习附件</span>}
                   </p>
+                  {material.resourceLinks?.length ? (
+                    <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                      <span className="text-muted-foreground">正在用于</span>
+                      {material.resourceLinks.slice(0, 2).map((link) => (
+                        <Link key={link.lessonId} href={resourceHref(link)} className="font-medium text-brand hover:underline">
+                          {link.courseTitle} · {link.lessonTitle}{link.task ? ` · ${link.task.title}` : ''}
+                        </Link>
+                      ))}
+                      {material.resourceLinks.length > 2 && <span className="text-muted-foreground">等 {material.resourceLinks.length} 个课时</span>}
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-xs text-muted-foreground">还没接入课程或任务</p>
+                  )}
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
                   {hasOriginalFile(material) && (
@@ -244,7 +319,7 @@ export default function MaterialsPage() {
                     {aiReadiness(material) ? '查看摘录' : '查看说明'}
                   </Button>
                   <Link href={`/courses?create=1&material=${encodeURIComponent(material.id)}`} className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'min-h-10')}>
-                    放进课程
+                    {material.resourceLinks?.length ? '再接入课程' : '放进课程'}
                   </Link>
                 </div>
                 <button
